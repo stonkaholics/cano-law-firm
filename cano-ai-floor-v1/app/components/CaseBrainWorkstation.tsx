@@ -78,6 +78,7 @@ export type CaseBrainResult = {
 };
 
 export type StoredCaseMatter = {
+  databaseId?: string;
   matterId: string;
   mondayItemId?: string;
   caseBrainStatus?: string;
@@ -87,6 +88,13 @@ export type StoredCaseMatter = {
     found?: boolean;
     fieldsImported?: number;
   };
+  routing?: {
+    target: string;
+    routedBy?: string;
+    routedAt?: string;
+    assignmentId?: string | null;
+    status?: string;
+  } | null;
   caseBrain: CaseBrainResult;
 };
 

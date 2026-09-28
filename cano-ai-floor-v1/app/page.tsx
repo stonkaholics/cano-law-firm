@@ -293,40 +293,51 @@ export default function Home() {
   const [santiagoInitialTab, setSantiagoInitialTab] =
     useState<"intake" | "dispatch" | "activity">("intake");
 
-  useEffect(() => {
+  async function loadSharedState() {
     try {
-      const raw = localStorage.getItem("cano_active_case_brain_matter");
-      if (raw) setCaseBrainMatter(JSON.parse(raw));
+      const res = await fetch("/api/matters/active", {
+        cache: "no-store",
+      });
 
-      const routeRaw = localStorage.getItem("cano_santiago_routing_v1");
-      if (routeRaw) setRoutingState(JSON.parse(routeRaw));
-    } catch {}
+      const data = await res.json();
 
-    const caseBrainHandler = (event: Event) => {
-      const custom = event as CustomEvent<StoredCaseMatter>;
-      if (custom.detail) setCaseBrainMatter(custom.detail);
-    };
+      if (!res.ok || data?.ok === false) {
+        throw new Error(
+          data?.error || "Unable to load shared Cano AI state."
+        );
+      }
 
-    const routingHandler = (event: Event) => {
-      const custom = event as CustomEvent<RoutingState>;
-      if (custom.detail) setRoutingState(custom.detail);
-    };
+      setCaseBrainMatter(data.matter || null);
 
-    const storageHandler = () => {
-      try {
-        const routeRaw = localStorage.getItem("cano_santiago_routing_v1");
-        setRoutingState(routeRaw ? JSON.parse(routeRaw) : null);
-      } catch {}
-    };
+      if (data.matter?.routing) {
+        setRoutingState({
+          matterId: data.matter.matterId,
+          target: data.matter.routing.target,
+          routedAt: data.matter.routing.routedAt,
+          routedBy: data.matter.routing.routedBy,
+        });
+      } else {
+        setRoutingState(null);
+      }
+    } catch {
+      // Keep the UI available even if the shared state request fails.
+    }
+  }
 
-    window.addEventListener("cano-casebrain-updated", caseBrainHandler);
-    window.addEventListener("cano-routing-updated", routingHandler);
-    window.addEventListener("focus", storageHandler);
+  useEffect(() => {
+    loadSharedState();
+
+    const interval = window.setInterval(
+      loadSharedState,
+      15000
+    );
+
+    const focusHandler = () => loadSharedState();
+    window.addEventListener("focus", focusHandler);
 
     return () => {
-      window.removeEventListener("cano-casebrain-updated", caseBrainHandler);
-      window.removeEventListener("cano-routing-updated", routingHandler);
-      window.removeEventListener("focus", storageHandler);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", focusHandler);
     };
   }, []);
 
@@ -379,8 +390,35 @@ export default function Home() {
 
   function handleCaseBrainReady(matter: StoredCaseMatter) {
     setCaseBrainMatter(matter);
+
+    if (matter.routing) {
+      setRoutingState({
+        matterId: matter.matterId,
+        target: matter.routing.target,
+        routedAt: matter.routing.routedAt || "",
+        routedBy: matter.routing.routedBy || "Santiago",
+      });
+    } else {
+      setRoutingState(null);
+    }
+
     setSantiagoOpen(false);
     setCaseBrainOpen(true);
+  }
+
+  function handleMatterUpdated(matter: StoredCaseMatter) {
+    setCaseBrainMatter(matter);
+
+    if (matter.routing) {
+      setRoutingState({
+        matterId: matter.matterId,
+        target: matter.routing.target,
+        routedAt: matter.routing.routedAt || "",
+        routedBy: matter.routing.routedBy || "Santiago",
+      });
+    } else {
+      setRoutingState(null);
+    }
   }
 
 
@@ -416,28 +454,27 @@ export default function Home() {
         );
       }
 
-      const refreshed: StoredCaseMatter = {
-        matterId: String(data.matterId || caseBrainMatter.matterId),
-        mondayItemId: String(data.mondayItemId || mondayItemId),
-        caseBrainStatus: data.caseBrainStatus || "review_ready",
-        message: data.message || "Case Brain analysis refreshed.",
-        monday: data.monday,
-        caseBrain: data.caseBrain,
-        savedAt: new Date().toISOString(),
-      };
+      const refreshed: StoredCaseMatter =
+        data.storedMatter || {
+          databaseId: data.databaseId,
+          matterId: String(
+            data.matterId || caseBrainMatter.matterId
+          ),
+          mondayItemId: String(
+            data.mondayItemId || mondayItemId
+          ),
+          caseBrainStatus:
+            data.caseBrainStatus || "review_ready",
+          message:
+            data.message || "Case Brain analysis refreshed.",
+          monday: data.monday,
+          caseBrain: data.caseBrain,
+          savedAt:
+            data.savedAt || new Date().toISOString(),
+          routing: caseBrainMatter.routing || null,
+        };
 
-      setCaseBrainMatter(refreshed);
-
-      try {
-        localStorage.setItem(
-          "cano_active_case_brain_matter",
-          JSON.stringify(refreshed)
-        );
-      } catch {}
-
-      window.dispatchEvent(
-        new CustomEvent("cano-casebrain-updated", { detail: refreshed })
-      );
+      handleMatterUpdated(refreshed);
 
       setSelectedId(null);
       if (openWhenDone) setCaseBrainOpen(true);
@@ -702,6 +739,7 @@ export default function Home() {
           onClose={() => setSantiagoOpen(false)}
           onCaseBrainReady={handleCaseBrainReady}
           activeMatter={caseBrainMatter}
+          onMatterUpdated={handleMatterUpdated}
           onOpenCaseBrain={() => {
             setSantiagoOpen(false);
             setCaseBrainOpen(true);

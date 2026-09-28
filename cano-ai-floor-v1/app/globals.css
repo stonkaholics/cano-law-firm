@@ -856,3 +856,12 @@ button { font: inherit; }
     text-align: left;
   }
 }
+
+
+/* Supabase shared-state pass */
+.shared-state-note {
+  color: #64d7a0;
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
