@@ -14,6 +14,15 @@ import {
   MessageSquareMore,
   Send,
   Brain,
+  Route,
+  History,
+  Scale,
+  Landmark,
+  Search as SearchIcon,
+  Files as FilesIcon,
+  Clock3,
+  UserCheck,
+  ArrowRight,
 } from "lucide-react";
 import type { StoredCaseMatter } from "./CaseBrainWorkstation";
 
@@ -53,14 +62,34 @@ type StartResult = {
   message?: string;
 };
 
+type SantiagoActivity = {
+  id: string;
+  type:
+    | "matter_selected"
+    | "case_brain_started"
+    | "case_brain_completed"
+    | "case_brain_refreshed"
+    | "routing_selected";
+  title: string;
+  detail?: string;
+  timestamp: string;
+  matterId?: string;
+};
+
+const ACTIVITY_KEY = "cano_santiago_activity_v1";
+
 export default function SantiagoWorkstation({
   initialTab = "intake",
   onClose,
   onCaseBrainReady,
+  activeMatter,
+  onOpenCaseBrain,
 }: {
   initialTab?: "intake" | "dispatch" | "activity";
   onClose: () => void;
   onCaseBrainReady?: (matter: StoredCaseMatter) => void;
+  activeMatter?: StoredCaseMatter | null;
+  onOpenCaseBrain?: () => void;
 }) {
   const [tab, setTab] = useState<"intake" | "dispatch" | "activity">(initialTab);
   const [query, setQuery] = useState("");
@@ -70,11 +99,62 @@ export default function SantiagoWorkstation({
   const [starting, setStarting] = useState(false);
   const [result, setResult] = useState<StartResult | null>(null);
   const [error, setError] = useState("");
+  const [activity, setActivity] = useState<SantiagoActivity[]>([]);
 
   const selected = useMemo(
     () => matters.find((m) => m.id === selectedId) ?? null,
     [matters, selectedId]
   );
+
+  function loadActivity() {
+    try {
+      const raw = localStorage.getItem(ACTIVITY_KEY);
+      setActivity(raw ? JSON.parse(raw) : []);
+    } catch {
+      setActivity([]);
+    }
+  }
+
+  function addActivity(entry: Omit<SantiagoActivity, "id" | "timestamp">) {
+    const next: SantiagoActivity = {
+      ...entry,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      timestamp: new Date().toISOString(),
+    };
+
+    setActivity((current) => {
+      const updated = [next, ...current].slice(0, 100);
+      try {
+        localStorage.setItem(ACTIVITY_KEY, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  }
+
+  function routeLabel(value?: string) {
+    const map: Record<string, string> = {
+      habeas: "Elena · Habeas",
+      bond: "Mateo · Bond",
+      research: "Lex · Research",
+      documents: "Docket · Documents",
+      timeline: "Chronos · Timeline",
+      attorney_review: "Attorney Review",
+      unknown: "Unassigned",
+    };
+    return map[value || "unknown"] || value || "Unassigned";
+  }
+
+  function logRoute(target: string) {
+    if (!activeMatter) return;
+
+    addActivity({
+      type: "routing_selected",
+      title: `Routing selected: ${target}`,
+      detail:
+        "V1 records the routing decision locally. The specialist backend will be wired when that agent is built.",
+      matterId: activeMatter.matterId,
+    });
+  }
 
   async function searchMatters(nextQuery = query) {
     setLoading(true);
@@ -110,6 +190,13 @@ export default function SantiagoWorkstation({
     setStarting(true);
     setResult(null);
     setError("");
+
+    addActivity({
+      type: "case_brain_started",
+      title: `Case Brain started: ${selected.name}`,
+      detail: `Monday item ${selected.mondayItemId || selected.id}`,
+      matterId: selected.mondayItemId || selected.id,
+    });
 
     try {
       const res = await fetch("/api/santiago/start", {
@@ -151,6 +238,15 @@ export default function SantiagoWorkstation({
           new CustomEvent("cano-casebrain-updated", { detail: stored })
         );
 
+        addActivity({
+          type: "case_brain_completed",
+          title: `Case Brain review ready: ${selected.name}`,
+          detail: `Recommended next route: ${routeLabel(
+            stored.caseBrain?.routing?.recommended_specialist
+          )}`,
+          matterId: stored.matterId,
+        });
+
         onCaseBrainReady?.(stored);
       }
     } catch (err) {
@@ -168,6 +264,7 @@ export default function SantiagoWorkstation({
 
   useEffect(() => {
     searchMatters("");
+    loadActivity();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -256,6 +353,12 @@ export default function SantiagoWorkstation({
                     onClick={() => {
                       setSelectedId(matter.id);
                       setResult(null);
+                      addActivity({
+                        type: "matter_selected",
+                        title: `Selected matter: ${matter.name}`,
+                        detail: `Monday item ${matter.mondayItemId || matter.id}`,
+                        matterId: matter.mondayItemId || matter.id,
+                      });
                     }}
                   >
                     <div>
@@ -384,28 +487,257 @@ export default function SantiagoWorkstation({
       )}
 
       {tab === "dispatch" && (
-        <div className="ws-placeholder-tab">
-          <Send size={32} />
-          <h3>Dispatch Center</h3>
-          <p>
-            Santiago will use this area to route Case Brain matters to Elena,
-            Mateo, Lex, Docket, Chronos, Veritas, and Avery.
-          </p>
+        <div className="santiago-secondary-shell">
+          <section className="dispatch-hero">
+            <div>
+              <span className="ws-eyebrow">DISPATCH CENTER</span>
+              <h3>Route the active matter</h3>
+              <p>
+                Case Brain recommends the next step. Santiago keeps the human in
+                control of which specialist receives the matter.
+              </p>
+            </div>
+
+            <div className="dispatch-route-chip">
+              <Route size={17} />
+              {routeLabel(activeMatter?.caseBrain?.routing?.recommended_specialist)}
+            </div>
+          </section>
+
+          {!activeMatter ? (
+            <div className="secondary-empty">
+              <Send size={30} />
+              <h3>No active Case Brain matter</h3>
+              <p>
+                Use Matter Intake to assign a Monday matter first. Once Case Brain
+                finishes, routing options will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="dispatch-grid">
+              <section className="dispatch-matter-card">
+                <div className="dispatch-matter-head">
+                  <div>
+                    <span>ACTIVE MATTER</span>
+                    <h3>
+                      {String(
+                        activeMatter.caseBrain?.people?.detainee?.name ||
+                        activeMatter.caseBrain?.people?.detainee?.full_name ||
+                        `Matter ${activeMatter.matterId}`
+                      )}
+                    </h3>
+                  </div>
+
+                  <button className="mini-gold-btn" onClick={onOpenCaseBrain}>
+                    Open Case Brain
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+
+                <div className="dispatch-matter-stats">
+                  <DispatchStat
+                    label="Status"
+                    value={activeMatter.caseBrainStatus?.replaceAll("_", " ") || "review ready"}
+                  />
+                  <DispatchStat
+                    label="Practice Area"
+                    value={activeMatter.caseBrain?.matter?.practice_area || "—"}
+                  />
+                  <DispatchStat
+                    label="Missing Items"
+                    value={String(activeMatter.caseBrain?.missing_information?.length || 0)}
+                  />
+                  <DispatchStat
+                    label="Contradictions"
+                    value={String(activeMatter.caseBrain?.contradictions?.length || 0)}
+                  />
+                </div>
+
+                <div className="dispatch-summary">
+                  <span>CASE BRAIN SUMMARY</span>
+                  <p>
+                    {activeMatter.caseBrain?.summary?.brief ||
+                      "Case Brain summary unavailable."}
+                  </p>
+                </div>
+
+                <div className="dispatch-recommendation">
+                  <div>
+                    <span>RECOMMENDED NEXT STEP</span>
+                    <strong>
+                      {routeLabel(activeMatter.caseBrain?.routing?.recommended_specialist)}
+                    </strong>
+                  </div>
+                  <p>
+                    {activeMatter.caseBrain?.routing?.reason ||
+                      "Case Brain has not returned a routing reason."}
+                  </p>
+                </div>
+              </section>
+
+              <section className="route-panel">
+                <div className="route-panel-head">
+                  <span className="ws-eyebrow">AVAILABLE ROUTES</span>
+                  <small>
+                    V1 records the decision locally; specialist workflows are next.
+                  </small>
+                </div>
+
+                <div className="route-grid">
+                  <RouteButton
+                    icon={<Scale size={18} />}
+                    title="Elena"
+                    subtitle="Habeas"
+                    recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "habeas"}
+                    onClick={() => logRoute("Elena · Habeas")}
+                  />
+                  <RouteButton
+                    icon={<Landmark size={18} />}
+                    title="Mateo"
+                    subtitle="Bond"
+                    recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "bond"}
+                    onClick={() => logRoute("Mateo · Bond")}
+                  />
+                  <RouteButton
+                    icon={<SearchIcon size={18} />}
+                    title="Lex"
+                    subtitle="Research"
+                    recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "research"}
+                    onClick={() => logRoute("Lex · Research")}
+                  />
+                  <RouteButton
+                    icon={<FilesIcon size={18} />}
+                    title="Docket"
+                    subtitle="Documents"
+                    recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "documents"}
+                    onClick={() => logRoute("Docket · Documents")}
+                  />
+                  <RouteButton
+                    icon={<Clock3 size={18} />}
+                    title="Chronos"
+                    subtitle="Timeline"
+                    recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "timeline"}
+                    onClick={() => logRoute("Chronos · Timeline")}
+                  />
+                  <RouteButton
+                    icon={<UserCheck size={18} />}
+                    title="Attorney"
+                    subtitle="Review"
+                    recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "attorney_review"}
+                    onClick={() => logRoute("Attorney Review")}
+                  />
+                </div>
+              </section>
+            </div>
+          )}
         </div>
       )}
 
       {tab === "activity" && (
-        <div className="ws-placeholder-tab">
-          <FileText size={32} />
-          <h3>Coordinator Activity</h3>
-          <p>
-            This will show Monday pulls, Case Brain assignments, routing,
-            failures, Slack commands, and later Dropbox synchronization events.
-          </p>
+        <div className="santiago-secondary-shell">
+          <section className="activity-toolbar">
+            <div>
+              <span className="ws-eyebrow">COORDINATOR ACTIVITY</span>
+              <h3>Santiago event log</h3>
+              <p>
+                Local V1 history of matter selection, Case Brain runs, and routing
+                decisions. Supabase will replace this with a shared audit trail.
+              </p>
+            </div>
+
+            <button
+              className="icon-text-btn"
+              onClick={() => {
+                setActivity([]);
+                try {
+                  localStorage.removeItem(ACTIVITY_KEY);
+                } catch {}
+              }}
+            >
+              Clear Local Log
+            </button>
+          </section>
+
+          <section className="activity-log-panel">
+            {activity.length === 0 ? (
+              <div className="secondary-empty inline-empty">
+                <History size={30} />
+                <h3>No coordinator activity yet</h3>
+                <p>
+                  Select or assign a matter and Santiago will begin building this
+                  event history.
+                </p>
+              </div>
+            ) : (
+              <div className="activity-log-list">
+                {activity.map((entry) => (
+                  <div className="activity-log-row" key={entry.id}>
+                    <div className={`activity-type-dot ${entry.type}`} />
+                    <div className="activity-log-copy">
+                      <strong>{entry.title}</strong>
+                      {entry.detail && <span>{entry.detail}</span>}
+                      <small>{formatActivityTime(entry.timestamp)}</small>
+                    </div>
+                    {entry.matterId && (
+                      <div className="activity-matter-id">
+                        {entry.matterId}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       )}
     </div>
   );
+}
+
+
+function DispatchStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="dispatch-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function RouteButton({
+  icon,
+  title,
+  subtitle,
+  recommended,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  recommended?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`route-button ${recommended ? "recommended" : ""}`}
+      onClick={onClick}
+    >
+      <div className="route-button-icon">{icon}</div>
+      <div>
+        <strong>{title}</strong>
+        <span>{subtitle}</span>
+      </div>
+      {recommended && <small>RECOMMENDED</small>}
+    </button>
+  );
+}
+
+function formatActivityTime(value: string) {
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
+  }
 }
 
 function Fact({ label, value }: { label: string; value: string }) {

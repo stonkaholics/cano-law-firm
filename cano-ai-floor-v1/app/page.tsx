@@ -655,6 +655,11 @@ export default function Home() {
           initialTab={santiagoInitialTab}
           onClose={() => setSantiagoOpen(false)}
           onCaseBrainReady={handleCaseBrainReady}
+          activeMatter={caseBrainMatter}
+          onOpenCaseBrain={() => {
+            setSantiagoOpen(false);
+            setCaseBrainOpen(true);
+          }}
         />
       )}
 
