@@ -16,6 +16,7 @@ import {
   Building2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import SantiagoWorkstation from "./components/SantiagoWorkstation";
 
 type AgentStatus = "Ready" | "Working" | "Needs Review";
 
@@ -27,11 +28,7 @@ type Agent = {
   description: string;
   status: AgentStatus;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  zone:
-    | "Coordinator"
-    | "Manager Offices"
-    | "Immigration Research"
-    | "Case Operations";
+  zone: "Manager Offices" | "Immigration Research" | "Case Operations";
   capabilities: string[];
   output: string[];
 };
@@ -278,6 +275,9 @@ function statusDotClass(status: AgentStatus) {
 
 export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [santiagoOpen, setSantiagoOpen] = useState(false);
+  const [santiagoInitialTab, setSantiagoInitialTab] =
+    useState<"intake" | "dispatch" | "activity">("intake");
 
   const selected = useMemo(
     () => agents.find((agent) => agent.id === selectedId) ?? null,
@@ -287,6 +287,12 @@ export default function Home() {
   const managerOffices = agents.filter((a) => a.zone === "Manager Offices");
   const immigration = agents.filter((a) => a.zone === "Immigration Research");
   const caseOps = agents.filter((a) => a.zone === "Case Operations");
+
+  function openSantiago(tab: "intake" | "dispatch" | "activity") {
+    setSelectedId(null);
+    setSantiagoInitialTab(tab);
+    setSantiagoOpen(true);
+  }
 
   return (
     <main className="app-shell">
@@ -386,11 +392,13 @@ export default function Home() {
             agents={immigration}
             onOpen={setSelectedId}
           />
+
           <div className="hallway">
             <div className="hall-line" />
             <span>CANO CENTRAL</span>
             <div className="hall-line" />
           </div>
+
           <Zone
             title="CASE OPERATIONS"
             agents={caseOps}
@@ -414,7 +422,7 @@ export default function Home() {
           />
           <ActivityRow
             title="Santiago available"
-            text="Ready to route Slack and in-app requests"
+            text="Ready to pull Monday matters and route work"
             meta="Manager Office"
           />
         </div>
@@ -437,8 +445,8 @@ export default function Home() {
             ))}
           </div>
           <p className="panel-note">
-            The visual floor and the operation center both connect to the same
-            agent workstation structure.
+            Santiago now handles live Monday matter intake. Dropbox/document
+            ingestion can be added in V2 after the Monday pipeline is validated.
           </p>
         </div>
       </section>
@@ -489,16 +497,44 @@ export default function Home() {
             </div>
 
             <div className="agent-actions">
-              <button className="primary-btn">Open Workstation</button>
-              <button className="secondary-btn">Assign Matter</button>
+              <button
+                className="primary-btn"
+                onClick={() => {
+                  if (selected.id === "santiago") {
+                    openSantiago("dispatch");
+                  }
+                }}
+              >
+                Open Workstation
+              </button>
+
+              <button
+                className="secondary-btn"
+                onClick={() => {
+                  if (selected.id === "santiago") {
+                    openSantiago("intake");
+                  }
+                }}
+              >
+                Assign Matter
+              </button>
             </div>
 
             <div className="v1-note">
-              Both the top visual floor and the bottom operation center are
-              wired to this same workstation view.
+              {selected.id === "santiago"
+                ? "Assign Matter opens Santiago's live Monday intake workstation."
+                : "This specialist workstation will be connected after the Santiago + Case Brain intake pipeline is working."}
             </div>
           </aside>
         </div>
+      )}
+
+      {santiagoOpen && (
+        <SantiagoWorkstation
+          key={santiagoInitialTab}
+          initialTab={santiagoInitialTab}
+          onClose={() => setSantiagoOpen(false)}
+        />
       )}
     </main>
   );
@@ -546,9 +582,11 @@ function Zone({
   return (
     <div className="zone">
       <div className="zone-title">{title}</div>
+
       <div className="desk-grid">
         {agents.map((agent) => {
           const Icon = agent.icon;
+
           return (
             <button
               className="desk"
@@ -559,6 +597,7 @@ function Zone({
                 <div className="mini-avatar">
                   <Icon size={21} strokeWidth={1.9} />
                 </div>
+
                 <div className={statusClass(agent.status)}>
                   <span />
                   {agent.status}

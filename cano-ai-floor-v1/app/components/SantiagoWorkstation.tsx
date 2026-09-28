@@ -2,8 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft, CheckCircle2, Search, AlertTriangle, Loader2,
-  FolderSearch2, Database, FileText, Play, RefreshCw, MessageSquareMore
+  ArrowLeft,
+  CheckCircle2,
+  Search,
+  AlertTriangle,
+  Loader2,
+  Database,
+  FileText,
+  Play,
+  RefreshCw,
+  MessageSquareMore,
+  Send,
 } from "lucide-react";
 
 export type SantiagoMatter = {
@@ -17,17 +26,26 @@ export type SantiagoMatter = {
   detaineeName?: string;
   aNumber?: string;
   detentionFacility?: string;
+  phone?: string;
+  email?: string;
+  preferredLanguage?: string;
+  contactMethod?: string;
+  dateAdded?: string;
   notesPreview?: string;
   mondayItemId?: string;
-  dropboxFolder?: string | null;
+  referredBy?: string;
+  referredSource?: string;
 };
 
 type StartResult = {
   ok: boolean;
   matterId?: string;
   caseBrainStatus?: string;
-  monday?: { found: boolean; fieldsImported?: number };
-  dropbox?: { found: boolean; fileCount?: number; folder?: string | null };
+  monday?: {
+    found: boolean;
+    fieldsImported?: number;
+  };
+  data?: Record<string, unknown>;
   warning?: string | null;
   message?: string;
 };
@@ -46,6 +64,7 @@ export default function SantiagoWorkstation({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [result, setResult] = useState<StartResult | null>(null);
+  const [error, setError] = useState("");
 
   const selected = useMemo(
     () => matters.find((m) => m.id === selectedId) ?? null,
@@ -54,13 +73,27 @@ export default function SantiagoWorkstation({
 
   async function searchMatters(nextQuery = query) {
     setLoading(true);
+    setError("");
     setResult(null);
+
     try {
-      const res = await fetch(`/api/santiago/matters?q=${encodeURIComponent(nextQuery.trim())}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(
+        `/api/santiago/matters?q=${encodeURIComponent(nextQuery.trim())}`,
+        { cache: "no-store" }
+      );
+
       const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Unable to load Monday matters.");
+      }
+
       setMatters(Array.isArray(data.matters) ? data.matters : []);
+    } catch (err) {
+      setMatters([]);
+      setError(
+        err instanceof Error ? err.message : "Unable to load Monday matters."
+      );
     } finally {
       setLoading(false);
     }
@@ -68,45 +101,94 @@ export default function SantiagoWorkstation({
 
   async function startMatter() {
     if (!selected) return;
+
     setStarting(true);
     setResult(null);
+    setError("");
+
     try {
       const res = await fetch("/api/santiago/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           matterId: selected.id,
-          mondayItemId: selected.mondayItemId,
+          mondayItemId: selected.mondayItemId || selected.id,
+          preview: selected,
         }),
       });
-      setResult(await res.json());
-    } catch {
-      setResult({ ok: false, warning: "Unable to reach the intake workflow." });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data?.warning || data?.error || "Matter could not be assigned."
+        );
+      }
+
+      setResult(data);
+    } catch (err) {
+      setResult({
+        ok: false,
+        warning:
+          err instanceof Error
+            ? err.message
+            : "Unable to reach the assign-matter workflow.",
+      });
     } finally {
       setStarting(false);
     }
   }
 
-  useEffect(() => { searchMatters(""); }, []);
+  useEffect(() => {
+    searchMatters("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="santiago-workstation">
       <div className="ws-topbar">
         <div className="ws-title-group">
-          <button className="ws-back" onClick={onClose}><ArrowLeft size={18} /></button>
-          <div className="ws-agent-badge"><MessageSquareMore size={22} /></div>
+          <button className="ws-back" onClick={onClose}>
+            <ArrowLeft size={18} />
+          </button>
+
+          <div className="ws-agent-badge">
+            <MessageSquareMore size={22} />
+          </div>
+
           <div>
             <div className="ws-kicker">SANTIAGO · AI OFFICE COORDINATOR</div>
             <h2>Coordinator Workstation</h2>
           </div>
         </div>
-        <div className="ws-status"><span />Ready</div>
+
+        <div className="ws-status">
+          <span />
+          Ready
+        </div>
       </div>
 
       <div className="ws-tabs">
-        <button className={tab === "intake" ? "active" : ""} onClick={() => setTab("intake")}>Matter Intake</button>
-        <button className={tab === "dispatch" ? "active" : ""} onClick={() => setTab("dispatch")}>Dispatch</button>
-        <button className={tab === "activity" ? "active" : ""} onClick={() => setTab("activity")}>Activity</button>
+        <button
+          className={tab === "intake" ? "active" : ""}
+          onClick={() => setTab("intake")}
+        >
+          Matter Intake
+        </button>
+
+        <button
+          className={tab === "dispatch" ? "active" : ""}
+          onClick={() => setTab("dispatch")}
+        >
+          Dispatch
+        </button>
+
+        <button
+          className={tab === "activity" ? "active" : ""}
+          onClick={() => setTab("activity")}
+        >
+          Activity
+        </button>
       </div>
 
       {tab === "intake" && (
@@ -114,40 +196,78 @@ export default function SantiagoWorkstation({
           <section className="ws-left">
             <div className="ws-section-head">
               <div>
-                <span className="ws-eyebrow">MONDAY MATTERS</span>
-                <h3>Assign a matter to Case Brain</h3>
+                <span className="ws-eyebrow">LIVE MONDAY CLIENT LIST</span>
+                <h3>Assign a matter</h3>
               </div>
-              <button className="icon-button" onClick={() => searchMatters()}><RefreshCw size={16} /></button>
+
+              <button
+                className="icon-button"
+                onClick={() => searchMatters()}
+                aria-label="Refresh Monday matters"
+              >
+                <RefreshCw size={16} />
+              </button>
             </div>
 
             <div className="matter-search">
               <Search size={17} />
+
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") searchMatters(); }}
-                placeholder="Search client, detainee, A-number..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") searchMatters();
+                }}
+                placeholder="Search name, PNC, A-number, phone..."
               />
+
               <button onClick={() => searchMatters()}>Search</button>
             </div>
 
+            {error && (
+              <div className="ws-error">
+                <AlertTriangle size={17} />
+                <span>{error}</span>
+              </div>
+            )}
+
             <div className="matter-list">
-              {loading && <div className="matter-empty"><Loader2 className="spin" size={18} />Loading Monday matters...</div>}
-              {!loading && matters.map((matter) => (
-                <button
-                  key={matter.id}
-                  className={`matter-row ${selectedId === matter.id ? "selected" : ""}`}
-                  onClick={() => { setSelectedId(matter.id); setResult(null); }}
-                >
-                  <div>
-                    <strong>{matter.name}</strong>
-                    <span>{[matter.practiceArea, matter.matterType].filter(Boolean).join(" · ") || "Matter"}</span>
-                  </div>
-                  <small>{matter.status || "Active"}</small>
-                </button>
-              ))}
-              {!loading && matters.length === 0 && (
-                <div className="matter-empty">No matters found. Search by client, detainee, or A-number.</div>
+              {loading && (
+                <div className="matter-empty">
+                  <Loader2 className="spin" size={18} />
+                  Pulling current clients from Monday...
+                </div>
+              )}
+
+              {!loading &&
+                matters.map((matter) => (
+                  <button
+                    key={matter.id}
+                    className={`matter-row ${
+                      selectedId === matter.id ? "selected" : ""
+                    }`}
+                    onClick={() => {
+                      setSelectedId(matter.id);
+                      setResult(null);
+                    }}
+                  >
+                    <div>
+                      <strong>{matter.name}</strong>
+                      <span>
+                        {[matter.practiceArea, matter.detentionFacility]
+                          .filter(Boolean)
+                          .join(" · ") || "Monday Matter"}
+                      </span>
+                    </div>
+
+                    <small>{matter.pncName || matter.status || "Current"}</small>
+                  </button>
+                ))}
+
+              {!loading && !error && matters.length === 0 && (
+                <div className="matter-empty">
+                  No Monday matters matched this search.
+                </div>
               )}
             </div>
           </section>
@@ -157,7 +277,10 @@ export default function SantiagoWorkstation({
               <div className="select-placeholder">
                 <Database size={30} />
                 <h3>Select a Monday matter</h3>
-                <p>Santiago will pull the matter data, look for the corresponding Dropbox folder, then prepare the matter for Case Brain.</p>
+                <p>
+                  Choose a current client to review the available Monday data
+                  before pushing it into the Cano AI matter pipeline.
+                </p>
               </div>
             ) : (
               <>
@@ -165,62 +288,135 @@ export default function SantiagoWorkstation({
                   <div>
                     <span className="ws-eyebrow">SELECTED MATTER</span>
                     <h3>{selected.name}</h3>
-                    <p>{[selected.practiceArea, selected.matterType].filter(Boolean).join(" · ")}</p>
+                    <p>
+                      {[selected.practiceArea, selected.matterType]
+                        .filter(Boolean)
+                        .join(" · ") || "Monday Client"}
+                    </p>
                   </div>
-                  <div className="matter-status-pill">{selected.status || "Active"}</div>
+
+                  <div className="matter-status-pill">
+                    {selected.status || "Monday"}
+                  </div>
                 </div>
 
                 <div className="matter-facts">
-                  <Fact label="Attorney" value={selected.attorney || "—"} />
                   <Fact label="PNC" value={selected.pncName || "—"} />
-                  <Fact label="Detainee" value={selected.detaineeName || selected.name} />
+                  <Fact
+                    label="Detainee"
+                    value={selected.detaineeName || selected.name}
+                  />
                   <Fact label="A-Number" value={selected.aNumber || "—"} />
-                  <Fact label="Facility" value={selected.detentionFacility || "—"} />
-                  <Fact label="Monday Item" value={selected.mondayItemId || selected.id} />
+                  <Fact
+                    label="Facility"
+                    value={selected.detentionFacility || "—"}
+                  />
+                  <Fact label="Phone" value={selected.phone || "—"} />
+                  <Fact label="Email" value={selected.email || "—"} />
+                  <Fact
+                    label="Language"
+                    value={selected.preferredLanguage || "—"}
+                  />
+                  <Fact
+                    label="Contact Method"
+                    value={selected.contactMethod || "—"}
+                  />
+                  <Fact
+                    label="Monday Item"
+                    value={selected.mondayItemId || selected.id}
+                  />
                 </div>
 
-                <div className="source-checks">
+                <div className="source-checks single-source">
                   <div className="source-card">
-                    <div className="source-card-icon"><Database size={18} /></div>
-                    <div><strong>Monday Data</strong><span>Intake fields, matter metadata, and attorney notes</span></div>
-                    <CheckCircle2 size={18} className="ok-icon" />
-                  </div>
-
-                  <div className="source-card">
-                    <div className="source-card-icon"><FolderSearch2 size={18} /></div>
-                    <div>
-                      <strong>Dropbox Documents</strong>
-                      <span>{selected.dropboxFolder || "Folder lookup occurs when the matter starts"}</span>
+                    <div className="source-card-icon">
+                      <Database size={18} />
                     </div>
-                    <span className="pending-chip">CHECK ON START</span>
+
+                    <div>
+                      <strong>Monday Data</strong>
+                      <span>
+                        V1 will push the selected Monday matter into the Case
+                        Brain intake workflow.
+                      </span>
+                    </div>
+
+                    <CheckCircle2 size={18} className="ok-icon" />
                   </div>
                 </div>
 
                 {selected.notesPreview && (
                   <div className="notes-preview">
-                    <span>ATTORNEY NOTES PREVIEW</span>
+                    <span>SHORT CASE SUMMARY</span>
                     <p>{selected.notesPreview}</p>
                   </div>
                 )}
 
                 {result && (
-                  <div className={`start-result ${result.ok ? "success" : "error"}`}>
+                  <div
+                    className={`start-result ${
+                      result.ok ? "success" : "error"
+                    }`}
+                  >
                     <div className="start-result-head">
-                      {result.ok ? <CheckCircle2 size={19} /> : <AlertTriangle size={19} />}
-                      <strong>{result.message || (result.ok ? "Matter intake started" : "Matter could not be started")}</strong>
+                      {result.ok ? (
+                        <CheckCircle2 size={19} />
+                      ) : (
+                        <AlertTriangle size={19} />
+                      )}
+
+                      <strong>
+                        {result.message ||
+                          (result.ok
+                            ? "Matter assigned"
+                            : "Matter could not be assigned")}
+                      </strong>
                     </div>
-                    {result.monday && <p>Monday: {result.monday.found ? `${result.monday.fieldsImported ?? 0} fields imported` : "not found"}</p>}
-                    {result.dropbox && <p>Dropbox: {result.dropbox.found ? `${result.dropbox.fileCount ?? 0} documents found` : "documents pending"}</p>}
+
+                    {result.monday && (
+                      <p>
+                        Monday:{" "}
+                        {result.monday.found
+                          ? `${
+                              result.monday.fieldsImported ?? "Available"
+                            } fields imported`
+                          : "matter not found"}
+                      </p>
+                    )}
+
+                    {result.caseBrainStatus && (
+                      <p>Case Brain status: {result.caseBrainStatus}</p>
+                    )}
+
+                    {result.matterId && (
+                      <p>AI Matter ID: {result.matterId}</p>
+                    )}
+
                     {result.warning && <p>{result.warning}</p>}
                   </div>
                 )}
 
-                <button className="start-casebrain" disabled={starting} onClick={startMatter}>
-                  {starting ? <><Loader2 className="spin" size={18} />Preparing matter...</> : <><Play size={18} />Start Case Brain</>}
+                <button
+                  className="start-casebrain"
+                  disabled={starting}
+                  onClick={startMatter}
+                >
+                  {starting ? (
+                    <>
+                      <Loader2 className="spin" size={18} />
+                      Assigning matter...
+                    </>
+                  ) : (
+                    <>
+                      <Play size={18} />
+                      Assign Matter to Case Brain
+                    </>
+                  )}
                 </button>
 
                 <p className="ws-help">
-                  If the Dropbox folder cannot be found, the matter will still be created and marked <strong>Documents Pending</strong>.
+                  V1 sends the Monday item ID and selected matter preview to the
+                  live n8n assign-matter workflow. Dropbox documents come next.
                 </p>
               </>
             )}
@@ -230,9 +426,13 @@ export default function SantiagoWorkstation({
 
       {tab === "dispatch" && (
         <div className="ws-placeholder-tab">
-          <MessageSquareMore size={32} />
+          <Send size={32} />
           <h3>Dispatch Center</h3>
-          <p>This is where Santiago will route tasks to Elena, Mateo, Docket, Chronos, Veritas, and the rest of the AI team.</p>
+          <p>
+            This will become Santiago&apos;s task router for Case Brain, Elena,
+            Mateo, Docket, Chronos, Veritas, and the rest of the AI team. For
+            V1, use Matter Intake to assign a live Monday matter.
+          </p>
         </div>
       )}
 
@@ -240,7 +440,10 @@ export default function SantiagoWorkstation({
         <div className="ws-placeholder-tab">
           <FileText size={32} />
           <h3>Coordinator Activity</h3>
-          <p>This tab will show matter creation, routing, Dropbox syncs, agent assignments, failures, and Slack-triggered activity.</p>
+          <p>
+            This will show Monday pulls, matter assignments, agent routing,
+            errors, Slack commands, and later Dropbox synchronization events.
+          </p>
         </div>
       )}
     </div>
@@ -248,5 +451,10 @@ export default function SantiagoWorkstation({
 }
 
 function Fact({ label, value }: { label: string; value: string }) {
-  return <div className="fact"><span>{label}</span><strong>{value}</strong></div>;
+  return (
+    <div className="fact">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
 }
