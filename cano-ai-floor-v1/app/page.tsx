@@ -9,10 +9,11 @@ import {
   Presentation,
   Search,
   Clock3,
-  ChevronRight,
-  X,
+  MessageSquareMore,
   Activity,
   Building2,
+  X,
+  ArrowRight,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -26,12 +27,37 @@ type Agent = {
   description: string;
   status: AgentStatus;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  zone: "Immigration Research" | "Case Operations";
+  zone: "Coordinator" | "Immigration Research" | "Case Operations";
   capabilities: string[];
   output: string[];
 };
 
 const agents: Agent[] = [
+  {
+    id: "santiago",
+    name: "Santiago",
+    role: "AI Office Coordinator",
+    shortRole: "Coordinator",
+    description:
+      "The communication and routing desk for the entire Cano AI team. Santiago receives Slack/Vercel requests, routes work to the right specialist, and reports results back.",
+    status: "Ready",
+    icon: MessageSquareMore,
+    zone: "Coordinator",
+    capabilities: [
+      "Receive Slack and in-app instructions",
+      "Assign tasks to the correct specialist",
+      "Track active matters and agent progress",
+      "Summarize what is happening across the floor",
+      "Send back attorney-ready status updates",
+    ],
+    output: [
+      "Task assignment",
+      "Matter routing",
+      "Status summaries",
+      "Office-wide updates",
+      "Agent notifications",
+    ],
+  },
   {
     id: "habeas",
     name: "Elena",
@@ -70,7 +96,7 @@ const agents: Agent[] = [
     capabilities: [
       "Review criminal and immigration history",
       "Organize community and family ties",
-      "Assess available dangerousness / flight-risk evidence",
+      "Assess dangerousness and flight-risk evidence",
       "Identify missing supporting documents",
       "Prepare likely government arguments",
     ],
@@ -242,11 +268,13 @@ function statusClass(status: AgentStatus) {
 
 export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
   const selected = useMemo(
     () => agents.find((agent) => agent.id === selectedId) ?? null,
     [selectedId]
   );
 
+  const coordinator = agents.find((a) => a.zone === "Coordinator");
   const immigration = agents.filter((a) => a.zone === "Immigration Research");
   const caseOps = agents.filter((a) => a.zone === "Case Operations");
 
@@ -257,7 +285,7 @@ export default function Home() {
           <div className="brand-mark">C</div>
           <div>
             <div className="brand-title">CANO LAW FIRM</div>
-            <div className="brand-subtitle">AI Legal Operations Floor</div>
+            <div className="brand-subtitle">AI LEGAL OPERATIONS FLOOR</div>
           </div>
         </div>
 
@@ -267,82 +295,137 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="hero">
+      <section className="page-head">
         <div>
           <div className="eyebrow">
-            <Building2 size={15} />
+            <Building2 size={14} />
             CANO AI OFFICE · FLOOR 01
           </div>
-          <h1>Legal Operations Command Center</h1>
+          <h1>Visual Command Center</h1>
           <p>
-            Specialized AI agents prepare research, organize case information,
-            assemble documents, and surface attorney review items.
+            Click the visual desks or the operational cards. Both open the same
+            workstation and keep the floor easy to monitor at a glance.
           </p>
         </div>
 
-        <div className="hero-stat">
-          <Activity size={18} />
+        <div className="quick-stat">
+          <Activity size={17} />
           <div>
             <strong>{agents.length}</strong>
-            <span>specialists online</span>
+            <span>agents online</span>
           </div>
         </div>
       </section>
 
-      <section className="floor-wrap">
-        <div className="floor-heading">
-          <span>LIVE FLOOR VIEW</span>
-          <small>Click any workstation to open the agent</small>
-        </div>
-
-        <div className="floor">
-          <Zone title="IMMIGRATION RESEARCH POD" agents={immigration} onOpen={setSelectedId} />
-          <div className="hallway">
-            <div className="hall-line" />
-            <span>CANO CENTRAL</span>
-            <div className="hall-line" />
+      <section className="dashboard-shell">
+        <div className="visual-side">
+          <div className="section-topline">
+            <span>VISUAL FLOOR VIEW</span>
+            <small>Top visual desks work just like the operations cards</small>
           </div>
-          <Zone title="CASE OPERATIONS" agents={caseOps} onOpen={setSelectedId} />
-        </div>
-      </section>
 
-      <section className="bottom-grid">
-        <div className="panel">
-          <div className="panel-title">Floor Activity</div>
-          <ActivityRow
-            title="Lex is researching"
-            text="Immigration detention authority packet"
-            meta="Research Pod"
-          />
-          <ActivityRow
-            title="Veritas needs review"
-            text="2 filing items flagged for attorney attention"
-            meta="Case Operations"
-          />
-          <ActivityRow
-            title="All other agents ready"
-            text="Waiting for a matter or task"
-            meta="System"
-          />
-        </div>
-
-        <div className="panel">
-          <div className="panel-title">V1 Workflow</div>
-          <div className="workflow">
-            {["Matter", "Case Brain", "Research", "Documents", "QA", "Attorney"].map(
-              (item, index, array) => (
-                <div className="workflow-item" key={item}>
-                  <div className="workflow-node">{item}</div>
-                  {index < array.length - 1 && <ChevronRight size={16} />}
-                </div>
-              )
+          <div className="visual-floor">
+            {coordinator && (
+              <div className="center-stage">
+                <div className="zone-badge">AI COORDINATION DESK</div>
+                <VisualDesk
+                  agent={coordinator}
+                  featured
+                  onOpen={setSelectedId}
+                />
+              </div>
             )}
+
+            <div className="visual-zone">
+              <div className="zone-badge">IMMIGRATION RESEARCH POD</div>
+              <div className="visual-desk-grid visual-three">
+                {immigration.map((agent) => (
+                  <VisualDesk
+                    key={agent.id}
+                    agent={agent}
+                    onOpen={setSelectedId}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="floor-divider">
+              <div className="divider-line" />
+              <span>CANO CENTRAL</span>
+              <div className="divider-line" />
+            </div>
+
+            <div className="visual-zone">
+              <div className="zone-badge">CASE OPERATIONS</div>
+              <div className="visual-desk-grid visual-four">
+                {caseOps.map((agent) => (
+                  <VisualDesk
+                    key={agent.id}
+                    agent={agent}
+                    onOpen={setSelectedId}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
-          <p className="panel-note">
-            This first rendition is visual only. Next we connect each desk to
-            Cano's actual n8n workflows and case data.
-          </p>
         </div>
+
+        <aside className="ops-side">
+          <div className="section-topline">
+            <span>OPERATIONAL SECTION</span>
+            <small>Click any card to open the same agent</small>
+          </div>
+
+          <div className="ops-stack">
+            <div className="ops-panel compact">
+              <div className="panel-title">Floor Activity</div>
+
+              <ActivityRow
+                title="Lex is researching"
+                text="Immigration detention authority packet"
+                meta="Research Pod"
+              />
+              <ActivityRow
+                title="Veritas needs review"
+                text="2 filing items flagged for attorney attention"
+                meta="Case Ops"
+              />
+              <ActivityRow
+                title="Santiago available"
+                text="Ready to route Slack or in-app requests"
+                meta="Coordinator"
+              />
+            </div>
+
+            <div className="ops-panel agent-list-panel">
+              <div className="panel-title">All Workstations</div>
+              <div className="ops-agent-list">
+                {agents.map((agent) => (
+                  <OpsAgentCard
+                    key={agent.id}
+                    agent={agent}
+                    active={selectedId === agent.id}
+                    onOpen={setSelectedId}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="ops-panel compact">
+              <div className="panel-title">Workflow</div>
+              <div className="workflow">
+                {["Matter", "Santiago", "Case Brain", "Specialist", "QA", "Attorney"].map(
+                  (step, index, arr) => (
+                    <div className="workflow-item" key={step}>
+                      <div className="workflow-node">{step}</div>
+                      {index < arr.length - 1 && <ArrowRight size={14} />}
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+        </aside>
       </section>
 
       {selected && (
@@ -396,8 +479,8 @@ export default function Home() {
             </div>
 
             <div className="v1-note">
-              V1 placeholder — these buttons become live once the workstation
-              connects to n8n/Supabase.
+              Visual desk + operations card are now synced to the same agent
+              workstation.
             </div>
           </aside>
         </div>
@@ -406,60 +489,94 @@ export default function Home() {
   );
 }
 
-function Zone({
-  title,
-  agents,
+function VisualDesk({
+  agent,
   onOpen,
+  featured = false,
 }: {
-  title: string;
-  agents: Agent[];
+  agent: Agent;
   onOpen: (id: string) => void;
+  featured?: boolean;
 }) {
+  const Icon = agent.icon;
+
   return (
-    <div className="zone">
-      <div className="zone-title">{title}</div>
-      <div className="desk-grid">
-        {agents.map((agent) => {
-          const Icon = agent.icon;
-          return (
-            <button
-              className="desk"
-              key={agent.id}
-              onClick={() => onOpen(agent.id)}
-            >
-              <div className="desk-top">
-                <div className="mini-avatar">
-                  <Icon size={21} strokeWidth={1.9} />
-                </div>
-                <div className={statusClass(agent.status)}>
-                  <span />
-                  {agent.status}
-                </div>
-              </div>
-
-              <div className="monitor">
-                <div className="monitor-glow" />
-                <div className="monitor-lines">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-              </div>
-
-              <div className="desk-surface">
-                <div className="keyboard" />
-                <div className="coffee" />
-              </div>
-
-              <div className="desk-label">
-                <strong>{agent.name}</strong>
-                <span>{agent.shortRole}</span>
-              </div>
-            </button>
-          );
-        })}
+    <button
+      className={`visual-desk ${featured ? "featured-desk" : ""}`}
+      onClick={() => onOpen(agent.id)}
+    >
+      <div className="desk-status-row">
+        <div className="desk-icon-box">
+          <Icon size={featured ? 22 : 18} strokeWidth={1.8} />
+        </div>
+        <div className={statusClass(agent.status)}>
+          <span />
+          {agent.status}
+        </div>
       </div>
-    </div>
+
+      <div className="desk-illustration">
+        <div className="monitor-frame">
+          <div className="screen-glow" />
+          <div className="screen-lines">
+            <span />
+            <span />
+            <span />
+          </div>
+        </div>
+
+        <div className="agent-body">
+          <div className="agent-head" />
+          <div className="agent-torso" />
+          <div className="chair-back" />
+        </div>
+
+        <div className="desk-surface-bar">
+          <div className="keyboard" />
+          <div className="mouse" />
+          <div className="coffee" />
+        </div>
+      </div>
+
+      <div className="visual-desk-label">
+        <strong>{agent.name}</strong>
+        <span>{agent.shortRole}</span>
+      </div>
+    </button>
+  );
+}
+
+function OpsAgentCard({
+  agent,
+  onOpen,
+  active,
+}: {
+  agent: Agent;
+  onOpen: (id: string) => void;
+  active: boolean;
+}) {
+  const Icon = agent.icon;
+
+  return (
+    <button
+      className={`ops-agent-card ${active ? "ops-agent-card-active" : ""}`}
+      onClick={() => onOpen(agent.id)}
+    >
+      <div className="ops-agent-left">
+        <div className="ops-agent-icon">
+          <Icon size={18} strokeWidth={1.9} />
+        </div>
+        <div className="ops-agent-copy">
+          <strong>{agent.name}</strong>
+          <span>{agent.role}</span>
+        </div>
+      </div>
+
+      <div className={statusClass(agent.status)}>
+        <span />
+        {agent.status}
+      </div>
+    </button>
   );
 }
 
@@ -475,9 +592,9 @@ function ActivityRow({
   return (
     <div className="activity-row">
       <div className="activity-icon">
-        <Activity size={16} />
+        <Activity size={15} />
       </div>
-      <div>
+      <div className="activity-copy">
         <strong>{title}</strong>
         <span>{text}</span>
       </div>
