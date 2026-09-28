@@ -281,6 +281,7 @@ export default function Home() {
   const [santiagoOpen, setSantiagoOpen] = useState(false);
   const [caseBrainOpen, setCaseBrainOpen] = useState(false);
   const [caseBrainMatter, setCaseBrainMatter] = useState<StoredCaseMatter | null>(null);
+  const [caseBrainRefreshing, setCaseBrainRefreshing] = useState(false);
   const [santiagoInitialTab, setSantiagoInitialTab] =
     useState<"intake" | "dispatch" | "activity">("intake");
 
@@ -300,12 +301,20 @@ export default function Home() {
   }, []);
 
   const agents = useMemo(() => {
-    return baseAgents.map((agent) =>
-      agent.id === "casebrain" && caseBrainMatter
-        ? { ...agent, status: "Review Ready" as AgentStatus }
-        : agent
-    );
-  }, [caseBrainMatter]);
+    return baseAgents.map((agent) => {
+      if (agent.id !== "casebrain") return agent;
+
+      if (caseBrainRefreshing) {
+        return { ...agent, status: "Working" as AgentStatus };
+      }
+
+      if (caseBrainMatter) {
+        return { ...agent, status: "Review Ready" as AgentStatus };
+      }
+
+      return agent;
+    });
+  }, [caseBrainMatter, caseBrainRefreshing]);
 
   const selected = useMemo(
     () => agents.find((agent) => agent.id === selectedId) ?? null,
@@ -326,6 +335,75 @@ export default function Home() {
     setCaseBrainMatter(matter);
     setSantiagoOpen(false);
     setCaseBrainOpen(true);
+  }
+
+
+  async function refreshCaseBrainMatter(openWhenDone = true) {
+    if (!caseBrainMatter || caseBrainRefreshing) return;
+
+    setCaseBrainRefreshing(true);
+
+    try {
+      const mondayItemId =
+        caseBrainMatter.mondayItemId ||
+        caseBrainMatter.caseBrain?.matter?.monday_item_id ||
+        caseBrainMatter.matterId;
+
+      const res = await fetch("/api/santiago/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "refresh_case_brain",
+          matterId: caseBrainMatter.matterId,
+          mondayItemId,
+          preview: null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data?.ok === false || !data?.caseBrain) {
+        throw new Error(
+          data?.warning ||
+          data?.error ||
+          "Case Brain refresh did not return an analysis."
+        );
+      }
+
+      const refreshed: StoredCaseMatter = {
+        matterId: String(data.matterId || caseBrainMatter.matterId),
+        mondayItemId: String(data.mondayItemId || mondayItemId),
+        caseBrainStatus: data.caseBrainStatus || "review_ready",
+        message: data.message || "Case Brain analysis refreshed.",
+        monday: data.monday,
+        caseBrain: data.caseBrain,
+        savedAt: new Date().toISOString(),
+      };
+
+      setCaseBrainMatter(refreshed);
+
+      try {
+        localStorage.setItem(
+          "cano_active_case_brain_matter",
+          JSON.stringify(refreshed)
+        );
+      } catch {}
+
+      window.dispatchEvent(
+        new CustomEvent("cano-casebrain-updated", { detail: refreshed })
+      );
+
+      setSelectedId(null);
+      if (openWhenDone) setCaseBrainOpen(true);
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to refresh Case Brain."
+      );
+    } finally {
+      setCaseBrainRefreshing(false);
+    }
   }
 
   return (
@@ -532,28 +610,39 @@ export default function Home() {
                 Open Workstation
               </button>
 
-              <button
-                className="secondary-btn"
-                onClick={() => {
-                  if (selected.id === "santiago") {
-                    openSantiago("intake");
-                  } else if (selected.id === "casebrain") {
-                    setSelectedId(null);
-                    openSantiago("intake");
-                  }
-                }}
-              >
-                Assign Matter
-              </button>
+              {selected.id === "santiago" ? (
+                <button
+                  className="secondary-btn"
+                  onClick={() => openSantiago("intake")}
+                >
+                  Assign Matter
+                </button>
+              ) : selected.id === "casebrain" ? (
+                <button
+                  className="secondary-btn"
+                  disabled={!caseBrainMatter || caseBrainRefreshing}
+                  onClick={() => refreshCaseBrainMatter(true)}
+                >
+                  {caseBrainRefreshing
+                    ? "Refreshing..."
+                    : caseBrainMatter
+                    ? "Refresh Analysis"
+                    : "Awaiting Matter"}
+                </button>
+              ) : (
+                <button className="secondary-btn" disabled>
+                  Coming Soon
+                </button>
+              )}
             </div>
 
             <div className="v1-note">
               {selected.id === "santiago"
-                ? "Assign Matter opens Santiago's live Monday intake workstation."
+                ? "Santiago is the only agent that assigns new matters from Monday."
                 : selected.id === "casebrain"
                 ? caseBrainMatter
-                  ? "A Case Brain matter is available and ready to review."
-                  : "Assign a Monday matter through Santiago to populate Case Brain."
+                  ? "Refresh Analysis re-pulls the exact Monday item and runs Case Brain again using the latest data."
+                  : "Assign a matter through Santiago first. Case Brain only analyzes matters Santiago sends to it."
                 : "This specialist workstation will be connected after the Santiago + Case Brain pipeline."}
             </div>
           </aside>
@@ -572,6 +661,8 @@ export default function Home() {
       {caseBrainOpen && (
         <CaseBrainWorkstation
           matter={caseBrainMatter}
+          refreshing={caseBrainRefreshing}
+          onRefresh={() => refreshCaseBrainMatter(false)}
           onClose={() => setCaseBrainOpen(false)}
         />
       )}

@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
           : {}),
       },
       body: JSON.stringify({
-        action: "start_case_brain",
+        action: body.action || "start_case_brain",
         matterId: body.matterId,
         mondayItemId: body.mondayItemId,
         preview: body.preview ?? null,

@@ -12,6 +12,7 @@ import {
   MessageCircleQuestion,
   Route,
   UserRound,
+  RefreshCw,
 } from "lucide-react";
 
 export type CaseBrainResult = {
@@ -91,9 +92,13 @@ export type StoredCaseMatter = {
 
 export default function CaseBrainWorkstation({
   matter,
+  refreshing = false,
+  onRefresh,
   onClose,
 }: {
   matter: StoredCaseMatter | null;
+  refreshing?: boolean;
+  onRefresh?: () => void;
   onClose: () => void;
 }) {
   if (!matter) {
@@ -128,11 +133,27 @@ export default function CaseBrainWorkstation({
             <p>{cb.summary?.brief || matter.message || "Matter analysis ready for review."}</p>
           </div>
 
-          <div className="cb-hero-stats">
-            <Stat label="Monday Item" value={cb.matter?.monday_item_id || matter.mondayItemId || matter.matterId} />
-            <Stat label="Practice Area" value={cb.matter?.practice_area || "—"} />
-            <Stat label="Next Route" value={routingLabel(routing)} />
-            <Stat label="Saved" value={formatSaved(matter.savedAt)} />
+          <div>
+            <div className="cb-hero-stats">
+              <Stat label="Monday Item" value={cb.matter?.monday_item_id || matter.mondayItemId || matter.matterId} />
+              <Stat label="Practice Area" value={cb.matter?.practice_area || "—"} />
+              <Stat label="Next Route" value={routingLabel(routing)} />
+              <Stat label="Saved" value={formatSaved(matter.savedAt)} />
+            </div>
+
+            <div className="cb-hero-actions">
+              <button
+                className="cb-refresh-btn"
+                disabled={refreshing || !onRefresh}
+                onClick={onRefresh}
+              >
+                <RefreshCw className={refreshing ? "spin" : ""} size={16} />
+                {refreshing ? "Refreshing Analysis..." : "Refresh from Monday"}
+              </button>
+              <span>
+                Re-pulls this exact Monday matter and reruns Case Brain using the latest intake data.
+              </span>
+            </div>
           </div>
         </section>
 

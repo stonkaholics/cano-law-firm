@@ -339,3 +339,40 @@ button { font: inherit; }
   .cb-topbar{padding:14px}.cb-status{display:none}.cb-shell{padding:16px 14px 36px}
   .cb-hero-stats{grid-template-columns:1fr}.cb-hero h1{font-size:28px}
 }
+
+
+/* Case Brain V1.2 actions */
+.secondary-btn:disabled,
+.cb-refresh-btn:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+}
+
+.cb-hero-actions {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cb-refresh-btn {
+  min-height: 38px;
+  border-radius: 9px;
+  padding: 8px 11px;
+  border: 1px solid rgba(224,191,133,.24);
+  background: rgba(201,165,104,.07);
+  color: #e0bf85;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.cb-hero-actions > span {
+  color: #6f8794;
+  font-size: 9px;
+  line-height: 1.4;
+}
