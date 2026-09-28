@@ -59,6 +59,7 @@ type StartResult = {
   };
   caseBrain?: StoredCaseMatter["caseBrain"];
   warning?: string | null;
+  error?: string | null;
   message?: string;
 };
 
@@ -249,7 +250,10 @@ export default function SantiagoWorkstation({
 
       if (!res.ok || data.ok === false) {
         throw new Error(
-          data?.warning || "Matter could not be assigned."
+          data?.warning ||
+          data?.error ||
+          data?.message ||
+          "Matter could not be assigned."
         );
       }
 
@@ -281,6 +285,10 @@ export default function SantiagoWorkstation({
     } catch (err) {
       setResult({
         ok: false,
+        error:
+          err instanceof Error
+            ? err.message
+            : "Unable to reach the assign-matter workflow.",
         warning:
           err instanceof Error
             ? err.message
@@ -484,7 +492,9 @@ export default function SantiagoWorkstation({
                         Open Case Brain Matter
                       </button>
                     )}
-                    {result.warning && <p>{result.warning}</p>}
+                    {(result.error || result.warning) && (
+                      <p>{result.error || result.warning}</p>
+                    )}
                   </div>
                 )}
 
@@ -503,7 +513,7 @@ export default function SantiagoWorkstation({
                 </button>
 
                 <p className="ws-help">
-                  The returned Case Brain analysis is stored locally in V1 so the Case Brain workstation can open it immediately. Database persistence comes next.
+                  Case Brain results are saved to Supabase and shared across the Cano AI floor. Refresh Analysis creates a new saved snapshot from the latest Monday data.
                 </p>
               </>
             )}

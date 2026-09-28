@@ -32,12 +32,24 @@ function buildQuery(params?: Record<string, QueryValue>) {
   return qs ? `?${qs}` : "";
 }
 
-async function parseResponse(response: Response) {
+async function parseResponse(response: Response, context?: string) {
   const text = await response.text();
 
   if (!response.ok) {
+    let detail = text || response.statusText;
+
+    try {
+      const parsed = JSON.parse(text);
+      detail =
+        parsed?.message ||
+        parsed?.details ||
+        parsed?.hint ||
+        parsed?.code ||
+        detail;
+    } catch {}
+
     throw new Error(
-      `Supabase ${response.status}: ${text || response.statusText}`
+      `Supabase ${context ? `${context} ` : ""}${response.status}: ${detail}`
     );
   }
 
@@ -65,7 +77,7 @@ export async function supabaseSelect<T = any>(
     }
   );
 
-  const data = await parseResponse(response);
+  const data = await parseResponse(response, `select ${table}`);
   return Array.isArray(data) ? data : [];
 }
 
@@ -84,7 +96,7 @@ export async function supabaseInsert<T = any>(
     cache: "no-store",
   });
 
-  const data = await parseResponse(response);
+  const data = await parseResponse(response, `insert ${table}`);
   return Array.isArray(data) ? data : [];
 }
 
@@ -107,7 +119,7 @@ export async function supabaseUpsert<T = any>(
     }
   );
 
-  const data = await parseResponse(response);
+  const data = await parseResponse(response, `upsert ${table}`);
   return Array.isArray(data) ? data : [];
 }
 
@@ -135,6 +147,6 @@ export async function supabaseUpdate<T = any>(
     }
   );
 
-  const data = await parseResponse(response);
+  const data = await parseResponse(response, `update ${table}`);
   return Array.isArray(data) ? data : [];
 }

@@ -290,6 +290,7 @@ export default function Home() {
   const [caseBrainMatter, setCaseBrainMatter] = useState<StoredCaseMatter | null>(null);
   const [caseBrainRefreshing, setCaseBrainRefreshing] = useState(false);
   const [routingState, setRoutingState] = useState<RoutingState | null>(null);
+  const [sharedStateError, setSharedStateError] = useState("");
   const [santiagoInitialTab, setSantiagoInitialTab] =
     useState<"intake" | "dispatch" | "activity">("intake");
 
@@ -307,6 +308,7 @@ export default function Home() {
         );
       }
 
+      setSharedStateError("");
       setCaseBrainMatter(data.matter || null);
 
       if (data.matter?.routing) {
@@ -319,8 +321,12 @@ export default function Home() {
       } else {
         setRoutingState(null);
       }
-    } catch {
-      // Keep the UI available even if the shared state request fails.
+    } catch (error) {
+      setSharedStateError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load shared Cano AI state."
+      );
     }
   }
 
@@ -527,6 +533,13 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {sharedStateError && (
+        <section className="shared-state-error">
+          <strong>Shared database connection needs attention</strong>
+          <span>{sharedStateError}</span>
+        </section>
+      )}
 
       {caseBrainMatter && (
         <section className="active-matter-strip">

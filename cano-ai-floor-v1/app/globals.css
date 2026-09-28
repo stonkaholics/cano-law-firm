@@ -865,3 +865,25 @@ button { font: inherit; }
   letter-spacing: .08em;
   text-transform: uppercase;
 }
+
+
+.shared-state-error {
+  max-width: 1432px;
+  margin: -4px auto 18px;
+  padding: 12px 16px;
+  border: 1px solid rgba(240,173,105,.22);
+  border-radius: 13px;
+  background: rgba(240,173,105,.055);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.shared-state-error strong {
+  color: #efb77c;
+  font-size: 11px;
+}
+.shared-state-error span {
+  color: #9fb1bb;
+  font-size: 10px;
+  line-height: 1.45;
+}
