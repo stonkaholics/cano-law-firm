@@ -452,38 +452,54 @@ export default function Home() {
 
       const data = await res.json();
 
-      if (!res.ok || data?.ok === false || !data?.caseBrain) {
+      if (!res.ok || data?.ok === false) {
         throw new Error(
           data?.warning ||
           data?.error ||
-          "Case Brain refresh did not return an analysis."
+          "Unable to start Case Brain refresh."
         );
       }
 
-      const refreshed: StoredCaseMatter =
-        data.storedMatter || {
-          databaseId: data.databaseId,
-          matterId: String(
-            data.matterId || caseBrainMatter.matterId
-          ),
-          mondayItemId: String(
-            data.mondayItemId || mondayItemId
-          ),
-          caseBrainStatus:
-            data.caseBrainStatus || "review_ready",
-          message:
-            data.message || "Case Brain analysis refreshed.",
-          monday: data.monday,
-          caseBrain: data.caseBrain,
-          savedAt:
-            data.savedAt || new Date().toISOString(),
-          routing: caseBrainMatter.routing || null,
-        };
+      // Do not wait for n8n. The shared state will change when the
+      // completion callback writes the new snapshot to Supabase.
+      let attempts = 0;
+      const previousSavedAt = caseBrainMatter.savedAt || "";
 
-      handleMatterUpdated(refreshed);
+      while (attempts < 48) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, attempts === 0 ? 1200 : 2500)
+        );
+        attempts += 1;
 
-      setSelectedId(null);
-      if (openWhenDone) setCaseBrainOpen(true);
+        const statusRes = await fetch(
+          `/api/matters/status?mondayItemId=${encodeURIComponent(
+            mondayItemId
+          )}`,
+          { cache: "no-store" }
+        );
+
+        const statusData = await statusRes.json();
+
+        if (!statusRes.ok || statusData?.ok === false) {
+          continue;
+        }
+
+        const matter = statusData?.matter as StoredCaseMatter;
+
+        if (
+          matter?.caseBrainStatus === "review_ready" &&
+          matter?.savedAt &&
+          matter.savedAt !== previousSavedAt
+        ) {
+          handleMatterUpdated(matter);
+          if (openWhenDone) setCaseBrainOpen(true);
+          return;
+        }
+      }
+
+      // It is still running in the background. Shared-state polling
+      // on the main page will pick it up when complete.
+      await loadSharedState();
     } catch (error) {
       window.alert(
         error instanceof Error

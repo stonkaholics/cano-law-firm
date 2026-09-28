@@ -63,6 +63,16 @@ type StartResult = {
   message?: string;
 };
 
+
+type CaseBrainProgress =
+  | "idle"
+  | "accepted"
+  | "analyzing"
+  | "saving"
+  | "ready"
+  | "error"
+  | "still_working";
+
 type SantiagoActivity = {
   id: string;
   type:
@@ -99,6 +109,7 @@ export default function SantiagoWorkstation({
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [progress, setProgress] = useState<CaseBrainProgress>("idle");
   const [result, setResult] = useState<StartResult | null>(null);
   const [error, setError] = useState("");
   const [activity, setActivity] = useState<SantiagoActivity[]>([]);
@@ -228,25 +239,107 @@ export default function SantiagoWorkstation({
     }
   }
 
+  function sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function pollCaseBrainMatter(
+    mondayItemId: string,
+    timeoutMs = 120000
+  ) {
+    const startedAt = Date.now();
+    let pollCount = 0;
+
+    while (Date.now() - startedAt < timeoutMs) {
+      await sleep(pollCount === 0 ? 1200 : 2500);
+      pollCount += 1;
+
+      const res = await fetch(
+        `/api/matters/status?mondayItemId=${encodeURIComponent(
+          mondayItemId
+        )}`,
+        { cache: "no-store" }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok || data?.ok === false) {
+        if (res.status === 404) continue;
+        throw new Error(
+          data?.error || "Unable to check Case Brain status."
+        );
+      }
+
+      const status = String(data?.status || "");
+
+      if (status === "case_brain_error") {
+        setProgress("error");
+        throw new Error(
+          "Case Brain reported an error. Check Santiago Activity for details."
+        );
+      }
+
+      if (
+        status === "review_ready" ||
+        status === "ready_for_review" ||
+        status === "complete"
+      ) {
+        setProgress("ready");
+
+        const stored = data?.matter as StoredCaseMatter;
+
+        if (stored) {
+          onCaseBrainReady?.(stored);
+        }
+
+        return stored;
+      }
+
+      if (pollCount >= 2) {
+        setProgress("analyzing");
+      }
+    }
+
+    setProgress("still_working");
+
+    setResult({
+      ok: true,
+      matterId: mondayItemId,
+      mondayItemId,
+      caseBrainStatus: "case_brain_processing",
+      message:
+        "Case Brain is still working in the background. You can leave this screen and return later.",
+    });
+
+    return null;
+  }
+
   async function startMatter() {
     if (!selected) return;
 
     setStarting(true);
+    setProgress("accepted");
     setResult(null);
     setError("");
 
     try {
+      const mondayItemId =
+        selected.mondayItemId || selected.id;
+
       const res = await fetch("/api/santiago/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           matterId: selected.id,
-          mondayItemId: selected.mondayItemId || selected.id,
+          mondayItemId,
           preview: selected,
         }),
       });
 
-      const data: StartResult = await res.json();
+      const data: StartResult & {
+        accepted?: boolean;
+        storedMatter?: StoredCaseMatter;
+      } = await res.json();
 
       if (!res.ok || data.ok === false) {
         throw new Error(
@@ -257,42 +350,31 @@ export default function SantiagoWorkstation({
         );
       }
 
-      setResult(data);
+      setResult({
+        ...data,
+        ok: true,
+        caseBrainStatus:
+          data.caseBrainStatus || "case_brain_processing",
+      });
 
-      if (data.caseBrain) {
-        const stored: StoredCaseMatter =
-          (data as any).storedMatter || {
-            databaseId: (data as any).databaseId,
-            matterId: String(data.matterId || selected.id),
-            mondayItemId: String(
-              data.mondayItemId ||
-              selected.mondayItemId ||
-              selected.id
-            ),
-            caseBrainStatus:
-              data.caseBrainStatus || "review_ready",
-            message: data.message,
-            monday: data.monday,
-            caseBrain: data.caseBrain,
-            savedAt:
-              (data as any).savedAt ||
-              new Date().toISOString(),
-            routing: null,
-          };
+      setProgress("analyzing");
 
-        onCaseBrainReady?.(stored);
-      }
+      // n8n is now working in the background.
+      // Poll Supabase for the shared matter to become review_ready.
+      await pollCaseBrainMatter(mondayItemId);
     } catch (err) {
+      setProgress("error");
+
       setResult({
         ok: false,
         error:
           err instanceof Error
             ? err.message
-            : "Unable to reach the assign-matter workflow.",
+            : "Unable to start Case Brain.",
         warning:
           err instanceof Error
             ? err.message
-            : "Unable to reach the assign-matter workflow.",
+            : "Unable to start Case Brain.",
       });
     } finally {
       setStarting(false);
@@ -478,7 +560,12 @@ export default function SantiagoWorkstation({
                           : "matter not found"}
                       </p>
                     )}
-                    {result.caseBrainStatus && <p>Case Brain status: {result.caseBrainStatus}</p>}
+                    {result.caseBrainStatus && (
+                      <p>
+                        Case Brain status:{" "}
+                        {result.caseBrainStatus.replaceAll("_", " ")}
+                      </p>
+                    )}
                     {result.caseBrain && (
                       <button
                         className="open-casebrain-result"
@@ -498,11 +585,62 @@ export default function SantiagoWorkstation({
                   </div>
                 )}
 
+                {progress !== "idle" && progress !== "error" && (
+                  <div className="casebrain-progress-card">
+                    <ProgressRow
+                      label="Matter received"
+                      state={
+                        progress === "accepted" ||
+                        progress === "analyzing" ||
+                        progress === "saving" ||
+                        progress === "ready" ||
+                        progress === "still_working"
+                          ? "done"
+                          : "waiting"
+                      }
+                    />
+                    <ProgressRow
+                      label="Case Brain analyzing"
+                      state={
+                        progress === "analyzing"
+                          ? "active"
+                          : progress === "ready"
+                          ? "done"
+                          : progress === "still_working"
+                          ? "active"
+                          : "waiting"
+                      }
+                    />
+                    <ProgressRow
+                      label="Saved to Supabase"
+                      state={progress === "ready" ? "done" : "waiting"}
+                    />
+                    <ProgressRow
+                      label="Review ready"
+                      state={progress === "ready" ? "done" : "waiting"}
+                    />
+
+                    {progress === "still_working" && (
+                      <p>
+                        This is taking longer than usual, but the job is still
+                        running in the background. You can leave Santiago and
+                        return later.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <button className="start-casebrain" disabled={starting} onClick={startMatter}>
                   {starting ? (
                     <>
                       <Loader2 className="spin" size={18} />
-                      Running Case Brain...
+                      {progress === "accepted"
+                        ? "Sending Matter..."
+                        : progress === "analyzing"
+                        ? "Case Brain Analyzing..."
+                        : progress === "saving"
+                        ? "Saving Analysis..."
+                        : "Case Brain Working..."}
                     </>
                   ) : (
                     <>
@@ -756,6 +894,30 @@ export default function SantiagoWorkstation({
   );
 }
 
+
+
+function ProgressRow({
+  label,
+  state,
+}: {
+  label: string;
+  state: "waiting" | "active" | "done";
+}) {
+  return (
+    <div className={`casebrain-progress-row ${state}`}>
+      <div className="progress-indicator">
+        {state === "active" ? (
+          <Loader2 className="spin" size={13} />
+        ) : state === "done" ? (
+          <CheckCircle2 size={13} />
+        ) : (
+          <span />
+        )}
+      </div>
+      <strong>{label}</strong>
+    </div>
+  );
+}
 
 function DispatchStat({ label, value }: { label: string; value: string }) {
   return (
