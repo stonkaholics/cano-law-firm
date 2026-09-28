@@ -23,6 +23,8 @@ import {
   Clock3,
   UserCheck,
   ArrowRight,
+  ShieldCheck,
+  Presentation,
 } from "lucide-react";
 import type { StoredCaseMatter } from "./CaseBrainWorkstation";
 
@@ -167,6 +169,8 @@ export default function SantiagoWorkstation({
       research: "Lex · Research",
       documents: "Docket · Documents",
       timeline: "Chronos · Timeline",
+      qa: "Veritas · Filing QA",
+      hearing: "Avery · Hearing Prep",
       attorney_review: "Attorney Review",
       unknown: "Unassigned",
     };
@@ -201,6 +205,41 @@ export default function SantiagoWorkstation({
       }
 
       onMatterUpdated?.(data.matter);
+
+      const targetMap: Record<string, string> = {
+        "Elena · Habeas": "habeas",
+        "Mateo · Bond": "bond",
+        "Lex · Research": "research",
+        "Chronos · Timeline": "timeline",
+        "Veritas · Filing QA": "qa",
+        "Avery · Hearing Prep": "hearing",
+      };
+
+      const specialistId = targetMap[target];
+
+      if (specialistId) {
+        const runRes = await fetch("/api/agents/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mondayItemId:
+              activeMatter.mondayItemId ||
+              activeMatter.matterId,
+            agentId: specialistId,
+            triggerType: "dispatch",
+          }),
+        });
+
+        const runData = await runRes.json();
+
+        if (!runRes.ok || runData?.ok === false) {
+          throw new Error(
+            runData?.error ||
+            `Matter routed, but ${target} could not start.`
+          );
+        }
+      }
+
       await loadActivity();
     } catch (error) {
       window.alert(
@@ -804,10 +843,11 @@ export default function SantiagoWorkstation({
                   <RouteButton
                     icon={<FilesIcon size={18} />}
                     title="Docket"
-                    subtitle="Documents"
-                    recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "documents"}
+                    subtitle="Documents · Not Connected"
+                    recommended={false}
                     routingStateTarget={activeMatter?.routing?.target}
-                    onClick={() => logRoute("Docket · Documents")}
+                    disabled
+                    onClick={() => {}}
                   />
                   <RouteButton
                     icon={<Clock3 size={18} />}
@@ -816,6 +856,22 @@ export default function SantiagoWorkstation({
                     recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "timeline"}
                     routingStateTarget={activeMatter?.routing?.target}
                     onClick={() => logRoute("Chronos · Timeline")}
+                  />
+                  <RouteButton
+                    icon={<ShieldCheck size={18} />}
+                    title="Veritas"
+                    subtitle="Filing QA"
+                    recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "qa"}
+                    routingStateTarget={activeMatter?.routing?.target}
+                    onClick={() => logRoute("Veritas · Filing QA")}
+                  />
+                  <RouteButton
+                    icon={<Presentation size={18} />}
+                    title="Avery"
+                    subtitle="Hearing Prep"
+                    recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "hearing"}
+                    routingStateTarget={activeMatter?.routing?.target}
+                    onClick={() => logRoute("Avery · Hearing Prep")}
                   />
                   <RouteButton
                     icon={<UserCheck size={18} />}
@@ -934,6 +990,7 @@ function RouteButton({
   subtitle,
   recommended,
   routingStateTarget,
+  disabled = false,
   onClick,
 }: {
   icon: React.ReactNode;
@@ -941,16 +998,18 @@ function RouteButton({
   subtitle: string;
   recommended?: boolean;
   routingStateTarget?: string;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
+      disabled={disabled}
       className={`route-button ${recommended ? "recommended" : ""} ${
         routingStateTarget === `${title} · ${subtitle}` ||
         routingStateTarget === "Attorney Review" && title === "Attorney"
           ? "selected-route"
           : ""
-      }`}
+      } ${disabled ? "disabled-route" : ""}`}
       onClick={onClick}
     >
       <div className="route-button-icon">{icon}</div>

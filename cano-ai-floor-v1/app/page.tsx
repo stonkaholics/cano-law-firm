@@ -20,6 +20,10 @@ import SantiagoWorkstation from "./components/SantiagoWorkstation";
 import CaseBrainWorkstation, {
   type StoredCaseMatter,
 } from "./components/CaseBrainWorkstation";
+import SpecialistWorkstation, {
+  type SpecialistAgentId,
+  type SpecialistState,
+} from "./components/SpecialistWorkstation";
 
 type AgentStatus = "Ready" | "Working" | "Needs Review" | "Review Ready";
 
@@ -289,10 +293,36 @@ export default function Home() {
   const [caseBrainOpen, setCaseBrainOpen] = useState(false);
   const [caseBrainMatter, setCaseBrainMatter] = useState<StoredCaseMatter | null>(null);
   const [caseBrainRefreshing, setCaseBrainRefreshing] = useState(false);
+  const [specialistOpenId, setSpecialistOpenId] =
+    useState<SpecialistAgentId | null>(null);
+  const [specialistStates, setSpecialistStates] =
+    useState<Record<string, SpecialistState>>({});
   const [routingState, setRoutingState] = useState<RoutingState | null>(null);
   const [sharedStateError, setSharedStateError] = useState("");
   const [santiagoInitialTab, setSantiagoInitialTab] =
     useState<"intake" | "dispatch" | "activity">("intake");
+
+  async function loadSpecialistStates(mondayItemId?: string) {
+    if (!mondayItemId) {
+      setSpecialistStates({});
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `/api/agents/state?mondayItemId=${encodeURIComponent(
+          mondayItemId
+        )}`,
+        { cache: "no-store" }
+      );
+
+      const data = await res.json();
+
+      if (res.ok && data?.ok !== false) {
+        setSpecialistStates(data?.agents || {});
+      }
+    } catch {}
+  }
 
   async function loadSharedState() {
     try {
@@ -310,6 +340,14 @@ export default function Home() {
 
       setSharedStateError("");
       setCaseBrainMatter(data.matter || null);
+
+      if (data.matter?.mondayItemId || data.matter?.matterId) {
+        await loadSpecialistStates(
+          data.matter.mondayItemId || data.matter.matterId
+        );
+      } else {
+        setSpecialistStates({});
+      }
 
       if (data.matter?.routing) {
         setRoutingState({
@@ -359,14 +397,33 @@ export default function Home() {
         }
       }
 
+      if (agent.id === "documents") {
+        return { ...agent, status: "Ready" as AgentStatus };
+      }
+
+      const specialistState = specialistStates[agent.id];
+      const runStatus = specialistState?.run?.status;
+
+      if (runStatus === "working") {
+        return { ...agent, status: "Working" as AgentStatus };
+      }
+
+      if (
+        runStatus === "review_ready" ||
+        runStatus === "needs_review"
+      ) {
+        return { ...agent, status: "Review Ready" as AgentStatus };
+      }
+
       const routedTarget = routingState?.target || "";
 
       const routeMap: Record<string, string> = {
         "Elena · Habeas": "habeas",
         "Mateo · Bond": "bond",
         "Lex · Research": "research",
-        "Docket · Documents": "documents",
         "Chronos · Timeline": "timeline",
+        "Veritas · Filing QA": "qa",
+        "Avery · Hearing Prep": "hearing",
       };
 
       const routedAgentId = routeMap[routedTarget];
@@ -377,7 +434,12 @@ export default function Home() {
 
       return agent;
     });
-  }, [caseBrainMatter, caseBrainRefreshing, routingState]);
+  }, [
+    caseBrainMatter,
+    caseBrainRefreshing,
+    routingState,
+    specialistStates,
+  ]);
 
   const selected = useMemo(
     () => agents.find((agent) => agent.id === selectedId) ?? null,
@@ -508,6 +570,65 @@ export default function Home() {
       );
     } finally {
       setCaseBrainRefreshing(false);
+    }
+  }
+
+  const BUILT_SPECIALISTS: SpecialistAgentId[] = [
+    "habeas",
+    "bond",
+    "research",
+    "timeline",
+    "qa",
+    "hearing",
+  ];
+
+  function isBuiltSpecialist(id: string): id is SpecialistAgentId {
+    return BUILT_SPECIALISTS.includes(id as SpecialistAgentId);
+  }
+
+  function openSpecialist(id: SpecialistAgentId) {
+    setSelectedId(null);
+    setSpecialistOpenId(id);
+  }
+
+  async function runSpecialistFromPanel(id: SpecialistAgentId) {
+    if (!caseBrainMatter) return;
+
+    try {
+      const res = await fetch("/api/agents/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mondayItemId:
+            caseBrainMatter.mondayItemId ||
+            caseBrainMatter.matterId,
+          agentId: id,
+          triggerType: specialistStates[id]?.run
+            ? "refresh"
+            : "manual",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data?.ok === false) {
+        throw new Error(
+          data?.error || "Unable to start specialist."
+        );
+      }
+
+      await loadSpecialistStates(
+        caseBrainMatter.mondayItemId ||
+        caseBrainMatter.matterId
+      );
+
+      openSpecialist(id);
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to start specialist."
+      );
     }
   }
 
@@ -710,16 +831,24 @@ export default function Home() {
             <div className="agent-actions">
               <button
                 className="primary-btn"
+                disabled={
+                  selected.id === "documents" ||
+                  (isBuiltSpecialist(selected.id) && !caseBrainMatter)
+                }
                 onClick={() => {
                   if (selected.id === "santiago") {
                     openSantiago("dispatch");
                   } else if (selected.id === "casebrain") {
                     setSelectedId(null);
                     setCaseBrainOpen(true);
+                  } else if (isBuiltSpecialist(selected.id)) {
+                    openSpecialist(selected.id);
                   }
                 }}
               >
-                Open Workstation
+                {selected.id === "documents"
+                  ? "Not Connected"
+                  : "Open Workstation"}
               </button>
 
               {selected.id === "santiago" ? (
@@ -741,6 +870,22 @@ export default function Home() {
                     ? "Refresh Analysis"
                     : "Awaiting Matter"}
                 </button>
+              ) : selected.id === "documents" ? (
+                <button className="secondary-btn" disabled>
+                  Documents V2
+                </button>
+              ) : isBuiltSpecialist(selected.id) ? (
+                <button
+                  className="secondary-btn"
+                  disabled={!caseBrainMatter}
+                  onClick={() =>
+                    runSpecialistFromPanel(selected.id)
+                  }
+                >
+                  {specialistStates[selected.id]?.run
+                    ? "Refresh Analysis"
+                    : "Run Agent"}
+                </button>
               ) : (
                 <button className="secondary-btn" disabled>
                   Coming Soon
@@ -750,12 +895,16 @@ export default function Home() {
 
             <div className="v1-note">
               {selected.id === "santiago"
-                ? "Santiago is the only agent that assigns new matters from Monday."
+                ? "Santiago assigns and routes matters."
                 : selected.id === "casebrain"
+                ? "Case Brain maintains the shared matter intelligence record."
+                : selected.id === "documents"
+                ? "Docket/Documents is intentionally not connected in this build."
+                : isBuiltSpecialist(selected.id)
                 ? caseBrainMatter
-                  ? "Refresh Analysis re-pulls the exact Monday item and runs Case Brain again using the latest data."
-                  : "Assign a matter through Santiago first. Case Brain only analyzes matters Santiago sends to it."
-                : "This specialist workstation will be connected after the Santiago + Case Brain pipeline."}
+                  ? "This specialist runs asynchronously and saves every result to Supabase."
+                  : "Complete Case Brain first."
+                : "Specialist not connected."}
             </div>
           </aside>
         </div>
@@ -782,6 +931,21 @@ export default function Home() {
           refreshing={caseBrainRefreshing}
           onRefresh={() => refreshCaseBrainMatter(false)}
           onClose={() => setCaseBrainOpen(false)}
+        />
+      )}
+
+      {specialistOpenId && (
+        <SpecialistWorkstation
+          agentId={specialistOpenId}
+          matter={caseBrainMatter}
+          initialState={specialistStates[specialistOpenId]}
+          onStateUpdated={(agentId, state) => {
+            setSpecialistStates((current) => ({
+              ...current,
+              [agentId]: state,
+            }));
+          }}
+          onClose={() => setSpecialistOpenId(null)}
         />
       )}
     </main>

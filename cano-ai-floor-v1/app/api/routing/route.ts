@@ -36,6 +36,16 @@ const ROUTES: Record<
     agentName: "Chronos",
     assignmentType: "timeline",
   },
+  "Veritas · Filing QA": {
+    agentId: "qa",
+    agentName: "Veritas",
+    assignmentType: "qa",
+  },
+  "Avery · Hearing Prep": {
+    agentId: "hearing",
+    agentName: "Avery",
+    assignmentType: "hearing",
+  },
   "Attorney Review": {
     agentId: "attorney_review",
     agentName: "Attorney Review",
