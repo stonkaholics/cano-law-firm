@@ -8,10 +8,7 @@ export async function POST(request: NextRequest) {
 
   if (!body?.matterId && !body?.mondayItemId) {
     return NextResponse.json(
-      {
-        ok: false,
-        error: "A Monday matter ID is required.",
-      },
+      { ok: false, error: "A Monday matter ID is required." },
       { status: 400 }
     );
   }
@@ -51,24 +48,25 @@ export async function POST(request: NextRequest) {
     }
 
     let data: any = {};
-
     if (raw) {
       try {
         data = JSON.parse(raw);
       } catch {
-        data = {
-          ok: true,
-          message: raw,
-        };
+        data = { ok: true, message: raw };
       }
     }
 
+    // Pass the Case Brain object through untouched.
     return NextResponse.json({
       ok: data?.ok !== false,
       matterId:
         data?.matterId ||
         data?.aiMatterId ||
         data?.data?.matterId ||
+        String(body.mondayItemId || body.matterId),
+      mondayItemId:
+        data?.mondayItemId ||
+        data?.data?.mondayItemId ||
         String(body.mondayItemId || body.matterId),
       caseBrainStatus:
         data?.caseBrainStatus ||
@@ -84,11 +82,14 @@ export async function POST(request: NextRequest) {
             data?.data?.fieldsImported ??
             undefined,
         },
+      caseBrain:
+        data?.caseBrain ||
+        data?.data?.caseBrain ||
+        null,
       warning: data?.warning || null,
       message:
         data?.message ||
-        "Monday matter sent to the Case Brain intake workflow.",
-      data,
+        "Monday matter analyzed by Case Brain.",
     });
   } catch (error) {
     return NextResponse.json(

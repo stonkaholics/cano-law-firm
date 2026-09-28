@@ -13,7 +13,9 @@ import {
   RefreshCw,
   MessageSquareMore,
   Send,
+  Brain,
 } from "lucide-react";
+import type { StoredCaseMatter } from "./CaseBrainWorkstation";
 
 export type SantiagoMatter = {
   id: string;
@@ -40,12 +42,13 @@ export type SantiagoMatter = {
 type StartResult = {
   ok: boolean;
   matterId?: string;
+  mondayItemId?: string;
   caseBrainStatus?: string;
   monday?: {
     found: boolean;
     fieldsImported?: number;
   };
-  data?: Record<string, unknown>;
+  caseBrain?: StoredCaseMatter["caseBrain"];
   warning?: string | null;
   message?: string;
 };
@@ -53,9 +56,11 @@ type StartResult = {
 export default function SantiagoWorkstation({
   initialTab = "intake",
   onClose,
+  onCaseBrainReady,
 }: {
   initialTab?: "intake" | "dispatch" | "activity";
   onClose: () => void;
+  onCaseBrainReady?: (matter: StoredCaseMatter) => void;
 }) {
   const [tab, setTab] = useState<"intake" | "dispatch" | "activity">(initialTab);
   const [query, setQuery] = useState("");
@@ -117,15 +122,37 @@ export default function SantiagoWorkstation({
         }),
       });
 
-      const data = await res.json();
+      const data: StartResult = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || data.ok === false) {
         throw new Error(
-          data?.warning || data?.error || "Matter could not be assigned."
+          data?.warning || "Matter could not be assigned."
         );
       }
 
       setResult(data);
+
+      if (data.caseBrain) {
+        const stored: StoredCaseMatter = {
+          matterId: String(data.matterId || selected.id),
+          mondayItemId: String(data.mondayItemId || selected.mondayItemId || selected.id),
+          caseBrainStatus: data.caseBrainStatus || "review_ready",
+          message: data.message,
+          monday: data.monday,
+          caseBrain: data.caseBrain,
+          savedAt: new Date().toISOString(),
+        };
+
+        try {
+          localStorage.setItem("cano_active_case_brain_matter", JSON.stringify(stored));
+        } catch {}
+
+        window.dispatchEvent(
+          new CustomEvent("cano-casebrain-updated", { detail: stored })
+        );
+
+        onCaseBrainReady?.(stored);
+      }
     } catch (err) {
       setResult({
         ok: false,
@@ -169,24 +196,13 @@ export default function SantiagoWorkstation({
       </div>
 
       <div className="ws-tabs">
-        <button
-          className={tab === "intake" ? "active" : ""}
-          onClick={() => setTab("intake")}
-        >
+        <button className={tab === "intake" ? "active" : ""} onClick={() => setTab("intake")}>
           Matter Intake
         </button>
-
-        <button
-          className={tab === "dispatch" ? "active" : ""}
-          onClick={() => setTab("dispatch")}
-        >
+        <button className={tab === "dispatch" ? "active" : ""} onClick={() => setTab("dispatch")}>
           Dispatch
         </button>
-
-        <button
-          className={tab === "activity" ? "active" : ""}
-          onClick={() => setTab("activity")}
-        >
+        <button className={tab === "activity" ? "active" : ""} onClick={() => setTab("activity")}>
           Activity
         </button>
       </div>
@@ -199,19 +215,13 @@ export default function SantiagoWorkstation({
                 <span className="ws-eyebrow">LIVE MONDAY CLIENT LIST</span>
                 <h3>Assign a matter</h3>
               </div>
-
-              <button
-                className="icon-button"
-                onClick={() => searchMatters()}
-                aria-label="Refresh Monday matters"
-              >
+              <button className="icon-button" onClick={() => searchMatters()} aria-label="Refresh Monday matters">
                 <RefreshCw size={16} />
               </button>
             </div>
 
             <div className="matter-search">
               <Search size={17} />
-
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -220,7 +230,6 @@ export default function SantiagoWorkstation({
                 }}
                 placeholder="Search name, PNC, A-number, phone..."
               />
-
               <button onClick={() => searchMatters()}>Search</button>
             </div>
 
@@ -243,9 +252,7 @@ export default function SantiagoWorkstation({
                 matters.map((matter) => (
                   <button
                     key={matter.id}
-                    className={`matter-row ${
-                      selectedId === matter.id ? "selected" : ""
-                    }`}
+                    className={`matter-row ${selectedId === matter.id ? "selected" : ""}`}
                     onClick={() => {
                       setSelectedId(matter.id);
                       setResult(null);
@@ -259,7 +266,6 @@ export default function SantiagoWorkstation({
                           .join(" · ") || "Monday Matter"}
                       </span>
                     </div>
-
                     <small>{matter.pncName || matter.status || "Current"}</small>
                   </button>
                 ))}
@@ -294,7 +300,6 @@ export default function SantiagoWorkstation({
                         .join(" · ") || "Monday Client"}
                     </p>
                   </div>
-
                   <div className="matter-status-pill">
                     {selected.status || "Monday"}
                   </div>
@@ -302,47 +307,14 @@ export default function SantiagoWorkstation({
 
                 <div className="matter-facts">
                   <Fact label="PNC" value={selected.pncName || "—"} />
-                  <Fact
-                    label="Detainee"
-                    value={selected.detaineeName || selected.name}
-                  />
+                  <Fact label="Detainee" value={selected.detaineeName || selected.name} />
                   <Fact label="A-Number" value={selected.aNumber || "—"} />
-                  <Fact
-                    label="Facility"
-                    value={selected.detentionFacility || "—"}
-                  />
+                  <Fact label="Facility" value={selected.detentionFacility || "—"} />
                   <Fact label="Phone" value={selected.phone || "—"} />
                   <Fact label="Email" value={selected.email || "—"} />
-                  <Fact
-                    label="Language"
-                    value={selected.preferredLanguage || "—"}
-                  />
-                  <Fact
-                    label="Contact Method"
-                    value={selected.contactMethod || "—"}
-                  />
-                  <Fact
-                    label="Monday Item"
-                    value={selected.mondayItemId || selected.id}
-                  />
-                </div>
-
-                <div className="source-checks single-source">
-                  <div className="source-card">
-                    <div className="source-card-icon">
-                      <Database size={18} />
-                    </div>
-
-                    <div>
-                      <strong>Monday Data</strong>
-                      <span>
-                        V1 will push the selected Monday matter into the Case
-                        Brain intake workflow.
-                      </span>
-                    </div>
-
-                    <CheckCircle2 size={18} className="ok-icon" />
-                  </div>
+                  <Fact label="Language" value={selected.preferredLanguage || "—"} />
+                  <Fact label="Contact Method" value={selected.contactMethod || "—"} />
+                  <Fact label="Monday Item" value={selected.mondayItemId || selected.id} />
                 </div>
 
                 {selected.notesPreview && (
@@ -353,58 +325,46 @@ export default function SantiagoWorkstation({
                 )}
 
                 {result && (
-                  <div
-                    className={`start-result ${
-                      result.ok ? "success" : "error"
-                    }`}
-                  >
+                  <div className={`start-result ${result.ok ? "success" : "error"}`}>
                     <div className="start-result-head">
-                      {result.ok ? (
-                        <CheckCircle2 size={19} />
-                      ) : (
-                        <AlertTriangle size={19} />
-                      )}
-
+                      {result.ok ? <CheckCircle2 size={19} /> : <AlertTriangle size={19} />}
                       <strong>
                         {result.message ||
-                          (result.ok
-                            ? "Matter assigned"
-                            : "Matter could not be assigned")}
+                          (result.ok ? "Matter assigned" : "Matter could not be assigned")}
                       </strong>
                     </div>
-
                     {result.monday && (
                       <p>
-                        Monday:{" "}
-                        {result.monday.found
-                          ? `${
-                              result.monday.fieldsImported ?? "Available"
-                            } fields imported`
+                        Monday: {result.monday.found
+                          ? `${result.monday.fieldsImported ?? "Available"} fields imported`
                           : "matter not found"}
                       </p>
                     )}
-
-                    {result.caseBrainStatus && (
-                      <p>Case Brain status: {result.caseBrainStatus}</p>
+                    {result.caseBrainStatus && <p>Case Brain status: {result.caseBrainStatus}</p>}
+                    {result.caseBrain && (
+                      <button
+                        className="open-casebrain-result"
+                        onClick={() => {
+                          const raw = localStorage.getItem("cano_active_case_brain_matter");
+                          if (!raw) return;
+                          try {
+                            onCaseBrainReady?.(JSON.parse(raw));
+                          } catch {}
+                        }}
+                      >
+                        <Brain size={17} />
+                        Open Case Brain Matter
+                      </button>
                     )}
-
-                    {result.matterId && (
-                      <p>AI Matter ID: {result.matterId}</p>
-                    )}
-
                     {result.warning && <p>{result.warning}</p>}
                   </div>
                 )}
 
-                <button
-                  className="start-casebrain"
-                  disabled={starting}
-                  onClick={startMatter}
-                >
+                <button className="start-casebrain" disabled={starting} onClick={startMatter}>
                   {starting ? (
                     <>
                       <Loader2 className="spin" size={18} />
-                      Assigning matter...
+                      Running Case Brain...
                     </>
                   ) : (
                     <>
@@ -415,8 +375,7 @@ export default function SantiagoWorkstation({
                 </button>
 
                 <p className="ws-help">
-                  V1 sends the Monday item ID and selected matter preview to the
-                  live n8n assign-matter workflow. Dropbox documents come next.
+                  The returned Case Brain analysis is stored locally in V1 so the Case Brain workstation can open it immediately. Database persistence comes next.
                 </p>
               </>
             )}
@@ -429,9 +388,8 @@ export default function SantiagoWorkstation({
           <Send size={32} />
           <h3>Dispatch Center</h3>
           <p>
-            This will become Santiago&apos;s task router for Case Brain, Elena,
-            Mateo, Docket, Chronos, Veritas, and the rest of the AI team. For
-            V1, use Matter Intake to assign a live Monday matter.
+            Santiago will use this area to route Case Brain matters to Elena,
+            Mateo, Lex, Docket, Chronos, Veritas, and Avery.
           </p>
         </div>
       )}
@@ -441,8 +399,8 @@ export default function SantiagoWorkstation({
           <FileText size={32} />
           <h3>Coordinator Activity</h3>
           <p>
-            This will show Monday pulls, matter assignments, agent routing,
-            errors, Slack commands, and later Dropbox synchronization events.
+            This will show Monday pulls, Case Brain assignments, routing,
+            failures, Slack commands, and later Dropbox synchronization events.
           </p>
         </div>
       )}

@@ -5,7 +5,6 @@ const DEFAULT_WEBHOOK =
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q") || "";
-
   const webhook =
     process.env.N8N_SANTIAGO_MATTERS_WEBHOOK || DEFAULT_WEBHOOK;
 
@@ -29,25 +28,17 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       return NextResponse.json(
-        {
-          matters: [],
-          error: `n8n returned ${response.status}: ${raw || "Unknown error"}`,
-        },
+        { matters: [], error: `n8n returned ${response.status}: ${raw || "Unknown error"}` },
         { status: 502 }
       );
     }
 
     let data: any;
-
     try {
       data = raw ? JSON.parse(raw) : {};
     } catch {
       return NextResponse.json(
-        {
-          matters: [],
-          error:
-            "The n8n Monday workflow responded, but the response was not valid JSON.",
-        },
+        { matters: [], error: "The n8n Monday workflow response was not valid JSON." },
         { status: 502 }
       );
     }

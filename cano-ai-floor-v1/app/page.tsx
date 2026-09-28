@@ -15,10 +15,13 @@ import {
   Activity,
   Building2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import SantiagoWorkstation from "./components/SantiagoWorkstation";
+import CaseBrainWorkstation, {
+  type StoredCaseMatter,
+} from "./components/CaseBrainWorkstation";
 
-type AgentStatus = "Ready" | "Working" | "Needs Review";
+type AgentStatus = "Ready" | "Working" | "Needs Review" | "Review Ready";
 
 type Agent = {
   id: string;
@@ -33,7 +36,7 @@ type Agent = {
   output: string[];
 };
 
-const agents: Agent[] = [
+const baseAgents: Agent[] = [
   {
     id: "santiago",
     name: "Santiago",
@@ -263,25 +266,50 @@ const agents: Agent[] = [
 
 function statusClass(status: AgentStatus) {
   if (status === "Working") return "status working";
-  if (status === "Needs Review") return "status review";
+  if (status === "Needs Review" || status === "Review Ready") return "status review";
   return "status ready";
 }
 
 function statusDotClass(status: AgentStatus) {
   if (status === "Working") return "visual-dot working";
-  if (status === "Needs Review") return "visual-dot review";
+  if (status === "Needs Review" || status === "Review Ready") return "visual-dot review";
   return "visual-dot ready";
 }
 
 export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [santiagoOpen, setSantiagoOpen] = useState(false);
+  const [caseBrainOpen, setCaseBrainOpen] = useState(false);
+  const [caseBrainMatter, setCaseBrainMatter] = useState<StoredCaseMatter | null>(null);
   const [santiagoInitialTab, setSantiagoInitialTab] =
     useState<"intake" | "dispatch" | "activity">("intake");
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("cano_active_case_brain_matter");
+      if (raw) setCaseBrainMatter(JSON.parse(raw));
+    } catch {}
+
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<StoredCaseMatter>;
+      if (custom.detail) setCaseBrainMatter(custom.detail);
+    };
+
+    window.addEventListener("cano-casebrain-updated", handler);
+    return () => window.removeEventListener("cano-casebrain-updated", handler);
+  }, []);
+
+  const agents = useMemo(() => {
+    return baseAgents.map((agent) =>
+      agent.id === "casebrain" && caseBrainMatter
+        ? { ...agent, status: "Review Ready" as AgentStatus }
+        : agent
+    );
+  }, [caseBrainMatter]);
+
   const selected = useMemo(
     () => agents.find((agent) => agent.id === selectedId) ?? null,
-    [selectedId]
+    [agents, selectedId]
   );
 
   const managerOffices = agents.filter((a) => a.zone === "Manager Offices");
@@ -292,6 +320,12 @@ export default function Home() {
     setSelectedId(null);
     setSantiagoInitialTab(tab);
     setSantiagoOpen(true);
+  }
+
+  function handleCaseBrainReady(matter: StoredCaseMatter) {
+    setCaseBrainMatter(matter);
+    setSantiagoOpen(false);
+    setCaseBrainOpen(true);
   }
 
   return (
@@ -333,6 +367,25 @@ export default function Home() {
         </div>
       </section>
 
+      {caseBrainMatter && (
+        <section className="active-matter-strip">
+          <div>
+            <span>ACTIVE CASE BRAIN MATTER</span>
+            <strong>
+              {String(
+                caseBrainMatter.caseBrain?.people?.detainee?.name ||
+                caseBrainMatter.caseBrain?.people?.detainee?.full_name ||
+                `Matter ${caseBrainMatter.matterId}`
+              )}
+            </strong>
+          </div>
+          <div className="active-matter-meta">
+            <span>{caseBrainMatter.caseBrainStatus?.replaceAll("_", " ") || "review ready"}</span>
+            <button onClick={() => setCaseBrainOpen(true)}>Open Case Brain</button>
+          </div>
+        </section>
+      )}
+
       <section className="visual-floor-wrap">
         <div className="visual-floor-heading">
           <span>VISUAL FLOOR VIEW</span>
@@ -347,11 +400,7 @@ export default function Home() {
             <div className="manager-office-box">
               <div className="manager-grid">
                 {managerOffices.map((agent) => (
-                  <VisualNode
-                    key={agent.id}
-                    agent={agent}
-                    onOpen={setSelectedId}
-                  />
+                  <VisualNode key={agent.id} agent={agent} onOpen={setSelectedId} />
                 ))}
               </div>
             </div>
@@ -361,18 +410,10 @@ export default function Home() {
             <div className="open-floor-box">
               <div className="open-floor-grid">
                 {immigration.map((agent) => (
-                  <VisualNode
-                    key={agent.id}
-                    agent={agent}
-                    onOpen={setSelectedId}
-                  />
+                  <VisualNode key={agent.id} agent={agent} onOpen={setSelectedId} />
                 ))}
                 {caseOps.map((agent) => (
-                  <VisualNode
-                    key={agent.id}
-                    agent={agent}
-                    onOpen={setSelectedId}
-                  />
+                  <VisualNode key={agent.id} agent={agent} onOpen={setSelectedId} />
                 ))}
               </div>
             </div>
@@ -387,11 +428,7 @@ export default function Home() {
         </div>
 
         <div className="floor">
-          <Zone
-            title="IMMIGRATION RESEARCH POD"
-            agents={immigration}
-            onOpen={setSelectedId}
-          />
+          <Zone title="IMMIGRATION RESEARCH POD" agents={immigration} onOpen={setSelectedId} />
 
           <div className="hallway">
             <div className="hall-line" />
@@ -399,26 +436,24 @@ export default function Home() {
             <div className="hall-line" />
           </div>
 
-          <Zone
-            title="CASE OPERATIONS"
-            agents={caseOps}
-            onOpen={setSelectedId}
-          />
+          <Zone title="CASE OPERATIONS" agents={caseOps} onOpen={setSelectedId} />
         </div>
       </section>
 
       <section className="bottom-grid">
         <div className="panel">
           <div className="panel-title">Floor Activity</div>
+          {caseBrainMatter && (
+            <ActivityRow
+              title="Case Brain review ready"
+              text={caseBrainMatter.caseBrain?.summary?.brief || "Matter analysis completed"}
+              meta="Case Brain"
+            />
+          )}
           <ActivityRow
             title="Lex is researching"
             text="Immigration detention authority packet"
             meta="Research Pod"
-          />
-          <ActivityRow
-            title="Veritas needs review"
-            text="2 filing items flagged for attorney attention"
-            meta="Case Operations"
           />
           <ActivityRow
             title="Santiago available"
@@ -430,23 +465,17 @@ export default function Home() {
         <div className="panel">
           <div className="panel-title">V1 Workflow</div>
           <div className="workflow">
-            {[
-              "Matter",
-              "Santiago",
-              "Case Brain",
-              "Specialist",
-              "QA",
-              "Attorney",
-            ].map((item, index, array) => (
-              <div className="workflow-item" key={item}>
-                <div className="workflow-node">{item}</div>
-                {index < array.length - 1 && <ChevronRight size={16} />}
-              </div>
-            ))}
+            {["Matter", "Santiago", "Case Brain", "Specialist", "QA", "Attorney"].map(
+              (item, index, array) => (
+                <div className="workflow-item" key={item}>
+                  <div className="workflow-node">{item}</div>
+                  {index < array.length - 1 && <ChevronRight size={16} />}
+                </div>
+              )
+            )}
           </div>
           <p className="panel-note">
-            Santiago now handles live Monday matter intake. Dropbox/document
-            ingestion can be added in V2 after the Monday pipeline is validated.
+            Case Brain now receives a real Monday matter from Santiago and can open the returned analysis in its workstation.
           </p>
         </div>
       </section>
@@ -454,11 +483,7 @@ export default function Home() {
       {selected && (
         <div className="modal-backdrop" onClick={() => setSelectedId(null)}>
           <aside className="agent-panel" onClick={(e) => e.stopPropagation()}>
-            <button
-              className="close-btn"
-              onClick={() => setSelectedId(null)}
-              aria-label="Close agent panel"
-            >
+            <button className="close-btn" onClick={() => setSelectedId(null)} aria-label="Close agent panel">
               <X size={20} />
             </button>
 
@@ -481,18 +506,14 @@ export default function Home() {
             <div className="detail-section">
               <h3>Capabilities</h3>
               <ul>
-                {selected.capabilities.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
+                {selected.capabilities.map((item) => <li key={item}>{item}</li>)}
               </ul>
             </div>
 
             <div className="detail-section">
               <h3>Typical Output</h3>
               <div className="chips">
-                {selected.output.map((item) => (
-                  <span key={item}>{item}</span>
-                ))}
+                {selected.output.map((item) => <span key={item}>{item}</span>)}
               </div>
             </div>
 
@@ -502,6 +523,9 @@ export default function Home() {
                 onClick={() => {
                   if (selected.id === "santiago") {
                     openSantiago("dispatch");
+                  } else if (selected.id === "casebrain") {
+                    setSelectedId(null);
+                    setCaseBrainOpen(true);
                   }
                 }}
               >
@@ -513,6 +537,9 @@ export default function Home() {
                 onClick={() => {
                   if (selected.id === "santiago") {
                     openSantiago("intake");
+                  } else if (selected.id === "casebrain") {
+                    setSelectedId(null);
+                    openSantiago("intake");
                   }
                 }}
               >
@@ -523,7 +550,11 @@ export default function Home() {
             <div className="v1-note">
               {selected.id === "santiago"
                 ? "Assign Matter opens Santiago's live Monday intake workstation."
-                : "This specialist workstation will be connected after the Santiago + Case Brain intake pipeline is working."}
+                : selected.id === "casebrain"
+                ? caseBrainMatter
+                  ? "A Case Brain matter is available and ready to review."
+                  : "Assign a Monday matter through Santiago to populate Case Brain."
+                : "This specialist workstation will be connected after the Santiago + Case Brain pipeline."}
             </div>
           </aside>
         </div>
@@ -534,25 +565,25 @@ export default function Home() {
           key={santiagoInitialTab}
           initialTab={santiagoInitialTab}
           onClose={() => setSantiagoOpen(false)}
+          onCaseBrainReady={handleCaseBrainReady}
+        />
+      )}
+
+      {caseBrainOpen && (
+        <CaseBrainWorkstation
+          matter={caseBrainMatter}
+          onClose={() => setCaseBrainOpen(false)}
         />
       )}
     </main>
   );
 }
 
-function VisualNode({
-  agent,
-  onOpen,
-}: {
-  agent: Agent;
-  onOpen: (id: string) => void;
-}) {
+function VisualNode({ agent, onOpen }: { agent: Agent; onOpen: (id: string) => void }) {
   const Icon = agent.icon;
-
   return (
     <button className="visual-node" onClick={() => onOpen(agent.id)}>
       <div className="visual-node-label">{agent.shortRole.toUpperCase()}</div>
-
       <div className="visual-desk-figure">
         <div className="visual-monitor left" />
         <div className="visual-monitor right" />
@@ -561,11 +592,8 @@ function VisualNode({
         <div className="visual-desk-base" />
         <div className={statusDotClass(agent.status)} />
       </div>
-
       <div className="visual-node-name">{agent.name}</div>
-      <div className="visual-node-icon">
-        <Icon size={14} strokeWidth={1.9} />
-      </div>
+      <div className="visual-node-icon"><Icon size={14} strokeWidth={1.9} /></div>
     </button>
   );
 }
@@ -582,46 +610,21 @@ function Zone({
   return (
     <div className="zone">
       <div className="zone-title">{title}</div>
-
       <div className="desk-grid">
         {agents.map((agent) => {
           const Icon = agent.icon;
-
           return (
-            <button
-              className="desk"
-              key={agent.id}
-              onClick={() => onOpen(agent.id)}
-            >
+            <button className="desk" key={agent.id} onClick={() => onOpen(agent.id)}>
               <div className="desk-top">
-                <div className="mini-avatar">
-                  <Icon size={21} strokeWidth={1.9} />
-                </div>
-
-                <div className={statusClass(agent.status)}>
-                  <span />
-                  {agent.status}
-                </div>
+                <div className="mini-avatar"><Icon size={21} strokeWidth={1.9} /></div>
+                <div className={statusClass(agent.status)}><span />{agent.status}</div>
               </div>
-
               <div className="monitor">
                 <div className="monitor-glow" />
-                <div className="monitor-lines">
-                  <span />
-                  <span />
-                  <span />
-                </div>
+                <div className="monitor-lines"><span /><span /><span /></div>
               </div>
-
-              <div className="desk-surface">
-                <div className="keyboard" />
-                <div className="coffee" />
-              </div>
-
-              <div className="desk-label">
-                <strong>{agent.name}</strong>
-                <span>{agent.shortRole}</span>
-              </div>
+              <div className="desk-surface"><div className="keyboard" /><div className="coffee" /></div>
+              <div className="desk-label"><strong>{agent.name}</strong><span>{agent.shortRole}</span></div>
             </button>
           );
         })}
@@ -630,24 +633,11 @@ function Zone({
   );
 }
 
-function ActivityRow({
-  title,
-  text,
-  meta,
-}: {
-  title: string;
-  text: string;
-  meta: string;
-}) {
+function ActivityRow({ title, text, meta }: { title: string; text: string; meta: string }) {
   return (
     <div className="activity-row">
-      <div className="activity-icon">
-        <Activity size={16} />
-      </div>
-      <div>
-        <strong>{title}</strong>
-        <span>{text}</span>
-      </div>
+      <div className="activity-icon"><Activity size={16} /></div>
+      <div><strong>{title}</strong><span>{text}</span></div>
       <small>{meta}</small>
     </div>
   );
