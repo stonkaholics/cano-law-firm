@@ -10,10 +10,10 @@ import {
   Search,
   Clock3,
   MessageSquareMore,
+  ChevronRight,
+  X,
   Activity,
   Building2,
-  X,
-  ArrowRight,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -27,7 +27,11 @@ type Agent = {
   description: string;
   status: AgentStatus;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  zone: "Coordinator" | "Immigration Research" | "Case Operations";
+  zone:
+    | "Coordinator"
+    | "Manager Offices"
+    | "Immigration Research"
+    | "Case Operations";
   capabilities: string[];
   output: string[];
 };
@@ -39,23 +43,48 @@ const agents: Agent[] = [
     role: "AI Office Coordinator",
     shortRole: "Coordinator",
     description:
-      "The communication and routing desk for the entire Cano AI team. Santiago receives Slack/Vercel requests, routes work to the right specialist, and reports results back.",
+      "Routes Slack and in-app requests, assigns work to the right specialist, and keeps the office synced.",
     status: "Ready",
     icon: MessageSquareMore,
-    zone: "Coordinator",
+    zone: "Manager Offices",
     capabilities: [
-      "Receive Slack and in-app instructions",
-      "Assign tasks to the correct specialist",
-      "Track active matters and agent progress",
-      "Summarize what is happening across the floor",
-      "Send back attorney-ready status updates",
+      "Receive Slack and in-app requests",
+      "Assign work to specialists",
+      "Track office-wide task status",
+      "Provide matter summaries",
+      "Coordinate the AI team",
     ],
     output: [
-      "Task assignment",
-      "Matter routing",
-      "Status summaries",
-      "Office-wide updates",
+      "Task routing",
+      "Office status updates",
+      "Matter summaries",
+      "Assignment logs",
       "Agent notifications",
+    ],
+  },
+  {
+    id: "casebrain",
+    name: "Case Brain",
+    role: "Matter Intelligence Agent",
+    shortRole: "Case Brain",
+    description:
+      "Maintains the structured picture of a matter: people, dates, documents, issues, contradictions, and missing information.",
+    status: "Ready",
+    icon: Brain,
+    zone: "Manager Offices",
+    capabilities: [
+      "Build master case summaries",
+      "Extract names, dates, A-numbers, and events",
+      "Create matter timelines",
+      "Detect contradictions",
+      "Track missing information",
+    ],
+    output: [
+      "60-second matter brief",
+      "Master timeline",
+      "Issue map",
+      "Missing-data list",
+      "People and entity index",
     ],
   },
   {
@@ -131,31 +160,6 @@ const agents: Agent[] = [
       "Source links",
       "Quoted propositions",
       "Open research questions",
-    ],
-  },
-  {
-    id: "casebrain",
-    name: "Case Brain",
-    role: "Matter Intelligence Agent",
-    shortRole: "Case Brain",
-    description:
-      "Maintains the structured picture of a matter: people, dates, documents, issues, contradictions, and missing information.",
-    status: "Ready",
-    icon: Brain,
-    zone: "Case Operations",
-    capabilities: [
-      "Build master case summaries",
-      "Extract names, dates, A-numbers, and events",
-      "Create matter timelines",
-      "Detect contradictions",
-      "Track missing information",
-    ],
-    output: [
-      "60-second matter brief",
-      "Master timeline",
-      "Issue map",
-      "Missing-data list",
-      "People and entity index",
     ],
   },
   {
@@ -266,6 +270,12 @@ function statusClass(status: AgentStatus) {
   return "status ready";
 }
 
+function statusDotClass(status: AgentStatus) {
+  if (status === "Working") return "visual-dot working";
+  if (status === "Needs Review") return "visual-dot review";
+  return "visual-dot ready";
+}
+
 export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -274,7 +284,7 @@ export default function Home() {
     [selectedId]
   );
 
-  const coordinator = agents.find((a) => a.zone === "Coordinator");
+  const managerOffices = agents.filter((a) => a.zone === "Manager Offices");
   const immigration = agents.filter((a) => a.zone === "Immigration Research");
   const caseOps = agents.filter((a) => a.zone === "Case Operations");
 
@@ -295,52 +305,43 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="page-head">
+      <section className="hero">
         <div>
           <div className="eyebrow">
-            <Building2 size={14} />
+            <Building2 size={15} />
             CANO AI OFFICE · FLOOR 01
           </div>
-          <h1>Visual Command Center</h1>
+          <h1>Legal Operations Command Center</h1>
           <p>
-            Click the visual desks or the operational cards. Both open the same
-            workstation and keep the floor easy to monitor at a glance.
+            Track the visual AI floor above and use the operational center below.
+            Both views open the same workstations.
           </p>
         </div>
 
-        <div className="quick-stat">
-          <Activity size={17} />
+        <div className="hero-stat">
+          <Activity size={18} />
           <div>
             <strong>{agents.length}</strong>
-            <span>agents online</span>
+            <span>specialists online</span>
           </div>
         </div>
       </section>
 
-      <section className="dashboard-shell">
-        <div className="visual-side">
-          <div className="section-topline">
-            <span>VISUAL FLOOR VIEW</span>
-            <small>Top visual desks work just like the operations cards</small>
-          </div>
+      <section className="visual-floor-wrap">
+        <div className="visual-floor-heading">
+          <span>VISUAL FLOOR VIEW</span>
+          <small>Click any visual agent desk to open the workstation</small>
+        </div>
 
-          <div className="visual-floor">
-            {coordinator && (
-              <div className="center-stage">
-                <div className="zone-badge">AI COORDINATION DESK</div>
-                <VisualDesk
-                  agent={coordinator}
-                  featured
-                  onOpen={setSelectedId}
-                />
-              </div>
-            )}
+        <div className="visual-floor-board">
+          <div className="visual-top-label left">MANAGER OFFICES</div>
+          <div className="visual-top-label right">OPEN AGENT FLOOR</div>
 
-            <div className="visual-zone">
-              <div className="zone-badge">IMMIGRATION RESEARCH POD</div>
-              <div className="visual-desk-grid visual-three">
-                {immigration.map((agent) => (
-                  <VisualDesk
+          <div className="visual-floor-layout">
+            <div className="manager-office-box">
+              <div className="manager-grid">
+                {managerOffices.map((agent) => (
+                  <VisualNode
                     key={agent.id}
                     agent={agent}
                     onOpen={setSelectedId}
@@ -349,17 +350,19 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="floor-divider">
-              <div className="divider-line" />
-              <span>CANO CENTRAL</span>
-              <div className="divider-line" />
-            </div>
+            <div className="visual-divider" />
 
-            <div className="visual-zone">
-              <div className="zone-badge">CASE OPERATIONS</div>
-              <div className="visual-desk-grid visual-four">
+            <div className="open-floor-box">
+              <div className="open-floor-grid">
+                {immigration.map((agent) => (
+                  <VisualNode
+                    key={agent.id}
+                    agent={agent}
+                    onOpen={setSelectedId}
+                  />
+                ))}
                 {caseOps.map((agent) => (
-                  <VisualDesk
+                  <VisualNode
                     key={agent.id}
                     agent={agent}
                     onOpen={setSelectedId}
@@ -369,63 +372,75 @@ export default function Home() {
             </div>
           </div>
         </div>
+      </section>
 
-        <aside className="ops-side">
-          <div className="section-topline">
-            <span>OPERATIONAL SECTION</span>
-            <small>Click any card to open the same agent</small>
+      <section className="floor-wrap">
+        <div className="floor-heading">
+          <span>OPERATION CENTER</span>
+          <small>Click any workstation to open the agent</small>
+        </div>
+
+        <div className="floor">
+          <Zone
+            title="IMMIGRATION RESEARCH POD"
+            agents={immigration}
+            onOpen={setSelectedId}
+          />
+          <div className="hallway">
+            <div className="hall-line" />
+            <span>CANO CENTRAL</span>
+            <div className="hall-line" />
           </div>
+          <Zone
+            title="CASE OPERATIONS"
+            agents={caseOps}
+            onOpen={setSelectedId}
+          />
+        </div>
+      </section>
 
-          <div className="ops-stack">
-            <div className="ops-panel compact">
-              <div className="panel-title">Floor Activity</div>
+      <section className="bottom-grid">
+        <div className="panel">
+          <div className="panel-title">Floor Activity</div>
+          <ActivityRow
+            title="Lex is researching"
+            text="Immigration detention authority packet"
+            meta="Research Pod"
+          />
+          <ActivityRow
+            title="Veritas needs review"
+            text="2 filing items flagged for attorney attention"
+            meta="Case Operations"
+          />
+          <ActivityRow
+            title="Santiago available"
+            text="Ready to route Slack and in-app requests"
+            meta="Manager Office"
+          />
+        </div>
 
-              <ActivityRow
-                title="Lex is researching"
-                text="Immigration detention authority packet"
-                meta="Research Pod"
-              />
-              <ActivityRow
-                title="Veritas needs review"
-                text="2 filing items flagged for attorney attention"
-                meta="Case Ops"
-              />
-              <ActivityRow
-                title="Santiago available"
-                text="Ready to route Slack or in-app requests"
-                meta="Coordinator"
-              />
-            </div>
-
-            <div className="ops-panel agent-list-panel">
-              <div className="panel-title">All Workstations</div>
-              <div className="ops-agent-list">
-                {agents.map((agent) => (
-                  <OpsAgentCard
-                    key={agent.id}
-                    agent={agent}
-                    active={selectedId === agent.id}
-                    onOpen={setSelectedId}
-                  />
-                ))}
+        <div className="panel">
+          <div className="panel-title">V1 Workflow</div>
+          <div className="workflow">
+            {[
+              "Matter",
+              "Santiago",
+              "Case Brain",
+              "Specialist",
+              "QA",
+              "Attorney",
+            ].map((item, index, array) => (
+              <div className="workflow-item" key={item}>
+                <div className="workflow-node">{item}</div>
+                {index < array.length - 1 && <ChevronRight size={16} />}
               </div>
-            </div>
-
-            <div className="ops-panel compact">
-              <div className="panel-title">Workflow</div>
-              <div className="workflow">
-                {["Matter", "Santiago", "Case Brain", "Specialist", "QA", "Attorney"].map(
-                  (step, index, arr) => (
-                    <div className="workflow-item" key={step}>
-                      <div className="workflow-node">{step}</div>
-                      {index < arr.length - 1 && <ArrowRight size={14} />}
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
+            ))}
           </div>
-        </aside>
+          <p className="panel-note">
+            The visual floor and the operation center both connect to the same
+            agent workstation structure.
+          </p>
+        </div>
       </section>
 
       {selected && (
@@ -479,8 +494,8 @@ export default function Home() {
             </div>
 
             <div className="v1-note">
-              Visual desk + operations card are now synced to the same agent
-              workstation.
+              Both the top visual floor and the bottom operation center are
+              wired to this same workstation view.
             </div>
           </aside>
         </div>
@@ -489,94 +504,90 @@ export default function Home() {
   );
 }
 
-function VisualDesk({
+function VisualNode({
   agent,
   onOpen,
-  featured = false,
 }: {
   agent: Agent;
   onOpen: (id: string) => void;
-  featured?: boolean;
 }) {
   const Icon = agent.icon;
 
   return (
-    <button
-      className={`visual-desk ${featured ? "featured-desk" : ""}`}
-      onClick={() => onOpen(agent.id)}
-    >
-      <div className="desk-status-row">
-        <div className="desk-icon-box">
-          <Icon size={featured ? 22 : 18} strokeWidth={1.8} />
-        </div>
-        <div className={statusClass(agent.status)}>
-          <span />
-          {agent.status}
-        </div>
+    <button className="visual-node" onClick={() => onOpen(agent.id)}>
+      <div className="visual-node-label">{agent.shortRole.toUpperCase()}</div>
+
+      <div className="visual-desk-figure">
+        <div className="visual-monitor left" />
+        <div className="visual-monitor right" />
+        <div className="visual-head" />
+        <div className="visual-body" />
+        <div className="visual-desk-base" />
+        <div className={statusDotClass(agent.status)} />
       </div>
 
-      <div className="desk-illustration">
-        <div className="monitor-frame">
-          <div className="screen-glow" />
-          <div className="screen-lines">
-            <span />
-            <span />
-            <span />
-          </div>
-        </div>
-
-        <div className="agent-body">
-          <div className="agent-head" />
-          <div className="agent-torso" />
-          <div className="chair-back" />
-        </div>
-
-        <div className="desk-surface-bar">
-          <div className="keyboard" />
-          <div className="mouse" />
-          <div className="coffee" />
-        </div>
-      </div>
-
-      <div className="visual-desk-label">
-        <strong>{agent.name}</strong>
-        <span>{agent.shortRole}</span>
+      <div className="visual-node-name">{agent.name}</div>
+      <div className="visual-node-icon">
+        <Icon size={14} strokeWidth={1.9} />
       </div>
     </button>
   );
 }
 
-function OpsAgentCard({
-  agent,
+function Zone({
+  title,
+  agents,
   onOpen,
-  active,
 }: {
-  agent: Agent;
+  title: string;
+  agents: Agent[];
   onOpen: (id: string) => void;
-  active: boolean;
 }) {
-  const Icon = agent.icon;
-
   return (
-    <button
-      className={`ops-agent-card ${active ? "ops-agent-card-active" : ""}`}
-      onClick={() => onOpen(agent.id)}
-    >
-      <div className="ops-agent-left">
-        <div className="ops-agent-icon">
-          <Icon size={18} strokeWidth={1.9} />
-        </div>
-        <div className="ops-agent-copy">
-          <strong>{agent.name}</strong>
-          <span>{agent.role}</span>
-        </div>
-      </div>
+    <div className="zone">
+      <div className="zone-title">{title}</div>
+      <div className="desk-grid">
+        {agents.map((agent) => {
+          const Icon = agent.icon;
+          return (
+            <button
+              className="desk"
+              key={agent.id}
+              onClick={() => onOpen(agent.id)}
+            >
+              <div className="desk-top">
+                <div className="mini-avatar">
+                  <Icon size={21} strokeWidth={1.9} />
+                </div>
+                <div className={statusClass(agent.status)}>
+                  <span />
+                  {agent.status}
+                </div>
+              </div>
 
-      <div className={statusClass(agent.status)}>
-        <span />
-        {agent.status}
+              <div className="monitor">
+                <div className="monitor-glow" />
+                <div className="monitor-lines">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              </div>
+
+              <div className="desk-surface">
+                <div className="keyboard" />
+                <div className="coffee" />
+              </div>
+
+              <div className="desk-label">
+                <strong>{agent.name}</strong>
+                <span>{agent.shortRole}</span>
+              </div>
+            </button>
+          );
+        })}
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -592,9 +603,9 @@ function ActivityRow({
   return (
     <div className="activity-row">
       <div className="activity-icon">
-        <Activity size={15} />
+        <Activity size={16} />
       </div>
-      <div className="activity-copy">
+      <div>
         <strong>{title}</strong>
         <span>{text}</span>
       </div>
@@ -602,4 +613,3 @@ function ActivityRow({
     </div>
   );
 }
- 
