@@ -23,6 +23,13 @@ import CaseBrainWorkstation, {
 
 type AgentStatus = "Ready" | "Working" | "Needs Review" | "Review Ready";
 
+type RoutingState = {
+  matterId: string;
+  target: string;
+  routedAt: string;
+  routedBy: string;
+};
+
 type Agent = {
   id: string;
   name: string;
@@ -282,6 +289,7 @@ export default function Home() {
   const [caseBrainOpen, setCaseBrainOpen] = useState(false);
   const [caseBrainMatter, setCaseBrainMatter] = useState<StoredCaseMatter | null>(null);
   const [caseBrainRefreshing, setCaseBrainRefreshing] = useState(false);
+  const [routingState, setRoutingState] = useState<RoutingState | null>(null);
   const [santiagoInitialTab, setSantiagoInitialTab] =
     useState<"intake" | "dispatch" | "activity">("intake");
 
@@ -289,32 +297,70 @@ export default function Home() {
     try {
       const raw = localStorage.getItem("cano_active_case_brain_matter");
       if (raw) setCaseBrainMatter(JSON.parse(raw));
+
+      const routeRaw = localStorage.getItem("cano_santiago_routing_v1");
+      if (routeRaw) setRoutingState(JSON.parse(routeRaw));
     } catch {}
 
-    const handler = (event: Event) => {
+    const caseBrainHandler = (event: Event) => {
       const custom = event as CustomEvent<StoredCaseMatter>;
       if (custom.detail) setCaseBrainMatter(custom.detail);
     };
 
-    window.addEventListener("cano-casebrain-updated", handler);
-    return () => window.removeEventListener("cano-casebrain-updated", handler);
+    const routingHandler = (event: Event) => {
+      const custom = event as CustomEvent<RoutingState>;
+      if (custom.detail) setRoutingState(custom.detail);
+    };
+
+    const storageHandler = () => {
+      try {
+        const routeRaw = localStorage.getItem("cano_santiago_routing_v1");
+        setRoutingState(routeRaw ? JSON.parse(routeRaw) : null);
+      } catch {}
+    };
+
+    window.addEventListener("cano-casebrain-updated", caseBrainHandler);
+    window.addEventListener("cano-routing-updated", routingHandler);
+    window.addEventListener("focus", storageHandler);
+
+    return () => {
+      window.removeEventListener("cano-casebrain-updated", caseBrainHandler);
+      window.removeEventListener("cano-routing-updated", routingHandler);
+      window.removeEventListener("focus", storageHandler);
+    };
   }, []);
 
   const agents = useMemo(() => {
     return baseAgents.map((agent) => {
-      if (agent.id !== "casebrain") return agent;
+      if (agent.id === "casebrain") {
+        if (caseBrainRefreshing) {
+          return { ...agent, status: "Working" as AgentStatus };
+        }
 
-      if (caseBrainRefreshing) {
-        return { ...agent, status: "Working" as AgentStatus };
+        if (caseBrainMatter) {
+          return { ...agent, status: "Review Ready" as AgentStatus };
+        }
       }
 
-      if (caseBrainMatter) {
-        return { ...agent, status: "Review Ready" as AgentStatus };
+      const routedTarget = routingState?.target || "";
+
+      const routeMap: Record<string, string> = {
+        "Elena · Habeas": "habeas",
+        "Mateo · Bond": "bond",
+        "Lex · Research": "research",
+        "Docket · Documents": "documents",
+        "Chronos · Timeline": "timeline",
+      };
+
+      const routedAgentId = routeMap[routedTarget];
+
+      if (routedAgentId && agent.id === routedAgentId) {
+        return { ...agent, status: "Working" as AgentStatus };
       }
 
       return agent;
     });
-  }, [caseBrainMatter, caseBrainRefreshing]);
+  }, [caseBrainMatter, caseBrainRefreshing, routingState]);
 
   const selected = useMemo(
     () => agents.find((agent) => agent.id === selectedId) ?? null,

@@ -768,3 +768,91 @@ button { font: inherit; }
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =========================================================
+   SANTIAGO DISPATCH + ACTIVITY V2
+   ========================================================= */
+
+.dispatch-current-route {
+  margin-top: 15px;
+  padding: 13px;
+  border: 1px solid rgba(107,184,255,.16);
+  border-radius: 11px;
+  background: rgba(107,184,255,.035);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+
+.dispatch-current-route > div:first-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.dispatch-current-route span {
+  color: #6f8794;
+  font-size: 8px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.dispatch-current-route strong {
+  margin-top: 5px;
+  font-family: Georgia, serif;
+  font-size: 17px;
+  font-weight: 500;
+  color: #dce9ef;
+}
+
+.dispatch-current-route > small {
+  color: #6f8794;
+  font-size: 9px;
+  line-height: 1.4;
+  max-width: 320px;
+}
+
+.dispatch-route-meta {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+}
+
+.dispatch-route-meta span {
+  color: #8ca5b4;
+  font-size: 9px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.dispatch-route-meta small {
+  color: #617985;
+  font-size: 8px;
+  margin-top: 3px;
+}
+
+.route-button.selected-route {
+  border-color: rgba(107,184,255,.34);
+  background: rgba(107,184,255,.07);
+  box-shadow: inset 0 0 0 1px rgba(107,184,255,.05);
+}
+
+.route-button.selected-route::after {
+  content: "ROUTED";
+  color: #78bbef;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+@media(max-width:760px) {
+  .dispatch-current-route {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dispatch-route-meta {
+    text-align: left;
+  }
+}

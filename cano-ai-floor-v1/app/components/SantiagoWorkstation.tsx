@@ -77,6 +77,14 @@ type SantiagoActivity = {
 };
 
 const ACTIVITY_KEY = "cano_santiago_activity_v1";
+const ROUTING_KEY = "cano_santiago_routing_v1";
+
+type SantiagoRoutingState = {
+  matterId: string;
+  target: string;
+  routedAt: string;
+  routedBy: string;
+};
 
 export default function SantiagoWorkstation({
   initialTab = "intake",
@@ -100,6 +108,7 @@ export default function SantiagoWorkstation({
   const [result, setResult] = useState<StartResult | null>(null);
   const [error, setError] = useState("");
   const [activity, setActivity] = useState<SantiagoActivity[]>([]);
+  const [routingState, setRoutingState] = useState<SantiagoRoutingState | null>(null);
 
   const selected = useMemo(
     () => matters.find((m) => m.id === selectedId) ?? null,
@@ -109,9 +118,64 @@ export default function SantiagoWorkstation({
   function loadActivity() {
     try {
       const raw = localStorage.getItem(ACTIVITY_KEY);
-      setActivity(raw ? JSON.parse(raw) : []);
+      const parsed: SantiagoActivity[] = raw ? JSON.parse(raw) : [];
+
+      if (parsed.length > 0) {
+        setActivity(parsed);
+        return;
+      }
+
+      if (activeMatter) {
+        const detaineeName = String(
+          activeMatter.caseBrain?.people?.detainee?.name ||
+          activeMatter.caseBrain?.people?.detainee?.full_name ||
+          `Matter ${activeMatter.matterId}`
+        );
+
+        const seeded: SantiagoActivity[] = [
+          {
+            id: `seed-${activeMatter.matterId}`,
+            type: "case_brain_completed",
+            title: `Case Brain matter loaded: ${detaineeName}`,
+            detail: `Status: ${
+              activeMatter.caseBrainStatus?.replaceAll("_", " ") || "review ready"
+            } · Recommended route: ${routeLabel(
+              activeMatter.caseBrain?.routing?.recommended_specialist
+            )}`,
+            timestamp: activeMatter.savedAt || new Date().toISOString(),
+            matterId: activeMatter.matterId,
+          },
+        ];
+
+        setActivity(seeded);
+        localStorage.setItem(ACTIVITY_KEY, JSON.stringify(seeded));
+        return;
+      }
+
+      setActivity([]);
     } catch {
       setActivity([]);
+    }
+  }
+
+  function loadRoutingState() {
+    try {
+      const raw = localStorage.getItem(ROUTING_KEY);
+      if (!raw) {
+        setRoutingState(null);
+        return;
+      }
+
+      const parsed: SantiagoRoutingState = JSON.parse(raw);
+
+      if (activeMatter && parsed.matterId !== activeMatter.matterId) {
+        setRoutingState(null);
+        return;
+      }
+
+      setRoutingState(parsed);
+    } catch {
+      setRoutingState(null);
     }
   }
 
@@ -147,11 +211,27 @@ export default function SantiagoWorkstation({
   function logRoute(target: string) {
     if (!activeMatter) return;
 
+    const nextRouting: SantiagoRoutingState = {
+      matterId: activeMatter.matterId,
+      target,
+      routedAt: new Date().toISOString(),
+      routedBy: "Santiago",
+    };
+
+    setRoutingState(nextRouting);
+
+    try {
+      localStorage.setItem(ROUTING_KEY, JSON.stringify(nextRouting));
+    } catch {}
+
+    window.dispatchEvent(
+      new CustomEvent("cano-routing-updated", { detail: nextRouting })
+    );
+
     addActivity({
       type: "routing_selected",
-      title: `Routing selected: ${target}`,
-      detail:
-        "V1 records the routing decision locally. The specialist backend will be wired when that agent is built.",
+      title: `Routed to: ${target}`,
+      detail: `Routing decision recorded by Santiago.`,
       matterId: activeMatter.matterId,
     });
   }
@@ -265,8 +345,21 @@ export default function SantiagoWorkstation({
   useEffect(() => {
     searchMatters("");
     loadActivity();
+    loadRoutingState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+
+  useEffect(() => {
+    if (!activeMatter) return;
+
+    if (activity.length === 0) {
+      loadActivity();
+    }
+
+    loadRoutingState();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMatter?.matterId]);
 
   return (
     <div className="santiago-workstation">
@@ -573,6 +666,26 @@ export default function SantiagoWorkstation({
                       "Case Brain has not returned a routing reason."}
                   </p>
                 </div>
+
+
+                <div className="dispatch-current-route">
+                  <div>
+                    <span>CURRENT ROUTE</span>
+                    <strong>{routingState?.target || "Not routed yet"}</strong>
+                  </div>
+
+                  {routingState ? (
+                    <div className="dispatch-route-meta">
+                      <span>Routed by {routingState.routedBy}</span>
+                      <small>{formatActivityTime(routingState.routedAt)}</small>
+                    </div>
+                  ) : (
+                    <small>
+                      Choose a route on the right when the team is ready to hand
+                      the matter off.
+                    </small>
+                  )}
+                </div>
               </section>
 
               <section className="route-panel">
@@ -589,6 +702,7 @@ export default function SantiagoWorkstation({
                     title="Elena"
                     subtitle="Habeas"
                     recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "habeas"}
+                    routingStateTarget={routingState?.target}
                     onClick={() => logRoute("Elena · Habeas")}
                   />
                   <RouteButton
@@ -596,6 +710,7 @@ export default function SantiagoWorkstation({
                     title="Mateo"
                     subtitle="Bond"
                     recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "bond"}
+                    routingStateTarget={routingState?.target}
                     onClick={() => logRoute("Mateo · Bond")}
                   />
                   <RouteButton
@@ -603,6 +718,7 @@ export default function SantiagoWorkstation({
                     title="Lex"
                     subtitle="Research"
                     recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "research"}
+                    routingStateTarget={routingState?.target}
                     onClick={() => logRoute("Lex · Research")}
                   />
                   <RouteButton
@@ -610,6 +726,7 @@ export default function SantiagoWorkstation({
                     title="Docket"
                     subtitle="Documents"
                     recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "documents"}
+                    routingStateTarget={routingState?.target}
                     onClick={() => logRoute("Docket · Documents")}
                   />
                   <RouteButton
@@ -617,6 +734,7 @@ export default function SantiagoWorkstation({
                     title="Chronos"
                     subtitle="Timeline"
                     recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "timeline"}
+                    routingStateTarget={routingState?.target}
                     onClick={() => logRoute("Chronos · Timeline")}
                   />
                   <RouteButton
@@ -624,6 +742,7 @@ export default function SantiagoWorkstation({
                     title="Attorney"
                     subtitle="Review"
                     recommended={activeMatter.caseBrain?.routing?.recommended_specialist === "attorney_review"}
+                    routingStateTarget={routingState?.target}
                     onClick={() => logRoute("Attorney Review")}
                   />
                 </div>
@@ -648,10 +767,40 @@ export default function SantiagoWorkstation({
             <button
               className="icon-text-btn"
               onClick={() => {
-                setActivity([]);
                 try {
                   localStorage.removeItem(ACTIVITY_KEY);
                 } catch {}
+
+                if (activeMatter) {
+                  const detaineeName = String(
+                    activeMatter.caseBrain?.people?.detainee?.name ||
+                    activeMatter.caseBrain?.people?.detainee?.full_name ||
+                    `Matter ${activeMatter.matterId}`
+                  );
+
+                  const seeded: SantiagoActivity[] = [
+                    {
+                      id: `seed-${activeMatter.matterId}-${Date.now()}`,
+                      type: "case_brain_completed",
+                      title: `Case Brain matter loaded: ${detaineeName}`,
+                      detail: `Status: ${
+                        activeMatter.caseBrainStatus?.replaceAll("_", " ") || "review ready"
+                      } · Recommended route: ${routeLabel(
+                        activeMatter.caseBrain?.routing?.recommended_specialist
+                      )}`,
+                      timestamp: activeMatter.savedAt || new Date().toISOString(),
+                      matterId: activeMatter.matterId,
+                    },
+                  ];
+
+                  setActivity(seeded);
+
+                  try {
+                    localStorage.setItem(ACTIVITY_KEY, JSON.stringify(seeded));
+                  } catch {}
+                } else {
+                  setActivity([]);
+                }
               }}
             >
               Clear Local Log
@@ -709,17 +858,24 @@ function RouteButton({
   title,
   subtitle,
   recommended,
+  routingStateTarget,
   onClick,
 }: {
   icon: React.ReactNode;
   title: string;
   subtitle: string;
   recommended?: boolean;
+  routingStateTarget?: string;
   onClick: () => void;
 }) {
   return (
     <button
-      className={`route-button ${recommended ? "recommended" : ""}`}
+      className={`route-button ${recommended ? "recommended" : ""} ${
+        routingStateTarget === `${title} · ${subtitle}` ||
+        routingStateTarget === "Attorney Review" && title === "Attorney"
+          ? "selected-route"
+          : ""
+      }`}
       onClick={onClick}
     >
       <div className="route-button-icon">{icon}</div>
