@@ -14,8 +14,8 @@ import {
   StandardFonts,
   rgb,
 } from "pdf-lib";
-import { getMatterByMondayId } from "../../../../../lib/supabase/matters";
-import { getLatestSpecialistState } from "../../../../../lib/supabase/agents";
+import { getMatterByMondayId } from "../../../../lib/supabase/matters";
+import { getLatestSpecialistState } from "../../../../lib/supabase/agents";
 
 export const dynamic = "force-dynamic";
 
@@ -366,7 +366,7 @@ export async function GET(request: NextRequest) {
 
     const buffer = await Packer.toBuffer(doc);
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type":
