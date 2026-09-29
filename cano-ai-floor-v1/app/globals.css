@@ -3654,3 +3654,45 @@ button { font: inherit; }
 @media(max-width:520px){
   .ops-agent-status-grid{grid-template-columns:1fr}
 }
+
+
+.authority-draft-use {
+  margin-top:9px;
+  border:1px solid rgba(107,184,255,.12);
+  border-radius:9px;
+  padding:9px 10px;
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  background:rgba(107,184,255,.025);
+}
+.authority-draft-use svg{
+  flex:0 0 auto;
+  margin-top:2px;
+  color:#8bc8f0;
+}
+.authority-draft-use > div{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:3px 8px;
+  min-width:0;
+}
+.authority-draft-use span{
+  color:#6f91a5;
+  font-size:7px;
+  font-weight:800;
+  letter-spacing:.1em;
+}
+.authority-draft-use strong{
+  justify-self:end;
+  color:#91c9ef;
+  font-size:7px;
+  text-transform:capitalize;
+}
+.authority-draft-use p{
+  grid-column:1 / -1;
+  margin:2px 0 0;
+  color:#98acb7;
+  font-size:8px;
+  line-height:1.5;
+}
