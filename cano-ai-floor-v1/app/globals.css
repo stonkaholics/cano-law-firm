@@ -3696,3 +3696,34 @@ button { font: inherit; }
   font-size:8px;
   line-height:1.5;
 }
+
+
+.draft-authority-source-link {
+  margin-top:8px;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  width:max-content;
+  border:1px solid rgba(224,191,133,.2);
+  border-radius:8px;
+  padding:6px 8px;
+  color:#e0bf85;
+  background:rgba(201,165,104,.045);
+  text-decoration:none;
+  font-size:8px;
+  font-weight:800;
+}
+.draft-authority-source-link:hover {
+  border-color:rgba(224,191,133,.42);
+  background:rgba(201,165,104,.08);
+}
+.draft-authority-relevance {
+  margin-top:8px !important;
+  padding-top:8px;
+  border-top:1px solid rgba(173,194,206,.07);
+  color:#9eafb8 !important;
+}
+.draft-authority-relevance b {
+  color:#d1b47f;
+  font-weight:800;
+}
