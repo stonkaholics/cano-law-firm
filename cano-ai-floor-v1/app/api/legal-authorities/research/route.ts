@@ -1,6 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveFederalJurisdiction } from "../../../../lib/legal/jurisdiction";
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+const REQUEST_TIMEOUT_MS = 12000;
+
+async function fetchWithTimeout(
+  input: string | URL | Request,
+  init: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT_MS
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 type AuthorityResult = {
   kind: "case" | "statute" | "constitution" | "regulation" | "official_source";
   title: string;
@@ -115,7 +138,7 @@ async function courtListenerSearch(
   });
   if (courtIds.length) params.set("court", courtIds.join(","));
 
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://www.courtlistener.com/api/rest/v4/search/?${params.toString()}`,
     {
       headers: {
@@ -131,10 +154,10 @@ async function courtListenerSearch(
   }
 
   const data = await res.json();
-  const results = Array.isArray(data?.results) ? data.results.slice(0, 6) : [];
-  const out: AuthorityResult[] = [];
+  const results = Array.isArray(data?.results) ? data.results.slice(0, 4) : [];
 
-  for (const item of results) {
+  const out = await Promise.all(
+    results.map(async (item: any, index: number): Promise<AuthorityResult> => {
     const absoluteUrl = item?.absolute_url || item?.absoluteUrl || item?.url || "";
     const url = absoluteUrl
       ? absoluteUrl.startsWith("http")
@@ -162,9 +185,11 @@ async function courtListenerSearch(
     let sourceText = "";
     let validationStatus: AuthorityResult["validationStatus"] = "metadata_verified";
 
-    if (opinionIds[0]) {
+    // Full opinion text is the slowest part of CourtListener. Fetch it only
+    // for the top two hits per query; the other hits remain metadata-verified.
+    if (opinionIds[0] && index < 2) {
       try {
-        const opinionRes = await fetch(
+        const opinionRes = await fetchWithTimeout(
           `https://www.courtlistener.com/api/rest/v4/opinions/${opinionIds[0]}/`,
           {
             headers: {
@@ -172,21 +197,22 @@ async function courtListenerSearch(
               Accept: "application/json"
             },
             cache: "no-store"
-          }
+          },
+          10000
         );
 
         if (opinionRes.ok) {
           const opinion = await opinionRes.json();
           sourceText = truncate(
             opinion?.html_with_citations || opinion?.html || opinion?.plain_text || "",
-            8000
+            6500
           );
           if (sourceText) validationStatus = "source_text_verified";
         }
       } catch {}
     }
 
-    out.push({
+    return {
       kind: "case",
       title: String(caseName),
       citation: citations ? String(citations) : null,
@@ -199,8 +225,9 @@ async function courtListenerSearch(
       precedentialStatus: item?.status || item?.status_exact || null,
       validationStatus,
       citatorStatus: "needs_citator_review"
-    });
-  }
+    };
+    })
+  );
 
   return out;
 }
@@ -209,14 +236,14 @@ async function tavilyOfficialSearch(
   query: string,
   apiKey: string
 ): Promise<AuthorityResult[]> {
-  const res = await fetch("https://api.tavily.com/search", {
+  const res = await fetchWithTimeout("https://api.tavily.com/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       api_key: apiKey,
       query,
       search_depth: "advanced",
-      max_results: 5,
+      max_results: 4,
       include_raw_content: true,
       include_domains: [
         "uscode.house.gov",
@@ -226,7 +253,7 @@ async function tavilyOfficialSearch(
       ]
     }),
     cache: "no-store"
-  });
+  }, 12000);
 
   if (!res.ok) {
     throw new Error(`Official-source search ${res.status}: ${await res.text()}`);
@@ -296,30 +323,60 @@ export async function POST(request: NextRequest) {
   const official: AuthorityResult[] = [];
 
   const courtListenerToken = process.env.COURTLISTENER_API_TOKEN || "";
+  const tavilyKey = process.env.TAVILY_API_KEY || "";
+
+  const caseTasks = courtListenerToken
+    ? caseQueries.slice(0, 4).map((query) =>
+        courtListenerSearch(query, courtIds, courtListenerToken)
+      )
+    : [];
+
+  const officialTasks = tavilyKey
+    ? officialQueries.slice(0, 3).map((query) =>
+        tavilyOfficialSearch(query, tavilyKey)
+      )
+    : [];
+
   if (!courtListenerToken) {
-    warnings.push("COURTLISTENER_API_TOKEN is not configured. Case-law search was skipped.");
-  } else {
-    for (const query of caseQueries.slice(0, 5)) {
-      try {
-        cases.push(...await courtListenerSearch(query, courtIds, courtListenerToken));
-      } catch (error) {
-        warnings.push(error instanceof Error ? error.message : "CourtListener search failed.");
-      }
-    }
+    warnings.push(
+      "COURTLISTENER_API_TOKEN is not configured. Case-law search was skipped."
+    );
   }
 
-  const tavilyKey = process.env.TAVILY_API_KEY || "";
   if (!tavilyKey) {
     warnings.push(
       "TAVILY_API_KEY is not configured. Current official U.S. Code / Constitution / eCFR source retrieval was skipped."
     );
-  } else {
-    for (const query of officialQueries.slice(0, 4)) {
-      try {
-        official.push(...await tavilyOfficialSearch(query, tavilyKey));
-      } catch (error) {
-        warnings.push(error instanceof Error ? error.message : "Official-source search failed.");
-      }
+  }
+
+  // Run all external research in parallel. One slow provider/query should not
+  // hold the entire Lex/Elena workflow open for minutes.
+  const [caseSettled, officialSettled] = await Promise.all([
+    Promise.allSettled(caseTasks),
+    Promise.allSettled(officialTasks),
+  ]);
+
+  for (const result of caseSettled) {
+    if (result.status === "fulfilled") {
+      cases.push(...result.value);
+    } else {
+      warnings.push(
+        result.reason instanceof Error
+          ? result.reason.message
+          : "CourtListener search failed."
+      );
+    }
+  }
+
+  for (const result of officialSettled) {
+    if (result.status === "fulfilled") {
+      official.push(...result.value);
+    } else {
+      warnings.push(
+        result.reason instanceof Error
+          ? result.reason.message
+          : "Official-source search failed."
+      );
     }
   }
 
@@ -336,6 +393,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     ok:true,
     researchedAt:new Date().toISOString(),
+    partial: warnings.length > 0,
     agentId,
     jurisdiction,
     courtIds,
