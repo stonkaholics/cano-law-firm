@@ -145,6 +145,30 @@ export default function OperationsCenterDashboard({
 
   const primaryAuthorities = uniqueAuthorities.slice(0, 12);
 
+  const draftChecklist =
+    states.drafting?.output?.draft?.authority_checklist || [];
+
+  function draftUseFor(authority: Authority) {
+    const needles = [
+      clean(authority.citation),
+      clean(authority.title),
+    ]
+      .filter(Boolean)
+      .map((value) => value.toLowerCase());
+
+    if (!needles.length) return null;
+
+    return (
+      draftChecklist.find((item) => {
+        const haystack = clean(item.authority).toLowerCase();
+        return needles.some(
+          (needle) =>
+            haystack.includes(needle) || needle.includes(haystack)
+        );
+      }) || null
+    );
+  }
+
   const atlas = states.synthesis?.output;
   const blockers = Array.from(
     new Set(
@@ -243,6 +267,7 @@ export default function OperationsCenterDashboard({
                   clean(authority.citation) ||
                   clean(authority.title) ||
                   "Authority";
+                const draftUse = draftUseFor(authority);
 
                 return (
                   <article className="authority-card" key={authorityKey(authority) || index}>
@@ -293,6 +318,23 @@ export default function OperationsCenterDashboard({
                         </p>
                       </div>
                     </div>
+
+                    {draftUse ? (
+                      <div className="authority-draft-use">
+                        <FilePenLine size={13} />
+                        <div>
+                          <span>SCRIBE DRAFT USE</span>
+                          <strong>
+                            {clean(draftUse.status).replaceAll("_", " ") ||
+                              "referenced"}
+                          </strong>
+                          <p>
+                            {clean(draftUse.note) ||
+                              "This authority appears in Scribe's current authority checklist."}
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
 
                     {authority.quote ? (
                       <blockquote>
