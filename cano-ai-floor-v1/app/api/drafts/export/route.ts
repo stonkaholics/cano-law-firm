@@ -4,7 +4,6 @@ import {
   Document,
   Footer,
   HeadingLevel,
-  HighlightColor,
   Packer,
   PageNumber,
   Paragraph,
@@ -65,7 +64,7 @@ function docxRunsForText(
             options.bold ||
             /^\[ATTORNEY INPUT NEEDED:/i.test(part),
           highlight: /^\[ATTORNEY INPUT NEEDED:/i.test(part)
-            ? HighlightColor.YELLOW
+            ? "yellow"
             : undefined,
         })
     );
