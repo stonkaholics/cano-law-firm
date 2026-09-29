@@ -107,6 +107,20 @@ export async function getOutputForRun(runId: string) {
   return rows[0] || null;
 }
 
+export async function getLatestOutputForAgent(
+  matterId: string,
+  agentId: SpecialistAgentId
+) {
+  const rows = await supabaseSelect<DbAgentOutput>("agent_outputs", {
+    select: "*",
+    matter_id: `eq.${matterId}`,
+    agent_id: `eq.${agentId}`,
+    order: "created_at.desc",
+    limit: 1,
+  });
+  return rows[0] || null;
+}
+
 export async function getLatestRunForAgent(
   matterId: string,
   agentId: SpecialistAgentId
@@ -126,7 +140,11 @@ export async function getLatestSpecialistState(matterId: string) {
 
   for (const agentId of Object.keys(SPECIALIST_AGENTS) as SpecialistAgentId[]) {
     const run = await getLatestRunForAgent(matterId, agentId);
-    const output = run ? await getOutputForRun(run.id) : null;
+
+    // Keep the last completed output visible even while a new refresh run is
+    // working. Previously the UI temporarily lost Atlas/Scribe content because
+    // the newest run had no output yet.
+    const output = await getLatestOutputForAgent(matterId, agentId);
 
     result[agentId] = {
       run,
