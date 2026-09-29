@@ -691,7 +691,7 @@ export default function CaseBrainWorkstation({
 
               <Card icon={<ListChecks size={18} />} title="Key Facts">
                 <div className="cb-list">
-                  {liveKeyFacts.map((fact, i) => {
+                  {liveKeyFacts.map((fact: any, i: number) => {
                     if (typeof fact === "string") {
                       return (
                         <div className="cb-fact" key={i}>
@@ -729,7 +729,7 @@ export default function CaseBrainWorkstation({
 
               <Card icon={<Clock3 size={18} />} title="Timeline">
                 <div className="cb-timeline">
-                  {liveTimeline.map((entry, i) => {
+                  {liveTimeline.map((entry: any, i: number) => {
                     if (typeof entry === "string") {
                       return (
                         <div className="timeline-row" key={i}>
@@ -765,7 +765,7 @@ export default function CaseBrainWorkstation({
                 title="Issues for Review"
               >
                 <div className="cb-simple-list">
-                  {liveIssues.map((issue, i) => (
+                  {liveIssues.map((issue: any, i: number) => (
                     <div key={i}>
                       <strong>
                         {typeof issue === "string"
@@ -820,7 +820,7 @@ export default function CaseBrainWorkstation({
                 </div>
                 <ul className="cb-ul">
                   {liveMissingInformation.map(
-                    (item, i) => (
+                    (item: any, i: number) => (
                       <li key={i}>{item}</li>
                     )
                   )}
@@ -835,7 +835,7 @@ export default function CaseBrainWorkstation({
                   {liveContradictions.length}
                 </div>
                 <ul className="cb-ul">
-                  {liveContradictions.map((item, i) => (
+                  {liveContradictions.map((item: any, i: number) => (
                     <li key={i}>
                       {typeof item === "string"
                         ? item
@@ -857,7 +857,7 @@ export default function CaseBrainWorkstation({
               >
                 <ul className="cb-ul">
                   {liveNextQuestions.map(
-                    (item, i) => (
+                    (item: any, i: number) => (
                       <li key={i}>{item}</li>
                     )
                   )}
@@ -890,7 +890,7 @@ export default function CaseBrainWorkstation({
                       BLOCKING ITEMS
                     </div>
                     <ul className="cb-ul">
-                      {liveBlockingItems.map((item, i) => (
+                      {liveBlockingItems.map((item: any, i: number) => (
                         <li key={i}>{item}</li>
                       ))}
                     </ul>
