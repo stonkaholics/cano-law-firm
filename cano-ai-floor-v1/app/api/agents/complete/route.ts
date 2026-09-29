@@ -8,7 +8,9 @@ import {
 import {
   getMatterById,
   getMatterByMondayId,
+  getSnapshotById,
   insertActivity,
+  updateMatter,
 } from "../../../../lib/supabase/matters";
 import {
   chooseAfterResearch,
@@ -178,24 +180,24 @@ export async function POST(request: NextRequest) {
       const caseBrainSnapshotId =
         latestMatter?.latest_case_brain_snapshot_id;
 
-      let caseBrain: any = null;
+      const caseBrainSnapshot = caseBrainSnapshotId
+        ? await getSnapshotById(caseBrainSnapshotId)
+        : null;
 
-      if (caseBrainSnapshotId) {
-        const snapshotRows = await (
-          await import("../../../../lib/supabase/rest")
-        ).supabaseSelect<any>("case_brain_snapshots", {
-          select: "analysis",
-          id: `eq.${caseBrainSnapshotId}`,
-          limit: 1,
-        });
-
-        caseBrain = snapshotRows[0]?.analysis || null;
-      }
+      const caseBrain = caseBrainSnapshot?.analysis || null;
+      const persistedRecommendation =
+        String(caseBrainSnapshot?.recommended_specialist || "")
+          .trim()
+          .toLowerCase() || null;
 
       let decision: any = null;
 
       if (agentId === "research") {
-        decision = chooseAfterResearch(caseBrain, output);
+        decision = chooseAfterResearch(
+          caseBrain,
+          output,
+          persistedRecommendation
+        );
       } else if (
         agentId === "habeas" ||
         agentId === "bond"
@@ -211,12 +213,9 @@ export async function POST(request: NextRequest) {
       }
 
       if (decision) {
-        await recordPipelineTransition({
-          mondayItemId: matter.monday_item_id,
-          fromStage: agentId,
-          decision,
-        });
-
+        // Important: only advance the visible pipeline AFTER the next agent
+        // has actually been accepted. This prevents the UI from saying
+        // "Elena next/running" when no Elena run was created.
         if (decision.nextAgent) {
           const pipelineResponse = await fetch(
             new URL(
@@ -234,21 +233,51 @@ export async function POST(request: NextRequest) {
             }
           );
 
+          const pipelineText = await pipelineResponse.text();
+
           if (!pipelineResponse.ok) {
+            await updateMatter(matter.id, {
+              pipeline_status: "paused",
+              pipeline_stage: agentId,
+              pipeline_next_agent: decision.nextAgent,
+              current_route: decision.routeLabel,
+              routed_by: "Santiago Auto-Pipeline",
+              routed_at: new Date().toISOString(),
+            });
+
             await insertActivity({
               matter_id: matter.id,
               monday_item_id: matter.monday_item_id,
               event_type: "pipeline_start_error",
               agent_id: decision.nextAgent,
               actor: "Santiago Auto-Pipeline",
-              title: "Automatic specialist start failed",
-              detail: await pipelineResponse.text(),
+              title: `${decision.routeLabel} could not start automatically`,
+              detail:
+                pipelineText ||
+                "The next specialist was selected but the run could not be created.",
               metadata: {
                 attempted_agent: decision.nextAgent,
+                from_agent: agentId,
+                retry_available: true,
               },
+            });
+
+            return NextResponse.json({
+              ok: true,
+              saved: "output",
+              pipeline: "paused_start_error",
+              retryAgent: decision.nextAgent,
+              runId: run.id,
+              outputId: outputRecord?.id || null,
             });
           }
         }
+
+        await recordPipelineTransition({
+          mondayItemId: matter.monday_item_id,
+          fromStage: agentId,
+          decision,
+        });
       }
     }
 
