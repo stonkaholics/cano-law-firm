@@ -16,6 +16,7 @@ import {
   Building2,
   UsersRound,
   BrainCircuit,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import SantiagoWorkstation from "./components/SantiagoWorkstation";
@@ -335,6 +336,7 @@ export default function Home() {
     useState(false);
   const [matters, setMatters] = useState<MatterQueueItem[]>([]);
   const [mattersLoading, setMattersLoading] = useState(false);
+  const [resettingMatter, setResettingMatter] = useState(false);
   const [santiagoInitialTab, setSantiagoInitialTab] =
     useState<"intake" | "dispatch" | "activity">("intake");
 
@@ -763,6 +765,82 @@ export default function Home() {
     }
   }
 
+
+  async function resetMatterRecord(
+    matter: MatterQueueItem | StoredCaseMatter
+  ) {
+    if (resettingMatter) return;
+
+    const mondayItemId =
+      matter.mondayItemId || matter.matterId;
+
+    const matterName = String(
+      matter.caseBrain?.people?.detainee?.name ||
+      matter.caseBrain?.people?.detainee?.full_name ||
+      matter.monday?.preview?.detaineeName ||
+      matter.monday?.preview?.name ||
+      `Matter ${mondayItemId}`
+    );
+
+    const confirmed = window.confirm(
+      `Clear all AI work for ${matterName}?\n\n` +
+      `This deletes Case Brain snapshots, specialist outputs/runs, routing history, ` +
+      `pipeline history, and Atlas synthesis. Monday references and Monday intake data remain. ` +
+      `You can then assign the matter again through Santiago for a clean auto-routing test.`
+    );
+
+    if (!confirmed) return;
+
+    setResettingMatter(true);
+    setSharedStateError("");
+
+    try {
+      const res = await fetch("/api/matters/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mondayItemId,
+          mode: "all_ai",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data?.ok === false) {
+        throw new Error(
+          data?.error || "Unable to clear the matter."
+        );
+      }
+
+      const activeMondayId =
+        caseBrainMatter?.mondayItemId ||
+        caseBrainMatter?.matterId;
+
+      if (activeMondayId === mondayItemId) {
+        setSpecialistStates({});
+        setRoutingState(null);
+        setCaseBrainOpen(false);
+        setIntelligenceManagerOpen(false);
+        setSpecialistOpenId(null);
+      }
+
+      await loadAllMatters({ preserveSelection: true });
+    } catch (error) {
+      setSharedStateError(
+        error instanceof Error
+          ? error.message
+          : "Unable to clear the matter."
+      );
+    } finally {
+      setResettingMatter(false);
+    }
+  }
+
+  async function resetCurrentMatter() {
+    if (!caseBrainMatter) return;
+    await resetMatterRecord(caseBrainMatter);
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -853,6 +931,15 @@ export default function Home() {
               onClick={() => setMatterCenterOpen(true)}
             >
               Switch Matter
+            </button>
+            <button
+              className="active-clear-btn"
+              onClick={resetCurrentMatter}
+              disabled={resettingMatter}
+              title="Clear all AI work and keep Monday intake data"
+            >
+              <Trash2 size={14} />
+              {resettingMatter ? "Clearing..." : "Clear"}
             </button>
             <button onClick={() => setCaseBrainOpen(true)}>
               Open Case Brain
@@ -1124,6 +1211,9 @@ export default function Home() {
           }}
           onOpenCaseBrain={(matter) => {
             void openMatterCaseBrain(matter);
+          }}
+          onResetMatter={(matter) => {
+            void resetMatterRecord(matter);
           }}
           onClose={() => setMatterCenterOpen(false)}
         />

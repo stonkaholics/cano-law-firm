@@ -150,3 +150,30 @@ export async function supabaseUpdate<T = any>(
   const data = await parseResponse(response, `update ${table}`);
   return Array.isArray(data) ? data : [];
 }
+
+
+export async function supabaseDelete<T = any>(
+  table: string,
+  filters: Record<string, string>
+): Promise<T[]> {
+  const { url } = getConfig();
+
+  const search = new URLSearchParams();
+  for (const [column, expression] of Object.entries(filters)) {
+    search.set(column, expression);
+  }
+
+  const response = await fetch(
+    `${url}/rest/v1/${table}?${search.toString()}`,
+    {
+      method: "DELETE",
+      headers: headers({
+        Prefer: "return=representation",
+      }),
+      cache: "no-store",
+    }
+  );
+
+  const data = await parseResponse(response, `delete ${table}`);
+  return Array.isArray(data) ? data : [];
+}

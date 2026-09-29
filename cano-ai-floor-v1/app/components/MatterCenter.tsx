@@ -12,6 +12,7 @@ import {
   ChevronRight,
   RefreshCw,
   Route,
+  Trash2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { StoredCaseMatter } from "./CaseBrainWorkstation";
@@ -51,6 +52,7 @@ export default function MatterCenter({
   onRefresh,
   onSelect,
   onOpenCaseBrain,
+  onResetMatter,
   onClose,
 }: {
   matters: MatterQueueItem[];
@@ -59,6 +61,7 @@ export default function MatterCenter({
   onRefresh: () => void;
   onSelect: (matter: MatterQueueItem) => void;
   onOpenCaseBrain: (matter: MatterQueueItem) => void;
+  onResetMatter?: (matter: MatterQueueItem) => void;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -305,6 +308,17 @@ export default function MatterCenter({
                       <Route size={14} />
                       Make Active
                     </button>
+
+                    {onResetMatter && (
+                      <button
+                        className="matter-clear-btn"
+                        onClick={() => onResetMatter(matter)}
+                        title="Clear AI work and keep Monday data"
+                      >
+                        <Trash2 size={14} />
+                        Clear AI
+                      </button>
+                    )}
 
                     <button
                       className="primary-btn compact"

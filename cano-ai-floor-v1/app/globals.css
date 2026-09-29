@@ -2813,3 +2813,44 @@ button { font: inherit; }
   .specialist-authority-head { flex-direction:column; }
   .authority-jurisdiction { min-width:0; width:100%; }
 }
+
+
+/* Matter reset / test controls */
+.active-clear-btn,
+.matter-clear-btn {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  border:1px solid rgba(241,103,103,.28) !important;
+  background:rgba(151,40,40,.09) !important;
+  color:#ef8d8d !important;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+.active-clear-btn {
+  min-height:34px;
+  padding:7px 10px;
+  font-size:8px;
+  font-weight:800;
+}
+
+.active-clear-btn:hover,
+.matter-clear-btn:hover {
+  border-color:rgba(241,103,103,.5) !important;
+  background:rgba(151,40,40,.16) !important;
+  color:#ffaaaa !important;
+}
+
+.active-clear-btn:disabled {
+  opacity:.55;
+  cursor:wait;
+}
+
+.matter-clear-btn {
+  min-height:34px;
+  padding:7px 10px;
+  font-size:8px;
+  font-weight:800;
+}
