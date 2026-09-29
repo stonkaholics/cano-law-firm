@@ -305,11 +305,21 @@ export default function MatterCenter({
 
                   <div className="matter-card-actions">
                     <button
-                      className="secondary-btn"
+                      className={`matter-activate-btn ${selected ? "active" : ""}`}
                       onClick={() => onSelect(matter)}
+                      disabled={selected}
+                      title={
+                        selected
+                          ? "This is the active command-center matter"
+                          : "Make this the active command-center matter"
+                      }
                     >
-                      <Route size={14} />
-                      Make Active
+                      {selected ? (
+                        <CheckCircle2 size={15} />
+                      ) : (
+                        <Route size={15} />
+                      )}
+                      {selected ? "Active Matter" : "Make Active"}
                     </button>
 
                     {onResetMatter && (
