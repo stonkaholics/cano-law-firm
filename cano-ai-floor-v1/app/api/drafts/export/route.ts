@@ -4,6 +4,7 @@ import {
   Document,
   Footer,
   HeadingLevel,
+  HighlightColor,
   Packer,
   PageNumber,
   Paragraph,
@@ -42,6 +43,38 @@ function markdownLines(markdown: string) {
     .split("\n");
 }
 
+
+function docxRunsForText(
+  text: string,
+  options: { bold?: boolean; size?: number } = {}
+) {
+  const cleaned = cleanMarkdownText(text);
+  const parts = cleaned.split(
+    /(\[ATTORNEY INPUT NEEDED:[^\]]+\])/gi
+  );
+
+  return parts
+    .filter((part) => part.length > 0)
+    .map(
+      (part) =>
+        new TextRun({
+          text: part,
+          font: "Times New Roman",
+          size: options.size || 24,
+          bold:
+            options.bold ||
+            /^\[ATTORNEY INPUT NEEDED:/i.test(part),
+          highlight: /^\[ATTORNEY INPUT NEEDED:/i.test(part)
+            ? HighlightColor.YELLOW
+            : undefined,
+        })
+    );
+}
+
+function isAttorneyInputLine(text: string) {
+  return /\[ATTORNEY INPUT NEEDED:/i.test(text);
+}
+
 function buildDocxParagraphs(markdown: string) {
   const paragraphs: Paragraph[] = [];
 
@@ -57,7 +90,7 @@ function buildDocxParagraphs(markdown: string) {
       paragraphs.push(
         new Paragraph({
           heading: HeadingLevel.HEADING_3,
-          children: [new TextRun(cleanMarkdownText(line.slice(4)))],
+          children: docxRunsForText(line.slice(4), { bold: true, size: 24 }),
         })
       );
       continue;
@@ -67,7 +100,7 @@ function buildDocxParagraphs(markdown: string) {
       paragraphs.push(
         new Paragraph({
           heading: HeadingLevel.HEADING_2,
-          children: [new TextRun(cleanMarkdownText(line.slice(3)))],
+          children: docxRunsForText(line.slice(3), { bold: true, size: 26 }),
         })
       );
       continue;
@@ -77,7 +110,7 @@ function buildDocxParagraphs(markdown: string) {
       paragraphs.push(
         new Paragraph({
           heading: HeadingLevel.HEADING_1,
-          children: [new TextRun(cleanMarkdownText(line.slice(2)))],
+          children: docxRunsForText(line.slice(2), { bold: true, size: 28 }),
         })
       );
       continue;
@@ -87,13 +120,10 @@ function buildDocxParagraphs(markdown: string) {
       paragraphs.push(
         new Paragraph({
           bullet: { level: 0 },
-          children: [
-            new TextRun({
-              text: cleanMarkdownText(line.replace(/^[-*] /, "")),
-              font: "Times New Roman",
-              size: 24,
-            }),
-          ],
+          children: docxRunsForText(
+            line.replace(/^[-*] /, ""),
+            { size: 24 }
+          ),
         })
       );
       continue;
@@ -103,13 +133,7 @@ function buildDocxParagraphs(markdown: string) {
       new Paragraph({
         alignment: AlignmentType.JUSTIFIED,
         spacing: { after: 150, line: 360 },
-        children: [
-          new TextRun({
-            text: cleanMarkdownText(line),
-            font: "Times New Roman",
-            size: 24,
-          }),
-        ],
+        children: docxRunsForText(line, { size: 24 }),
       })
     );
   }
@@ -151,27 +175,40 @@ async function buildPdf(markdown: string, title: string) {
   const bodySize = 11;
   const lineHeight = 16;
   let page = pdf.addPage(pageSize);
-  let y = pageSize[1] - margin;
+  let y = pageSize[1] - 78;
 
   const addPage = () => {
     page = pdf.addPage(pageSize);
-    y = pageSize[1] - margin;
+    y = pageSize[1] - 70;
   };
 
   const ensure = (needed: number) => {
     if (y - needed < margin) addPage();
   };
 
-  ensure(40);
-  page.drawText(cleanMarkdownText(title), {
-    x: margin,
-    y,
-    size: 15,
-    font: boldFont,
-    color: rgb(0.08, 0.08, 0.08),
-    maxWidth: pageSize[0] - margin * 2,
-  });
-  y -= 30;
+  const titleText = cleanMarkdownText(title);
+  const titleLines = wrapText(
+    titleText,
+    boldFont,
+    15,
+    pageSize[0] - margin * 2 - 24
+  );
+
+  ensure(titleLines.length * 21 + 28);
+
+  for (const titleLine of titleLines) {
+    const width = boldFont.widthOfTextAtSize(titleLine, 15);
+    page.drawText(titleLine, {
+      x: Math.max(margin, (pageSize[0] - width) / 2),
+      y,
+      size: 15,
+      font: boldFont,
+      color: rgb(0.08, 0.08, 0.08),
+    });
+    y -= 21;
+  }
+
+  y -= 18;
 
   for (const raw of markdownLines(markdown)) {
     const line = raw.trim();
@@ -206,7 +243,23 @@ async function buildPdf(markdown: string, title: string) {
 
     ensure(lines.length * lineHeight + (headingLevel ? 10 : 4));
 
+    const highlightAttorneyInput = isAttorneyInputLine(text);
+
     for (const wrapped of lines) {
+      if (highlightAttorneyInput) {
+        const textWidth = Math.min(
+          font.widthOfTextAtSize(wrapped, fontSize) + 8,
+          pageSize[0] - margin * 2
+        );
+        page.drawRectangle({
+          x: margin - 3,
+          y: y - 3,
+          width: textWidth,
+          height: fontSize + 7,
+          color: rgb(1, 0.95, 0.58),
+        });
+      }
+
       page.drawText(wrapped, {
         x: margin,
         y,
