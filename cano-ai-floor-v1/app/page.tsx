@@ -1104,6 +1104,13 @@ export default function Home() {
           matter={caseBrainMatter}
           refreshing={caseBrainRefreshing}
           onRefresh={() => refreshCaseBrainMatter(false)}
+          onMatterUpdated={handleMatterUpdated}
+          onOpenSpecialist={(agentId) => {
+            if (isBuiltSpecialist(agentId)) {
+              setCaseBrainOpen(false);
+              openSpecialist(agentId);
+            }
+          }}
           onClose={() => setCaseBrainOpen(false)}
         />
       )}

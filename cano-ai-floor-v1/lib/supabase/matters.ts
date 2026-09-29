@@ -21,6 +21,10 @@ export type DbMatter = {
   latest_case_brain_snapshot_id: string | null;
   monday_data: Record<string, any> | null;
   created_at: string;
+  pipeline_status?: string | null;
+  pipeline_stage?: string | null;
+  pipeline_next_agent?: string | null;
+  pipeline_auto_enabled?: boolean | null;
   updated_at: string;
 };
 
@@ -161,6 +165,15 @@ export async function insertAssignment(payload: Record<string, any>) {
   return rows[0] || null;
 }
 
+
+export async function insertPipelineEvent(payload: Record<string, any>) {
+  const rows = await supabaseInsert(
+    "matter_pipeline_events",
+    payload
+  );
+  return rows[0] || null;
+}
+
 export async function buildStoredMatter(matter: DbMatter | null) {
   if (!matter) return null;
 
@@ -191,5 +204,11 @@ export async function buildStoredMatter(matter: DbMatter | null) {
           status: assignment?.status || "assigned",
         }
       : null,
+    pipeline: {
+      status: matter.pipeline_status || "idle",
+      stage: matter.pipeline_stage || null,
+      nextAgent: matter.pipeline_next_agent || null,
+      autoEnabled: matter.pipeline_auto_enabled !== false,
+    },
   };
 }

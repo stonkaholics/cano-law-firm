@@ -7,8 +7,16 @@ import {
 } from "../../../../lib/supabase/agents";
 import {
   getMatterById,
+  getMatterByMondayId,
   insertActivity,
 } from "../../../../lib/supabase/matters";
+import {
+  chooseAfterResearch,
+  chooseAfterPrimarySpecialist,
+  chooseAfterTimeline,
+  chooseAfterHearing,
+  recordPipelineTransition,
+} from "../../../../lib/supabase/pipeline";
 
 export async function POST(request: NextRequest) {
   const expectedSecret = process.env.N8N_SHARED_SECRET;
@@ -121,6 +129,88 @@ export async function POST(request: NextRequest) {
         readiness: output?.readiness?.status || "review_ready",
       },
     });
+
+    const latestMatter = await getMatterByMondayId(
+      matter.monday_item_id
+    );
+
+    if (latestMatter?.pipeline_auto_enabled !== false) {
+      const caseBrainSnapshotId =
+        latestMatter?.latest_case_brain_snapshot_id;
+
+      let caseBrain: any = null;
+
+      if (caseBrainSnapshotId) {
+        const snapshotRows = await (
+          await import("../../../../lib/supabase/rest")
+        ).supabaseSelect<any>("case_brain_snapshots", {
+          select: "analysis",
+          id: `eq.${caseBrainSnapshotId}`,
+          limit: 1,
+        });
+
+        caseBrain = snapshotRows[0]?.analysis || null;
+      }
+
+      let decision: any = null;
+
+      if (agentId === "research") {
+        decision = chooseAfterResearch(caseBrain, output);
+      } else if (
+        agentId === "habeas" ||
+        agentId === "bond"
+      ) {
+        decision = chooseAfterPrimarySpecialist(
+          agentId,
+          output
+        );
+      } else if (agentId === "timeline") {
+        decision = chooseAfterTimeline(output);
+      } else if (agentId === "hearing") {
+        decision = chooseAfterHearing();
+      }
+
+      if (decision) {
+        await recordPipelineTransition({
+          mondayItemId: matter.monday_item_id,
+          fromStage: agentId,
+          decision,
+        });
+
+        if (decision.nextAgent) {
+          const pipelineResponse = await fetch(
+            new URL(
+              "/api/pipeline/start-agent",
+              request.nextUrl.origin
+            ),
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                mondayItemId: matter.monday_item_id,
+                agentId: decision.nextAgent,
+              }),
+              cache: "no-store",
+            }
+          );
+
+          if (!pipelineResponse.ok) {
+            await insertActivity({
+              matter_id: matter.id,
+              monday_item_id: matter.monday_item_id,
+              event_type: "pipeline_start_error",
+              agent_id: decision.nextAgent,
+              actor: "Santiago Auto-Pipeline",
+              title: "Automatic specialist start failed",
+              detail: await pipelineResponse.text(),
+              metadata: {
+                attempted_agent: decision.nextAgent,
+              },
+            });
+          }
+        }
+      }
+    }
 
     return NextResponse.json({
       ok: true,

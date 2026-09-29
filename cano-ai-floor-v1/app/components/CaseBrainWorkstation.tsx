@@ -102,6 +102,12 @@ export type StoredCaseMatter = {
     assignmentId?: string | null;
     status?: string;
   } | null;
+  pipeline?: {
+    status?: string | null;
+    stage?: string | null;
+    nextAgent?: string | null;
+    autoEnabled?: boolean;
+  } | null;
   caseBrain: CaseBrainResult;
 };
 
@@ -109,11 +115,15 @@ export default function CaseBrainWorkstation({
   matter,
   refreshing = false,
   onRefresh,
+  onMatterUpdated,
+  onOpenSpecialist,
   onClose,
 }: {
   matter: StoredCaseMatter | null;
   refreshing?: boolean;
   onRefresh?: () => void;
+  onMatterUpdated?: (matter: StoredCaseMatter) => void;
+  onOpenSpecialist?: (agentId: string) => void;
   onClose: () => void;
 }) {
   if (!matter) {
@@ -176,6 +186,27 @@ export default function CaseBrainWorkstation({
     : isError
     ? "Case Brain Error"
     : "Review Ready";
+
+  async function toggleAutoPipeline() {
+    const mondayItemId = matter.mondayItemId || matter.matterId;
+    const enabled = matter.pipeline?.autoEnabled !== false;
+
+    const res = await fetch("/api/pipeline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "set_auto",
+        mondayItemId,
+        enabled: !enabled,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (res.ok && data?.matter) {
+      onMatterUpdated?.(data.matter);
+    }
+  }
 
   return (
     <div className="casebrain-workstation">
@@ -242,6 +273,112 @@ export default function CaseBrainWorkstation({
               </span>
             </div>
           </div>
+        </section>
+
+        <section className="cb-pipeline-card">
+          <div className="cb-pipeline-head">
+            <div>
+              <span className="cb-kicker">AUTOMATED CASE PIPELINE</span>
+              <h3>
+                {matter.pipeline?.stage
+                  ? pipelineStageLabel(matter.pipeline.stage)
+                  : isProcessing
+                  ? "Case Brain"
+                  : "Awaiting Next Step"}
+              </h3>
+            </div>
+
+            <button
+              className={`pipeline-toggle ${
+                matter.pipeline?.autoEnabled !== false ? "enabled" : ""
+              }`}
+              onClick={toggleAutoPipeline}
+            >
+              {matter.pipeline?.autoEnabled !== false
+                ? "Auto Routing On"
+                : "Manual Routing"}
+            </button>
+          </div>
+
+          <div className="cb-pipeline-flow">
+            <PipelineNode
+              label="Case Brain"
+              active={
+                isProcessing ||
+                matter.pipeline?.stage === "case_brain"
+              }
+              done={
+                hasSnapshot &&
+                matter.pipeline?.stage !== "case_brain"
+              }
+            />
+            <PipelineArrow />
+            <PipelineNode
+              label="Lex Research"
+              active={matter.pipeline?.stage === "research"}
+              done={pipelinePast(matter.pipeline?.stage, "research")}
+            />
+            <PipelineArrow />
+            <PipelineNode
+              label="Primary Specialist"
+              sublabel="Elena / Mateo"
+              active={
+                matter.pipeline?.stage === "habeas" ||
+                matter.pipeline?.stage === "bond"
+              }
+              done={pipelinePast(matter.pipeline?.stage, "primary")}
+            />
+            <PipelineArrow />
+            <PipelineNode
+              label="Chronos"
+              active={matter.pipeline?.stage === "timeline"}
+              done={pipelinePast(matter.pipeline?.stage, "timeline")}
+            />
+            <PipelineArrow />
+            <PipelineNode
+              label="Avery"
+              active={matter.pipeline?.stage === "hearing_prep"}
+              done={pipelinePast(matter.pipeline?.stage, "hearing_prep")}
+            />
+            <PipelineArrow />
+            <PipelineNode
+              label="Attorney Review"
+              active={matter.pipeline?.stage === "attorney_review"}
+              done={false}
+            />
+          </div>
+
+          <div className="cb-pipeline-next">
+            <div>
+              <span>NEXT STEP</span>
+              <strong>
+                {pipelineNextLabel(
+                  matter.pipeline?.stage,
+                  matter.pipeline?.nextAgent,
+                  cb.routing?.recommended_specialist
+                )}
+              </strong>
+            </div>
+
+            {matter.pipeline?.nextAgent && onOpenSpecialist ? (
+              <button
+                onClick={() =>
+                  onOpenSpecialist(matter.pipeline?.nextAgent || "")
+                }
+              >
+                Open Next Agent
+              </button>
+            ) : matter.pipeline?.stage === "attorney_review" ? (
+              <span className="attorney-gate">Attorney Review Required</span>
+            ) : null}
+          </div>
+
+          <p className="cb-pipeline-copy">
+            Automatic mode uses Case Brain routing to sequence the matter.
+            Immigration matters run through Lex first, then the primary
+            specialist, Chronos, Avery, and finally attorney review. The
+            pipeline pauses when a specialist reports blocking information.
+          </p>
         </section>
 
         {isProcessing && !hasSnapshot ? (
@@ -475,6 +612,96 @@ export default function CaseBrainWorkstation({
       </div>
     </div>
   );
+}
+
+
+function PipelineArrow() {
+  return <span className="pipeline-arrow">→</span>;
+}
+
+function PipelineNode({
+  label,
+  sublabel,
+  active,
+  done,
+}: {
+  label: string;
+  sublabel?: string;
+  active?: boolean;
+  done?: boolean;
+}) {
+  return (
+    <div
+      className={`pipeline-node ${
+        active ? "active" : done ? "done" : ""
+      }`}
+    >
+      <span />
+      <strong>{label}</strong>
+      {sublabel && <small>{sublabel}</small>}
+    </div>
+  );
+}
+
+function pipelineStageLabel(stage?: string | null) {
+  const map: Record<string, string> = {
+    case_brain: "Case Brain",
+    research: "Lex Research",
+    habeas: "Elena · Habeas",
+    bond: "Mateo · Bond",
+    timeline: "Chronos · Timeline",
+    hearing_prep: "Avery · Hearing Prep",
+    attorney_review: "Attorney Review",
+  };
+  return map[stage || ""] || "Awaiting Next Step";
+}
+
+function pipelineNextLabel(
+  stage?: string | null,
+  nextAgent?: string | null,
+  recommended?: string
+) {
+  if (stage === "attorney_review") return "Attorney Review";
+  if (nextAgent === "research") return "Lex · Research";
+  if (nextAgent === "habeas") return "Elena · Habeas";
+  if (nextAgent === "bond") return "Mateo · Bond";
+  if (nextAgent === "timeline") return "Chronos · Timeline";
+  if (nextAgent === "hearing") return "Avery · Hearing Prep";
+
+  if (!stage && recommended === "habeas") {
+    return "Lex · Research → Elena · Habeas";
+  }
+  if (!stage && recommended === "bond") {
+    return "Lex · Research → Mateo · Bond";
+  }
+
+  return "Awaiting pipeline decision";
+}
+
+function pipelinePast(
+  current?: string | null,
+  target?: string
+) {
+  const order = [
+    "case_brain",
+    "research",
+    "habeas",
+    "bond",
+    "timeline",
+    "hearing_prep",
+    "attorney_review",
+  ];
+
+  const currentIndex = order.indexOf(current || "");
+
+  if (target === "primary") {
+    return ["timeline", "hearing_prep", "attorney_review"].includes(
+      current || ""
+    );
+  }
+
+  const targetIndex = order.indexOf(target || "");
+  return currentIndex > targetIndex && targetIndex >= 0;
 }
 
 function ProcessingState() {

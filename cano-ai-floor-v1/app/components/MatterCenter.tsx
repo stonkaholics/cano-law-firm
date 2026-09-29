@@ -255,11 +255,13 @@ export default function MatterCenter({
                       value={matter.mondayItemId || matter.matterId}
                     />
                     <Meta
-                      label="Current Route"
+                      label="Pipeline"
                       value={
-                        matter.record?.currentRoute ||
-                        matter.routing?.target ||
-                        "Unassigned"
+                        matter.pipeline?.stage
+                          ? matter.pipeline.stage.replaceAll("_", " ")
+                          : matter.record?.currentRoute ||
+                            matter.routing?.target ||
+                            "Unassigned"
                       }
                     />
                     <Meta

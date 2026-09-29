@@ -6,6 +6,10 @@ import {
   insertSnapshot,
   updateMatter,
 } from "../../../../lib/supabase/matters";
+import {
+  chooseAfterCaseBrain,
+  recordPipelineTransition,
+} from "../../../../lib/supabase/pipeline";
 
 function getPersonName(person: any) {
   if (!person || typeof person !== "object") return "";
@@ -219,8 +223,52 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Auto-pipeline:
+    // Case Brain -> Lex first. Lex then hands off to the primary specialist.
+    if (matter.pipeline_auto_enabled !== false) {
+      const decision = chooseAfterCaseBrain(caseBrain);
+
+      await recordPipelineTransition({
+        mondayItemId,
+        fromStage: "case_brain",
+        decision,
+      });
+
+      if (decision.nextAgent) {
+        const pipelineResponse = await fetch(
+          new URL("/api/pipeline/start-agent", request.nextUrl.origin),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              mondayItemId,
+              agentId: decision.nextAgent,
+            }),
+            cache: "no-store",
+          }
+        );
+
+        if (!pipelineResponse.ok) {
+          await insertActivity({
+            matter_id: matter.id,
+            monday_item_id: mondayItemId,
+            event_type: "pipeline_start_error",
+            agent_id: decision.nextAgent,
+            actor: "Santiago Auto-Pipeline",
+            title: "Automatic specialist start failed",
+            detail: await pipelineResponse.text(),
+            metadata: {
+              attempted_agent: decision.nextAgent,
+            },
+          });
+        }
+      }
+    }
+
+    const latestMatter = await getMatterByMondayId(mondayItemId);
+
     const storedMatter = await buildStoredMatter(
-      updated || matter
+      latestMatter || updated || matter
     );
 
     return NextResponse.json({
