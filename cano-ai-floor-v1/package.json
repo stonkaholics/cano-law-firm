@@ -12,7 +12,9 @@
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "lucide-react": "^0.468.0"
+    "lucide-react": "^0.468.0",
+    "docx": "^9.5.1",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "@types/node": "^22",
