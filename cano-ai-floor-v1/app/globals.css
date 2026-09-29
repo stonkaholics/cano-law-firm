@@ -4277,3 +4277,364 @@ button { font: inherit; }
     margin-left: 0;
   }
 }
+
+
+/* =========================================================
+   OPERATIONS CENTER V2 · FULLSCREEN / HIGH-READABILITY MODE
+   ========================================================= */
+
+.operations-center-wrap {
+  width: calc(100vw - 28px) !important;
+  max-width: none !important;
+  margin-left: calc(50% - 50vw + 14px) !important;
+  margin-right: calc(50% - 50vw + 14px) !important;
+  padding: 0 0 54px !important;
+}
+
+.operations-center-wrap > .floor-heading {
+  padding: 0 10px 10px;
+}
+
+.operations-center-wrap > .floor-heading > span {
+  font-size: 10px;
+  letter-spacing: .14em;
+}
+
+.operations-center-wrap > .floor-heading > small {
+  font-size: 10px;
+  color: #73909f;
+}
+
+.ops-command,
+.ops-command-empty {
+  width: 100%;
+  border-radius: 18px;
+  padding: 24px;
+}
+
+.ops-command-head {
+  gap: 22px;
+  padding-bottom: 20px;
+}
+
+.ops-command-kicker {
+  font-size: 10px;
+}
+
+.ops-command-head h2 {
+  font-size: 32px;
+  line-height: 1.18;
+}
+
+.ops-command-head p {
+  max-width: 980px;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.ops-command-actions button {
+  min-height: 40px;
+  padding: 9px 12px;
+  font-size: 10px;
+}
+
+.ops-top-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(410px, .9fr);
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.ops-strategy-card {
+  padding: 20px;
+}
+
+.ops-side-card {
+  padding: 18px;
+}
+
+.ops-progress-panel,
+.ops-actions-panel {
+  padding: 18px;
+}
+
+.ops-section-title {
+  min-height: 28px;
+  gap: 9px;
+  font-size: 11px;
+}
+
+.ops-section-title strong {
+  min-width: 28px;
+  height: 28px;
+  font-size: 10px;
+}
+
+.ops-section-title.compact {
+  min-height: 24px;
+}
+
+.ops-section-copy {
+  margin: 9px 0 18px;
+  max-width: 1120px;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.authority-workbench {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.authority-card {
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.authority-card-top {
+  gap: 14px;
+}
+
+.authority-card-title {
+  gap: 11px;
+}
+
+.authority-kind-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.authority-card-title span {
+  font-size: 8px;
+}
+
+.authority-card-title h3 {
+  margin-top: 6px;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.authority-case-name {
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.authority-badges {
+  max-width: 48%;
+  gap: 5px;
+}
+
+.authority-badges span {
+  padding: 5px 7px;
+  font-size: 8px;
+}
+
+.authority-apply-grid {
+  margin-top: 14px;
+  gap: 10px;
+}
+
+.authority-apply-grid > div {
+  padding: 12px;
+  border-radius: 10px;
+}
+
+.authority-label {
+  font-size: 8px;
+}
+
+.authority-apply-grid p {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.authority-card blockquote {
+  margin-top: 11px;
+  padding: 11px 12px;
+  gap: 9px;
+}
+
+.authority-card blockquote span {
+  font-size: 8px;
+}
+
+.authority-card blockquote p {
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.authority-draft-use {
+  margin-top: 11px;
+  padding: 11px 12px;
+}
+
+.authority-draft-use span,
+.authority-draft-use strong {
+  font-size: 8px;
+}
+
+.authority-draft-use p {
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.authority-card-footer {
+  margin-top: 12px;
+  padding-top: 11px;
+}
+
+.authority-source-meta span,
+.authority-no-link {
+  font-size: 8px;
+}
+
+.authority-open-source {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 9px;
+}
+
+.ops-side-copy {
+  margin-top: 9px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.ops-text-button {
+  margin-top: 12px;
+  font-size: 9px;
+}
+
+.ops-compact-list {
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.ops-compact-list li {
+  margin-bottom: 8px;
+}
+
+.ops-none {
+  font-size: 10px;
+}
+
+.ops-lower-grid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.ops-agent-status-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 13px;
+}
+
+.ops-agent-status {
+  min-height: 64px;
+  padding: 11px;
+}
+
+.ops-agent-status strong {
+  font-size: 11px;
+}
+
+.ops-agent-status span:not(.ops-status-dot) {
+  font-size: 9px;
+}
+
+.ops-next-actions {
+  margin-top: 13px;
+  gap: 9px;
+}
+
+.ops-next-actions li {
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  padding: 10px;
+}
+
+.ops-next-actions li > span {
+  width: 26px;
+  height: 26px;
+  font-size: 9px;
+}
+
+.ops-next-actions p {
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+/* Give the Atlas rail more breathing room on large screens. */
+@media (min-width: 1700px) {
+  .ops-top-grid {
+    grid-template-columns: minmax(0, 2.1fr) minmax(470px, .9fr);
+  }
+
+  .authority-workbench {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* At laptop widths, prefer one large readable authority card per row. */
+@media (max-width: 1320px) {
+  .ops-top-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-intelligence-rail {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .authority-workbench {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .operations-center-wrap {
+    width: calc(100vw - 16px) !important;
+    margin-left: calc(50% - 50vw + 8px) !important;
+    margin-right: calc(50% - 50vw + 8px) !important;
+  }
+
+  .ops-command,
+  .ops-command-empty {
+    padding: 16px;
+  }
+
+  .ops-command-head {
+    flex-direction: column;
+  }
+
+  .ops-intelligence-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-lower-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-agent-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .ops-agent-status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-command-head h2 {
+    font-size: 27px;
+  }
+
+  .authority-card-title h3 {
+    font-size: 18px;
+  }
+}
