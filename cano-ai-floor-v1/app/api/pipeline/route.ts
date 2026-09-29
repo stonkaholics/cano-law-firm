@@ -71,6 +71,65 @@ export async function POST(request: NextRequest) {
         matter.latest_case_brain_snapshot_id
       );
 
+      // Recovery path for a handoff that was selected but never actually
+      // launched. Example: Lex completed, Elena was chosen, but n8n/Vercel
+      // failed before an Elena run was created.
+      if (
+        snapshot?.analysis &&
+        matter.pipeline_status === "paused" &&
+        matter.pipeline_next_agent
+      ) {
+        const retryResponse = await fetch(
+          new URL(
+            "/api/pipeline/start-agent",
+            request.nextUrl.origin
+          ),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              mondayItemId,
+              agentId: matter.pipeline_next_agent,
+            }),
+            cache: "no-store",
+          }
+        );
+
+        const retryText = await retryResponse.text();
+
+        if (!retryResponse.ok) {
+          throw new Error(
+            `Retry could not start ${matter.pipeline_next_agent}: ${retryText}`
+          );
+        }
+
+        const resumed = await updateMatter(matter.id, {
+          pipeline_status: "running",
+        });
+
+        await insertActivity({
+          matter_id: matter.id,
+          monday_item_id: mondayItemId,
+          event_type: "pipeline_manual_retry",
+          agent_id: matter.pipeline_next_agent,
+          actor: "User",
+          title: "Automatic handoff manually retried",
+          detail:
+            `Started the pending ${matter.pipeline_next_agent} specialist without restarting earlier completed work.`,
+          metadata: {
+            pending_agent: matter.pipeline_next_agent,
+          },
+        });
+
+        return NextResponse.json({
+          ok: true,
+          mode: "pending_agent_retried",
+          message:
+            `Pending specialist ${matter.pipeline_next_agent} has been started.`,
+          matter: await buildStoredMatter(resumed || matter),
+        });
+      }
+
       // No saved Case Brain result yet. Re-submit the exact matter to the
       // asynchronous Case Brain job. This is intentionally a recovery path:
       // the final n8n node still MUST POST the completed analysis to
