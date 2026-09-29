@@ -1,0 +1,37 @@
+FETCH VERIFIED AUTHORITIES - TIMEOUT FIX
+
+The Vercel authority route has been changed to:
+- run CourtListener queries in parallel
+- run Tavily queries in parallel
+- cap each external request at about 10-12 seconds
+- fetch full CourtListener opinion text only for the top two results per query
+- return partial results + warnings instead of hanging the entire specialist job
+
+Recommended n8n HTTP Request settings:
+
+Method: POST
+
+URL:
+{{
+  $("Build Specialist Prompt").first().json.authorityResearchUrl
+  ||
+  $("Specialist Webhook").first().json.body.authorityResearchUrl
+  ||
+  "https://cano-ai-floor-v1.vercel.app/api/legal-authorities/research"
+}}
+
+Options -> Timeout:
+60000
+
+Settings -> Retry On Fail:
+ON
+
+Max Tries:
+2
+
+Wait Between Tries:
+2000 ms
+
+IMPORTANT:
+A warning/partial result from the authority endpoint should continue into
+Attach Legal Authorities. Do not make an empty CourtListener/Tavily result stop Lex.
