@@ -18,7 +18,7 @@ import {
   BrainCircuit,
   FilePenLine,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import SantiagoWorkstation from "./components/SantiagoWorkstation";
 import CaseBrainWorkstation, {
   type StoredCaseMatter,
@@ -366,6 +366,11 @@ export default function Home() {
   const [santiagoInitialTab, setSantiagoInitialTab] =
     useState<"intake" | "dispatch" | "activity">("intake");
 
+  // Keep the selected matter outside the polling closure so background
+  // refreshes can never snap the UI back to a previously selected matter.
+  const activeMatterIdRef = useRef<string | null>(null);
+  const ACTIVE_MATTER_STORAGE_KEY = "cano_active_monday_item_id";
+
   async function loadSpecialistStates(mondayItemId?: string) {
     if (!mondayItemId) {
       setSpecialistStates({});
@@ -389,6 +394,25 @@ export default function Home() {
   }
 
   function applyMatterContext(matter: MatterQueueItem | StoredCaseMatter | null) {
+    const mondayItemId = matter
+      ? matter.mondayItemId || matter.matterId
+      : null;
+
+    activeMatterIdRef.current = mondayItemId || null;
+
+    if (typeof window !== "undefined") {
+      if (mondayItemId) {
+        window.localStorage.setItem(
+          ACTIVE_MATTER_STORAGE_KEY,
+          mondayItemId
+        );
+      } else {
+        window.localStorage.removeItem(
+          ACTIVE_MATTER_STORAGE_KEY
+        );
+      }
+    }
+
     setCaseBrainMatter(matter || null);
 
     const specialistMap =
@@ -434,9 +458,19 @@ export default function Home() {
       setSharedStateError("");
       setMatters(nextMatters);
 
+      const rememberedMondayId =
+        activeMatterIdRef.current ||
+        (typeof window !== "undefined"
+          ? window.localStorage.getItem(
+              ACTIVE_MATTER_STORAGE_KEY
+            )
+          : null);
+
       const currentMondayId =
+        rememberedMondayId ||
         caseBrainMatter?.mondayItemId ||
-        caseBrainMatter?.matterId;
+        caseBrainMatter?.matterId ||
+        null;
 
       const refreshedSelection =
         preserveSelection && currentMondayId
@@ -449,7 +483,7 @@ export default function Home() {
 
       const nextSelected =
         refreshedSelection ||
-        (!caseBrainMatter ? nextMatters[0] || null : null);
+        (!currentMondayId ? nextMatters[0] || null : null);
 
       if (nextSelected) {
         applyMatterContext(nextSelected);
@@ -614,7 +648,9 @@ export default function Home() {
   }
 
   function handleCaseBrainReady(matter: StoredCaseMatter) {
-    setCaseBrainMatter(matter);
+    // A newly assigned matter immediately becomes the active command-center
+    // matter and stays active while polling continues in the background.
+    applyMatterContext(matter);
     void loadAllMatters({ preserveSelection: true });
 
     if (matter.routing) {
@@ -633,7 +669,7 @@ export default function Home() {
   }
 
   function handleMatterUpdated(matter: StoredCaseMatter) {
-    setCaseBrainMatter(matter);
+    applyMatterContext(matter);
     void loadAllMatters({ preserveSelection: true });
 
     if (matter.routing) {
