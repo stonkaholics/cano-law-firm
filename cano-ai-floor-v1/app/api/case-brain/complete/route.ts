@@ -90,6 +90,8 @@ export async function POST(request: NextRequest) {
     const caseBrain =
       body?.caseBrain ||
       body?.data?.caseBrain ||
+      body?.output?.caseBrain ||
+      body?.output ||
       null;
 
     if (!caseBrain) {
@@ -108,6 +110,7 @@ export async function POST(request: NextRequest) {
     const status =
       body?.caseBrainStatus ||
       body?.status ||
+      (caseBrain?.readiness ? "review_ready" : null) ||
       "review_ready";
 
     const preview =
@@ -160,15 +163,19 @@ export async function POST(request: NextRequest) {
         caseBrain?.routing?.recommended_specialist || null,
       attorney_review_required:
         Boolean(
-          caseBrain?.review_status?.attorney_review_required
+          caseBrain?.review_status?.attorney_review_required ??
+          caseBrain?.readiness?.attorney_review_required
         ),
       ready_for_specialist:
-        Boolean(
-          caseBrain?.review_status?.ready_for_specialist
-        ),
+        caseBrain?.review_status?.ready_for_specialist !== undefined
+          ? Boolean(caseBrain.review_status.ready_for_specialist)
+          : String(caseBrain?.readiness?.status || "").toLowerCase() !==
+            "not_ready",
       missing_information_count:
         Array.isArray(caseBrain?.missing_information)
           ? caseBrain.missing_information.length
+          : Array.isArray(caseBrain?.readiness?.blocking_items)
+          ? caseBrain.readiness.blocking_items.length
           : 0,
       contradictions_count:
         Array.isArray(caseBrain?.contradictions)

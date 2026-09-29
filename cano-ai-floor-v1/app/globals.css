@@ -2932,3 +2932,56 @@ button { font: inherit; }
   .draft-shell { padding:15px; }
   .draft-hero,.draft-review-bar { flex-direction:column; align-items:flex-start; }
 }
+
+
+/* Manual pipeline recovery */
+.cb-pipeline-actions {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.pipeline-start-btn {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  border:1px solid rgba(224,191,133,.28);
+  background:rgba(224,191,133,.08);
+  color:#e2bd78;
+  border-radius:999px;
+  padding:7px 10px;
+  font-size:8px;
+  font-weight:800;
+  cursor:pointer;
+}
+
+.pipeline-start-btn:hover {
+  background:rgba(224,191,133,.14);
+  border-color:rgba(224,191,133,.48);
+}
+
+.pipeline-start-btn:disabled {
+  opacity:.55;
+  cursor:wait;
+}
+
+.pipeline-start-message {
+  margin:10px 0 2px;
+  border:1px solid rgba(107,184,255,.12);
+  background:rgba(107,184,255,.035);
+  color:#93afbd;
+  border-radius:9px;
+  padding:8px 10px;
+  font-size:8px;
+  line-height:1.45;
+}
+
+@media(max-width:760px) {
+  .cb-pipeline-actions {
+    width:100%;
+    justify-content:flex-start;
+  }
+}

@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import {
   ArrowLeft,
   Brain,
@@ -76,6 +78,29 @@ export type CaseBrainResult = {
     ready_for_specialist?: boolean;
     blocking_items?: string[];
   };
+
+  // Compatibility with the current n8n Case Brain output, which may use
+  // specialist_output_v1 while the dedicated Case Brain schema is finalized.
+  agent_id?: string;
+  title?: string;
+  executive_summary?: string;
+  readiness?: {
+    status?: string;
+    attorney_review_required?: boolean;
+    blocking_items?: string[];
+  };
+  sections?: Array<{
+    title?: string;
+    items?: Array<{
+      label?: string;
+      detail?: string;
+      source?: string;
+      confidence?: string;
+    }>;
+  }>;
+  next_actions?: string[];
+  open_questions?: string[];
+  warnings?: string[];
 };
 
 export type StoredCaseMatter = {
@@ -128,6 +153,9 @@ export default function CaseBrainWorkstation({
   specialistStates?: Record<string, any>;
   onClose: () => void;
 }) {
+  const [workflowStarting, setWorkflowStarting] = useState(false);
+  const [workflowMessage, setWorkflowMessage] = useState("");
+
   if (!matter) {
     return (
       <div className="casebrain-workstation">
@@ -146,7 +174,11 @@ export default function CaseBrainWorkstation({
   const cb = matter.caseBrain || {};
   const detainee = formatPerson(cb.people?.detainee);
   const pnc = formatPerson(cb.people?.pnc);
-  const routing = cb.routing?.recommended_specialist || "unknown";
+  const routing =
+    cb.routing?.recommended_specialist ||
+    (String(cb.agent_id || "").toLowerCase() === "habeas"
+      ? "habeas"
+      : "unknown");
 
   const status = String(
     matter.caseBrainStatus ||
@@ -168,7 +200,10 @@ export default function CaseBrainWorkstation({
         (cb.timeline?.length || 0) > 0 ||
         (cb.issues?.length || 0) > 0 ||
         cb.routing ||
-        cb.review_status
+        cb.review_status ||
+        cb.executive_summary ||
+        (cb.sections?.length || 0) > 0 ||
+        cb.readiness
       )
   );
 
@@ -215,6 +250,54 @@ export default function CaseBrainWorkstation({
     }
   }
 
+  async function startWorkflowManually() {
+    if (!matter || workflowStarting) return;
+
+    setWorkflowStarting(true);
+    setWorkflowMessage("");
+
+    try {
+      const mondayItemId =
+        matter.mondayItemId || matter.matterId;
+
+      const res = await fetch("/api/pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "start_workflow",
+          mondayItemId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data?.ok === false) {
+        throw new Error(
+          data?.error || "Unable to start the workflow."
+        );
+      }
+
+      if (data?.matter) {
+        onMatterUpdated?.(data.matter);
+      }
+
+      setWorkflowMessage(
+        data?.message ||
+        (data?.mode === "case_brain_restarted"
+          ? "Case Brain was restarted. The workflow will continue after the callback is saved."
+          : "Workflow started.")
+      );
+    } catch (error) {
+      setWorkflowMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to start the workflow."
+      );
+    } finally {
+      setWorkflowStarting(false);
+    }
+  }
+
   return (
     <div className="casebrain-workstation">
       <Topbar onClose={onClose} status={statusLabel} />
@@ -230,6 +313,7 @@ export default function CaseBrainWorkstation({
                 : isError
                 ? "Case Brain encountered an issue while analyzing this matter."
                 : cb.summary?.brief ||
+                  cb.executive_summary ||
                   matter.message ||
                   "Matter analysis ready for review."}
             </p>
@@ -295,17 +379,42 @@ export default function CaseBrainWorkstation({
               </h3>
             </div>
 
-            <button
-              className={`pipeline-toggle ${
-                matter.pipeline?.autoEnabled !== false ? "enabled" : ""
-              }`}
-              onClick={toggleAutoPipeline}
-            >
-              {matter.pipeline?.autoEnabled !== false
-                ? "Auto Routing On"
-                : "Manual Routing"}
-            </button>
+            <div className="cb-pipeline-actions">
+              <button
+                className={`pipeline-toggle ${
+                  matter.pipeline?.autoEnabled !== false ? "enabled" : ""
+                }`}
+                onClick={toggleAutoPipeline}
+              >
+                {matter.pipeline?.autoEnabled !== false
+                  ? "Auto Routing On"
+                  : "Manual Routing"}
+              </button>
+
+              <button
+                className="pipeline-start-btn"
+                onClick={startWorkflowManually}
+                disabled={workflowStarting}
+                title="Manually resume the automated workflow from the current saved state"
+              >
+                <Loader2
+                  size={14}
+                  className={workflowStarting ? "spin" : ""}
+                />
+                {workflowStarting
+                  ? "Starting..."
+                  : isProcessing && !hasSnapshot
+                  ? "Retry / Start Workflow"
+                  : "Start Workflow"}
+              </button>
+            </div>
           </div>
+
+          {workflowMessage && (
+            <div className="pipeline-start-message">
+              {workflowMessage}
+            </div>
+          )}
 
           <div className="cb-pipeline-flow">
             <PipelineNode
@@ -403,6 +512,7 @@ export default function CaseBrainWorkstation({
               <Card icon={<Brain size={18} />} title="Matter Summary">
                 <p className="cb-detailed">
                   {cb.summary?.detailed ||
+                    cb.executive_summary ||
                     "No detailed summary returned."}
                 </p>
               </Card>
