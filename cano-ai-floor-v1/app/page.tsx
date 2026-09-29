@@ -879,7 +879,9 @@ export default function Home() {
                   className="secondary-btn"
                   disabled={!caseBrainMatter}
                   onClick={() =>
-                    runSpecialistFromPanel(selected.id)
+                    runSpecialistFromPanel(
+                      selected.id as SpecialistAgentId
+                    )
                   }
                 >
                   {specialistStates[selected.id]?.run
