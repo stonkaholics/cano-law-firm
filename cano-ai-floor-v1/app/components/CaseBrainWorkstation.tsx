@@ -189,6 +189,15 @@ export default function CaseBrainWorkstation({
   const isProcessing = status === "case_brain_processing";
   const isError = status === "case_brain_error";
 
+  const hasAgentOutput = (agentId: string) =>
+    Boolean(specialistStates?.[agentId]?.output);
+
+  const primaryAgent =
+    routing === "bond" ? "bond" : "habeas";
+
+  const pipelineDisplayStage =
+    matter.pipeline?.stage || "case_brain";
+
   const hasSnapshot = Boolean(
     matter.caseBrain &&
       (
@@ -431,35 +440,41 @@ export default function CaseBrainWorkstation({
             <PipelineArrow />
             <PipelineNode
               label="Lex Research"
-              active={matter.pipeline?.stage === "research"}
-              done={pipelinePast(matter.pipeline?.stage, "research")}
+              active={pipelineDisplayStage === "research" && !hasAgentOutput("research")}
+              done={hasAgentOutput("research")}
             />
             <PipelineArrow />
             <PipelineNode
               label="Primary Specialist"
               sublabel="Elena / Mateo"
               active={
-                matter.pipeline?.stage === "habeas" ||
-                matter.pipeline?.stage === "bond"
+                ["habeas", "bond"].includes(pipelineDisplayStage) &&
+                !hasAgentOutput(primaryAgent)
               }
-              done={pipelinePast(matter.pipeline?.stage, "primary")}
+              done={hasAgentOutput(primaryAgent)}
             />
             <PipelineArrow />
             <PipelineNode
               label="Chronos"
-              active={matter.pipeline?.stage === "timeline"}
-              done={pipelinePast(matter.pipeline?.stage, "timeline")}
+              active={pipelineDisplayStage === "timeline" && !hasAgentOutput("timeline")}
+              done={hasAgentOutput("timeline")}
             />
             <PipelineArrow />
             <PipelineNode
               label="Avery"
-              active={matter.pipeline?.stage === "hearing_prep"}
-              done={pipelinePast(matter.pipeline?.stage, "hearing_prep")}
+              active={pipelineDisplayStage === "hearing_prep" && !hasAgentOutput("hearing")}
+              done={hasAgentOutput("hearing")}
             />
             <PipelineArrow />
             <PipelineNode
               label="Attorney Review"
-              active={matter.pipeline?.stage === "attorney_review"}
+              active={
+                pipelineDisplayStage === "attorney_review" &&
+                hasAgentOutput("research") &&
+                hasAgentOutput(primaryAgent) &&
+                hasAgentOutput("timeline") &&
+                hasAgentOutput("hearing")
+              }
               done={false}
             />
           </div>
@@ -476,7 +491,12 @@ export default function CaseBrainWorkstation({
               </strong>
             </div>
 
-            {matter.pipeline?.nextAgent && onOpenSpecialist ? (
+            {matter.pipeline?.status === "paused" &&
+            matter.pipeline?.nextAgent ? (
+              <button onClick={startWorkflowManually}>
+                Retry Pending Agent
+              </button>
+            ) : matter.pipeline?.nextAgent && onOpenSpecialist ? (
               <button
                 onClick={() =>
                   onOpenSpecialist(matter.pipeline?.nextAgent || "")
