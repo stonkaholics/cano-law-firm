@@ -2574,11 +2574,17 @@ button { font: inherit; }
   margin-bottom: 7px;
 }
 
-/* Three manager desks now fit the Manager Offices without changing the
-   open-floor agent layout. */
+/* Manager Offices: two desks on row one, Atlas centered on row two. */
 .manager-grid {
-  grid-template-columns: repeat(3,minmax(0,1fr)) !important;
-  gap: 18px !important;
+  grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+  gap: 24px 22px !important;
+  align-items: start;
+}
+
+.manager-grid > .visual-node:nth-child(3) {
+  grid-column: 1 / -1;
+  width: calc(50% - 11px);
+  justify-self: center;
 }
 
 @media(max-width:1100px) {
@@ -2614,5 +2620,11 @@ button { font: inherit; }
   .cb-team-agent-grid,
   .manager-grid {
     grid-template-columns: 1fr !important;
+  }
+
+  .manager-grid > .visual-node:nth-child(3) {
+    grid-column: auto;
+    width: 100%;
+    justify-self: stretch;
   }
 }
