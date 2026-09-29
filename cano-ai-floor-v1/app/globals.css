@@ -3727,3 +3727,205 @@ button { font: inherit; }
   color:#d1b47f;
   font-weight:800;
 }
+
+
+/* =========================================================
+   SCRIBE ATTORNEY INPUT EDITOR + PLACEHOLDER HIGHLIGHTING
+   ========================================================= */
+.draft-placeholder-highlight {
+  background: #f5df75;
+  color: #211a0b;
+  border-radius: 3px;
+  padding: 1px 3px;
+  font-weight: 800;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.draft-input-editor summary {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.draft-input-editor-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+  padding:15px 16px;
+  border-bottom:1px solid rgba(173,194,206,.08);
+  background:rgba(201,165,104,.025);
+}
+
+.draft-input-editor-head > div:first-child {
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+}
+
+.draft-input-editor-head strong {
+  color:#e8d4ae;
+  font-size:11px;
+}
+
+.draft-input-editor-head span {
+  margin-top:5px;
+  max-width:760px;
+  color:#7f96a3;
+  font-size:9px;
+  line-height:1.55;
+}
+
+.draft-input-editor-actions {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  justify-content:flex-end;
+}
+
+.draft-input-save-btn,
+.draft-input-regenerate-btn {
+  min-height:34px;
+  border-radius:8px;
+  padding:7px 10px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  cursor:pointer;
+  font-size:8px;
+  font-weight:800;
+}
+
+.draft-input-save-btn {
+  border:1px solid rgba(173,194,206,.14);
+  background:rgba(255,255,255,.025);
+  color:#aebfc8;
+}
+
+.draft-input-regenerate-btn {
+  border:1px solid rgba(224,191,133,.34);
+  background:linear-gradient(180deg,rgba(224,191,133,.16),rgba(189,149,86,.09));
+  color:#edcf96;
+}
+
+.draft-input-regenerate-btn:disabled,
+.draft-input-save-btn:disabled {
+  opacity:.45;
+  cursor:not-allowed;
+}
+
+.draft-input-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  padding:14px;
+}
+
+.draft-input-card {
+  position:relative;
+  display:grid;
+  grid-template-columns:28px 1fr;
+  gap:9px;
+  border:1px solid rgba(240,173,105,.16);
+  border-radius:11px;
+  padding:11px;
+  background:rgba(240,173,105,.035);
+}
+
+.draft-input-card.complete {
+  border-color:rgba(100,215,160,.18);
+  background:rgba(100,215,160,.035);
+}
+
+.draft-input-card-number {
+  width:26px;
+  height:26px;
+  display:grid;
+  place-items:center;
+  border-radius:8px;
+  color:#efb77c;
+  background:rgba(240,173,105,.08);
+  font-size:8px;
+  font-weight:800;
+}
+
+.draft-input-card.complete .draft-input-card-number {
+  color:#82deb2;
+  background:rgba(100,215,160,.08);
+}
+
+.draft-input-card-body {
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+}
+
+.draft-input-card-body label {
+  color:#d9c7a6;
+  font-size:9px;
+  line-height:1.45;
+  font-weight:800;
+}
+
+.draft-input-card-body textarea {
+  width:100%;
+  resize:vertical;
+  min-height:74px;
+  margin-top:8px;
+  border:1px solid rgba(173,194,206,.13);
+  border-radius:8px;
+  outline:none;
+  padding:9px 10px;
+  background:#08141d;
+  color:#eef5f8;
+  font:inherit;
+  font-size:10px;
+  line-height:1.5;
+}
+
+.draft-input-card-body textarea:focus {
+  border-color:rgba(224,191,133,.42);
+  box-shadow:0 0 0 2px rgba(201,165,104,.06);
+}
+
+.draft-input-card-body textarea::placeholder {
+  color:#536b78;
+}
+
+.draft-input-card-body > span {
+  margin-top:6px;
+  color:#7b909d;
+  font-size:7px;
+}
+
+.draft-input-card.complete .draft-input-card-body > span {
+  color:#71cda4;
+}
+
+.draft-input-complete {
+  margin:14px;
+  min-height:60px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  border:1px solid rgba(100,215,160,.14);
+  border-radius:10px;
+  color:#87ddb3;
+  background:rgba(100,215,160,.03);
+  font-size:9px;
+}
+
+@media(max-width:900px) {
+  .draft-input-grid {
+    grid-template-columns:1fr;
+  }
+  .draft-input-editor-head {
+    flex-direction:column;
+  }
+  .draft-input-editor-actions {
+    justify-content:flex-start;
+  }
+}
