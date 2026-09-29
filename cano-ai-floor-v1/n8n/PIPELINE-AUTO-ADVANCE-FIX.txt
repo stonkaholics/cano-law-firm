@@ -1,0 +1,29 @@
+N8N SPECIALIST PIPELINE FIX
+
+1. Open the Structured Output Parser connected to the generic specialist AI node.
+2. Schema Type: Define using JSON Schema.
+3. Replace the current case_brain_v1 schema with SPECIALIST-OUTPUT-SCHEMA.json.
+   The schema pasted into the chat was the Case Brain schema and is NOT valid
+   for Lex, Elena, Mateo, Chronos, Avery, Veritas, Atlas, or Scribe.
+4. Keep Auto-Fix Format ON if desired. Its model is only a formatting repair model.
+
+Fetch Verified Authorities URL expression:
+{{
+  $("Build Specialist Prompt").first().json.authorityResearchUrl
+  ||
+  $("Specialist Webhook").first().json.body.authorityResearchUrl
+  ||
+  "https://cano-ai-floor-v1.vercel.app/api/legal-authorities/research"
+}}
+
+The Vercel patch now also sends authorityResearchUrl in every specialist job.
+
+AUTOMATIC PIPELINE BEHAVIOR AFTER THIS PATCH
+Case Brain -> Lex -> primary specialist selected by Case Brain (Elena or Mateo)
+-> Chronos -> Avery -> Attorney Review.
+
+Atlas is a sidecar intelligence manager. It refreshes after each completed
+specialist but does not replace or block the sequential pipeline.
+
+If a next-agent start fails, the pipeline stays paused with that agent recorded
+as pending. The existing Start Workflow button retries ONLY the pending agent.
