@@ -308,19 +308,17 @@ export default function CaseBrainWorkstation({
   );
 
   const liveAttorneyReviewRequired =
-    cb.review_status?.attorney_review_required ??
-    cb.readiness?.attorney_review_required ??
-    specialistAttorneyReviewRequired ??
-    false;
+    pipelineDisplayStage === "attorney_review" ||
+    specialistAttorneyReviewRequired ||
+    cb.review_status?.attorney_review_required === true ||
+    cb.readiness?.attorney_review_required === true;
 
   const liveReadyForSpecialist =
-    cb.review_status?.ready_for_specialist ??
-    Boolean(
-      (specialistStates as any)?.research?.output ||
-      ["research", "habeas", "bond", "timeline", "hearing_prep", "attorney_review"].includes(
-        pipelineDisplayStage
-      )
-    );
+    Boolean((specialistStates as any)?.research?.output) ||
+    ["research", "habeas", "bond", "timeline", "hearing_prep", "attorney_review"].includes(
+      pipelineDisplayStage
+    ) ||
+    cb.review_status?.ready_for_specialist === true;
 
   const liveBlockingItems = uniqueStrings([
     ...(cb.review_status?.blocking_items || []),
