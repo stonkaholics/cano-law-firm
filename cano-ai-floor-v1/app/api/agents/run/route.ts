@@ -17,6 +17,10 @@ export async function POST(request: NextRequest) {
   const mondayItemId = String(body?.mondayItemId || "");
   const agentId = String(body?.agentId || "");
   const triggerType = String(body?.triggerType || "manual");
+  const options =
+    body?.options && typeof body.options === "object"
+      ? body.options
+      : {};
 
   if (!mondayItemId || !agentId) {
     return NextResponse.json(
@@ -73,6 +77,7 @@ export async function POST(request: NextRequest) {
 
     const inputPayload = {
       matter: storedMatter,
+      request: options,
       prior_specialists: Object.fromEntries(
         Object.entries(priorAgents).map(([id, state]: [string, any]) => [
           id,

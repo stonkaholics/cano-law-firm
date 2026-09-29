@@ -16,7 +16,7 @@ import {
   Building2,
   UsersRound,
   BrainCircuit,
-  Trash2,
+  FilePenLine,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import SantiagoWorkstation from "./components/SantiagoWorkstation";
@@ -31,6 +31,7 @@ import MatterCenter, {
   type MatterQueueItem,
 } from "./components/MatterCenter";
 import IntelligenceManagerWorkstation from "./components/IntelligenceManagerWorkstation";
+import DraftManagerWorkstation from "./components/DraftManagerWorkstation";
 
 type AgentStatus = "Ready" | "Working" | "Needs Review" | "Review Ready";
 
@@ -128,6 +129,30 @@ const baseAgents: Agent[] = [
       "Specialist summaries",
       "Cross-agent conflict map",
       "Attorney decision points",
+    ],
+  },
+  {
+    id: "drafting",
+    name: "Scribe",
+    role: "Legal Drafting Manager",
+    shortRole: "Drafting",
+    description:
+      "Compiles the approved matter record, verified legal research, and firm templates into attorney-review habeas or bond motion drafts.",
+    status: "Ready",
+    icon: FilePenLine,
+    zone: "Manager Offices",
+    capabilities: [
+      "Generate long-form habeas working drafts",
+      "Generate bond motion working drafts",
+      "Use verified specialist research",
+      "Apply Cano firm templates when supplied",
+      "Hold drafts for attorney approval",
+    ],
+    output: [
+      "Attorney working draft",
+      "Missing-fact placeholders",
+      "Authority checklist",
+      "Attorney approval status",
     ],
   },
   {
@@ -334,6 +359,7 @@ export default function Home() {
   const [matterCenterOpen, setMatterCenterOpen] = useState(false);
   const [intelligenceManagerOpen, setIntelligenceManagerOpen] =
     useState(false);
+  const [draftManagerOpen, setDraftManagerOpen] = useState(false);
   const [matters, setMatters] = useState<MatterQueueItem[]>([]);
   const [mattersLoading, setMattersLoading] = useState(false);
   const [resettingMatter, setResettingMatter] = useState(false);
@@ -824,7 +850,9 @@ export default function Home() {
         setSpecialistOpenId(null);
       }
 
+      const hadActiveMatter = Boolean(caseBrainMatter);
       await loadAllMatters({ preserveSelection: true });
+      if (!hadActiveMatter) applyMatterContext(null);
     } catch (error) {
       setSharedStateError(
         error instanceof Error
@@ -836,9 +864,51 @@ export default function Home() {
     }
   }
 
-  async function resetCurrentMatter() {
-    if (!caseBrainMatter) return;
-    await resetMatterRecord(caseBrainMatter);
+
+  async function removeMatterRecord(
+    matter: MatterQueueItem | StoredCaseMatter
+  ) {
+    const mondayItemId = matter.mondayItemId || matter.matterId;
+    const matterName = String(
+      matter.caseBrain?.people?.detainee?.name ||
+      matter.caseBrain?.people?.detainee?.full_name ||
+      matter.monday?.preview?.detaineeName ||
+      matter.monday?.preview?.name ||
+      `Matter ${mondayItemId}`
+    );
+
+    const confirmed = window.confirm(
+      `Remove ${matterName} from Cano AI?\n\n` +
+      `This removes the Cano AI matter, Case Brain, specialist work, Atlas, drafts, and routing history. ` +
+      `The Monday.com source item is NOT deleted, so you can assign it again later through Santiago.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const activeMondayId = caseBrainMatter?.mondayItemId || caseBrainMatter?.matterId;
+      const wasActive = activeMondayId === mondayItemId;
+      const res = await fetch("/api/matters/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mondayItemId, mode: "remove_from_workspace" }),
+      });
+      const data = await res.json();
+      if (!res.ok || data?.ok === false) throw new Error(data?.error || "Unable to remove matter.");
+
+      if (wasActive) {
+        applyMatterContext(null);
+        setCaseBrainOpen(false);
+        setIntelligenceManagerOpen(false);
+        setDraftManagerOpen(false);
+        setSpecialistOpenId(null);
+      }
+
+      const next = await loadAllMatters({ preserveSelection: !wasActive });
+      if (wasActive) applyMatterContext(null);
+      setMatters(next);
+    } catch (error) {
+      setSharedStateError(error instanceof Error ? error.message : "Unable to remove matter.");
+    }
   }
 
   return (
@@ -931,15 +1001,6 @@ export default function Home() {
               onClick={() => setMatterCenterOpen(true)}
             >
               Switch Matter
-            </button>
-            <button
-              className="active-clear-btn"
-              onClick={resetCurrentMatter}
-              disabled={resettingMatter}
-              title="Clear all AI work and keep Monday intake data"
-            >
-              <Trash2 size={14} />
-              {resettingMatter ? "Clearing..." : "Clear"}
             </button>
             <button onClick={() => setCaseBrainOpen(true)}>
               Open Case Brain
@@ -1109,6 +1170,9 @@ export default function Home() {
                   } else if (selected.id === "synthesis") {
                     setSelectedId(null);
                     setIntelligenceManagerOpen(true);
+                  } else if (selected.id === "drafting") {
+                    setSelectedId(null);
+                    setDraftManagerOpen(true);
                   } else if (isBuiltSpecialist(selected.id)) {
                     openSpecialist(selected.id);
                   }
@@ -1137,6 +1201,17 @@ export default function Home() {
                     : caseBrainMatter
                     ? "Refresh Analysis"
                     : "Awaiting Matter"}
+                </button>
+              ) : selected.id === "drafting" ? (
+                <button
+                  className="secondary-btn"
+                  disabled={!caseBrainMatter}
+                  onClick={() => {
+                    setSelectedId(null);
+                    setDraftManagerOpen(true);
+                  }}
+                >
+                  Open Draft Manager
                 </button>
               ) : selected.id === "synthesis" ? (
                 <button
@@ -1179,6 +1254,8 @@ export default function Home() {
                 ? "Santiago assigns and routes matters."
                 : selected.id === "casebrain"
                 ? "Case Brain maintains the shared matter intelligence record."
+                : selected.id === "drafting"
+                ? "Scribe creates attorney-review drafts from the verified matter record and firm templates; nothing is filed automatically."
                 : selected.id === "synthesis"
                 ? "Atlas compiles the live matter dossier while preserving every agent's individual output."
                 : selected.id === "documents"
@@ -1214,6 +1291,9 @@ export default function Home() {
           }}
           onResetMatter={(matter) => {
             void resetMatterRecord(matter);
+          }}
+          onRemoveMatter={(matter) => {
+            void removeMatterRecord(matter);
           }}
           onClose={() => setMatterCenterOpen(false)}
         />
@@ -1258,6 +1338,10 @@ export default function Home() {
         <IntelligenceManagerWorkstation
           matter={caseBrainMatter}
           states={specialistStates}
+          onOpenDrafting={() => {
+            setIntelligenceManagerOpen(false);
+            setDraftManagerOpen(true);
+          }}
           onUpdated={() => {
             void loadAllMatters({ preserveSelection: true });
             if (caseBrainMatter) {
@@ -1273,6 +1357,20 @@ export default function Home() {
             openSpecialist(agentId);
           }}
           onClose={() => setIntelligenceManagerOpen(false)}
+        />
+      )}
+
+      {draftManagerOpen && (
+        <DraftManagerWorkstation
+          matter={caseBrainMatter}
+          states={specialistStates}
+          onUpdated={() => {
+            void loadAllMatters({ preserveSelection: true });
+            if (caseBrainMatter) {
+              void loadSpecialistStates(caseBrainMatter.mondayItemId || caseBrainMatter.matterId);
+            }
+          }}
+          onClose={() => setDraftManagerOpen(false)}
         />
       )}
 

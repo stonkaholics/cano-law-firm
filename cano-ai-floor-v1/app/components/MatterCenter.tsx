@@ -37,6 +37,7 @@ export type MatterQueueItem = StoredCaseMatter & {
 
 const AGENT_LABELS: Record<string, string> = {
   synthesis: "Atlas",
+  drafting: "Scribe",
   habeas: "Elena",
   bond: "Mateo",
   research: "Lex",
@@ -53,6 +54,7 @@ export default function MatterCenter({
   onSelect,
   onOpenCaseBrain,
   onResetMatter,
+  onRemoveMatter,
   onClose,
 }: {
   matters: MatterQueueItem[];
@@ -62,6 +64,7 @@ export default function MatterCenter({
   onSelect: (matter: MatterQueueItem) => void;
   onOpenCaseBrain: (matter: MatterQueueItem) => void;
   onResetMatter?: (matter: MatterQueueItem) => void;
+  onRemoveMatter?: (matter: MatterQueueItem) => void;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -311,12 +314,22 @@ export default function MatterCenter({
 
                     {onResetMatter && (
                       <button
-                        className="matter-clear-btn"
+                        className="matter-reset-btn"
                         onClick={() => onResetMatter(matter)}
-                        title="Clear AI work and keep Monday data"
+                        title="Reset Case Brain and all AI work but keep this matter in Cano AI"
+                      >
+                        Reset AI
+                      </button>
+                    )}
+
+                    {onRemoveMatter && (
+                      <button
+                        className="matter-remove-btn"
+                        onClick={() => onRemoveMatter(matter)}
+                        title="Remove this matter from Cano AI. Monday stays untouched."
                       >
                         <Trash2 size={14} />
-                        Clear AI
+                        Remove
                       </button>
                     )}
 

@@ -11,7 +11,8 @@ export type SpecialistAgentId =
   | "timeline"
   | "qa"
   | "hearing"
-  | "synthesis";
+  | "synthesis"
+  | "drafting";
 
 export type DbAgentRun = {
   id: string;
@@ -55,6 +56,10 @@ export const SPECIALIST_AGENTS: Record<
   synthesis: {
     name: "Atlas",
     routeLabel: "Atlas · Matter Intelligence",
+  },
+  drafting: {
+    name: "Scribe",
+    routeLabel: "Scribe · Legal Drafting",
   },
 };
 

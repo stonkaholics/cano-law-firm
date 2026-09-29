@@ -26,7 +26,8 @@ export type SpecialistAgentId =
   | "timeline"
   | "qa"
   | "hearing"
-  | "synthesis";
+  | "synthesis"
+  | "drafting";
 
 export type SpecialistState = {
   run?: {
@@ -63,6 +64,15 @@ export type SpecialistOutput = {
   next_actions?: string[];
   open_questions?: string[];
   warnings?: string[];
+  draft?: {
+    document_type?: string;
+    title?: string;
+    markdown?: string;
+    approval_status?: string;
+    template_status?: string;
+    placeholders?: string[];
+    authority_checklist?: Array<{ authority?: string; status?: string; note?: string }>;
+  } | null;
   jurisdiction?: {
     circuit?: string | null;
     district?: string | null;
@@ -125,6 +135,11 @@ const CONFIG: Record<
     name: "Atlas",
     role: "Matter Intelligence Manager",
     action: "Compile Intelligence",
+  },
+  drafting: {
+    name: "Scribe",
+    role: "Legal Drafting Manager",
+    action: "Generate Draft",
   },
 };
 
@@ -223,6 +238,7 @@ export default function SpecialistWorkstation({
       qa: "Veritas · Filing QA",
       hearing: "Avery · Hearing Prep",
       synthesis: "Atlas · Matter Intelligence",
+      drafting: "Scribe · Legal Drafting",
     };
 
     await fetch("/api/routing", {

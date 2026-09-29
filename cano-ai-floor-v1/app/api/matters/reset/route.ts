@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!["all_ai", "case_brain_only"].includes(mode)) {
+  if (!["all_ai", "case_brain_only", "remove_from_workspace"].includes(mode)) {
     return NextResponse.json(
       { ok: false, error: "Unsupported reset mode." },
       { status: 400 }
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     const matterId = matter.id;
 
-    if (mode === "all_ai") {
+    if (mode === "all_ai" || mode === "remove_from_workspace") {
       // Delete child records in FK-safe order.
       await supabaseDelete("agent_outputs", {
         matter_id: `eq.${matterId}`,
@@ -71,6 +71,24 @@ export async function POST(request: NextRequest) {
     } else {
       await supabaseDelete("case_brain_snapshots", {
         matter_id: `eq.${matterId}`,
+      });
+    }
+
+    if (mode === "remove_from_workspace") {
+      await supabaseDelete("ai_matters", {
+        id: `eq.${matterId}`,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        mode,
+        mondayItemId,
+        matterId,
+        removed: true,
+        preserved: [
+          "Monday.com source item",
+          "Monday intake/source data outside Cano AI",
+        ],
       });
     }
 
