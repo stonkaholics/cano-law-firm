@@ -59,9 +59,16 @@ export function chooseAfterResearch(
   researchOutput: any,
   persistedRecommendation?: string | null
 ): PipelineDecision {
+  const agentIdRecommendation = String(
+    caseBrain?.agent_id || ""
+  ).toLowerCase();
+
   const recommended = String(
     caseBrain?.routing?.recommended_specialist ||
     persistedRecommendation ||
+    (["habeas", "bond", "timeline"].includes(agentIdRecommendation)
+      ? agentIdRecommendation
+      : "") ||
     ""
   ).toLowerCase();
 
