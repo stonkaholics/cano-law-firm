@@ -133,9 +133,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Any completed specialist updates Atlas, which maintains the
-    // cross-agent intelligence brief without changing the specialist's own output.
-    if (agentId !== "synthesis") {
+    // Only core analysis specialists refresh Atlas. Drafting is downstream
+    // work product and should not unexpectedly replace the intelligence
+    // dossier while an attorney is reading it.
+    const atlasRefreshSources = new Set([
+      "research",
+      "habeas",
+      "bond",
+      "timeline",
+      "hearing",
+      "qa",
+    ]);
+
+    if (atlasRefreshSources.has(agentId)) {
       const atlasResponse = await fetch(
         new URL(
           "/api/pipeline/start-agent",

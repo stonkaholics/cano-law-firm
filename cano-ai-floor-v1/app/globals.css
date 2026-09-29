@@ -3028,3 +3028,116 @@ button { font: inherit; }
   cursor: default;
   opacity: 1;
 }
+
+
+/* =========================================================
+   LIVE CASE BRAIN + STABLE ATLAS + DRAFT EXPORT / READABILITY
+   ========================================================= */
+.cb-live-rollup-note {
+  max-width: 1510px;
+  margin: 0 auto 10px;
+  border: 1px solid rgba(107,184,255,.14);
+  background: rgba(107,184,255,.035);
+  color: #8ca8b7;
+  border-radius: 10px;
+  padding: 9px 11px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.cb-live-rollup-note svg {
+  flex: 0 0 auto;
+  color: #8dc8ef;
+  margin-top: 1px;
+}
+
+.atlas-refresh-banner {
+  margin-top: 10px;
+  border: 1px solid rgba(107,184,255,.14);
+  background: rgba(107,184,255,.035);
+  color: #91adbc;
+  border-radius: 10px;
+  padding: 9px 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.draft-export-btn {
+  min-height: 36px;
+  border-radius: 8px;
+  padding: 8px 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(107,184,255,.24);
+  background: rgba(107,184,255,.06);
+  color: #9dcced;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.draft-export-btn:hover:not(:disabled) {
+  border-color: rgba(107,184,255,.44);
+  background: rgba(107,184,255,.11);
+}
+
+.draft-export-btn:disabled {
+  opacity: .55;
+  cursor: wait;
+}
+
+.draft-authority-details summary {
+  font-size: 11px;
+  padding: 15px 16px;
+}
+
+.draft-authority-list {
+  padding: 14px;
+  gap: 10px;
+}
+
+.draft-authority-list > div {
+  padding: 13px 14px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.014);
+}
+
+.draft-authority-list strong {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.draft-authority-list span {
+  margin-top: 6px;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.draft-authority-list p {
+  margin-top: 7px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: #9bafb9;
+}
+
+.draft-document {
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.draft-review-details ul {
+  font-size: 10px;
+}
+
+@media(max-width:800px) {
+  .draft-review-actions {
+    flex-wrap: wrap;
+  }
+}
