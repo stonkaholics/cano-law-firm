@@ -185,8 +185,20 @@ export async function POST(request: NextRequest) {
         : null;
 
       const caseBrain = caseBrainSnapshot?.analysis || null;
+      const compatibilityRecommendation = String(
+        caseBrain?.agent_id || ""
+      ).toLowerCase();
+
       const persistedRecommendation =
-        String(caseBrainSnapshot?.recommended_specialist || "")
+        String(
+          caseBrainSnapshot?.recommended_specialist ||
+          caseBrain?.routing?.recommended_specialist ||
+          (["habeas", "bond", "timeline"].includes(
+            compatibilityRecommendation
+          )
+            ? compatibilityRecommendation
+            : "")
+        )
           .trim()
           .toLowerCase() || null;
 

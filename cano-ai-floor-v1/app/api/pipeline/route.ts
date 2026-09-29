@@ -10,6 +10,10 @@ import {
   chooseAfterCaseBrain,
   recordPipelineTransition,
 } from "../../../lib/supabase/pipeline";
+import {
+  getLatestSpecialistState,
+  SpecialistAgentId,
+} from "../../../lib/supabase/agents";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -70,6 +74,143 @@ export async function POST(request: NextRequest) {
       const snapshot = await getSnapshotById(
         matter.latest_case_brain_snapshot_id
       );
+
+      if (snapshot?.analysis) {
+        const states = await getLatestSpecialistState(matter.id);
+        const caseBrain = snapshot.analysis;
+
+        const compatibilityRecommendation = String(
+          caseBrain?.agent_id || ""
+        ).toLowerCase();
+
+        const recommended = String(
+          snapshot.recommended_specialist ||
+          caseBrain?.routing?.recommended_specialist ||
+          (["habeas", "bond", "timeline"].includes(
+            compatibilityRecommendation
+          )
+            ? compatibilityRecommendation
+            : "")
+        ).toLowerCase();
+
+        let resumeAgent: SpecialistAgentId | null = null;
+        let resumeStage = matter.pipeline_stage || "case_brain";
+        let resumeLabel = "Pending Specialist";
+
+        if (!states.research?.output) {
+          resumeAgent = "research";
+          resumeStage = "research";
+          resumeLabel = "Lex · Research";
+        } else if (
+          recommended === "habeas" &&
+          !states.habeas?.output
+        ) {
+          resumeAgent = "habeas";
+          resumeStage = "habeas";
+          resumeLabel = "Elena · Habeas";
+        } else if (
+          recommended === "bond" &&
+          !states.bond?.output
+        ) {
+          resumeAgent = "bond";
+          resumeStage = "bond";
+          resumeLabel = "Mateo · Bond";
+        } else if (!states.timeline?.output) {
+          resumeAgent = "timeline";
+          resumeStage = "timeline";
+          resumeLabel = "Chronos · Timeline";
+        } else if (!states.hearing?.output) {
+          resumeAgent = "hearing";
+          resumeStage = "hearing_prep";
+          resumeLabel = "Avery · Hearing Prep";
+        }
+
+        if (resumeAgent) {
+          const retryResponse = await fetch(
+            new URL(
+              "/api/pipeline/start-agent",
+              request.nextUrl.origin
+            ),
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                mondayItemId,
+                agentId: resumeAgent,
+              }),
+              cache: "no-store",
+            }
+          );
+
+          const retryText = await retryResponse.text();
+
+          if (!retryResponse.ok) {
+            await updateMatter(matter.id, {
+              pipeline_status: "paused",
+              pipeline_stage: resumeStage,
+              pipeline_next_agent: resumeAgent,
+              current_route: resumeLabel,
+              routed_by: "Santiago Auto-Pipeline",
+              routed_at: new Date().toISOString(),
+            });
+
+            throw new Error(
+              `Could not start ${resumeLabel}: ${retryText}`
+            );
+          }
+
+          const resumed = await updateMatter(matter.id, {
+            pipeline_status: "running",
+            pipeline_stage: resumeStage,
+            pipeline_next_agent: resumeAgent,
+            current_route: resumeLabel,
+            routed_by: "Santiago Auto-Pipeline",
+            routed_at: new Date().toISOString(),
+          });
+
+          await insertActivity({
+            matter_id: matter.id,
+            monday_item_id: mondayItemId,
+            event_type: "pipeline_manual_resume",
+            agent_id: resumeAgent,
+            actor: "User",
+            title: `Workflow resumed at ${resumeLabel}`,
+            detail:
+              "The recovery control detected completed specialist outputs and started the first missing pipeline stage.",
+            metadata: {
+              recommended_primary: recommended || null,
+              resumed_stage: resumeStage,
+              resumed_agent: resumeAgent,
+            },
+          });
+
+          return NextResponse.json({
+            ok: true,
+            mode: "pipeline_resumed",
+            message: `${resumeLabel} is now running.`,
+            matter: await buildStoredMatter(resumed || matter),
+          });
+        }
+
+        const completeMatter = await updateMatter(matter.id, {
+          pipeline_status: "paused",
+          pipeline_stage: "attorney_review",
+          pipeline_next_agent: null,
+          current_route: "Attorney Review",
+          routed_by: "Santiago Auto-Pipeline",
+          routed_at: new Date().toISOString(),
+        });
+
+        return NextResponse.json({
+          ok: true,
+          mode: "pipeline_complete",
+          message:
+            "All automated specialist stages already have saved outputs. The matter is ready for attorney review.",
+          matter: await buildStoredMatter(
+            completeMatter || matter
+          ),
+        });
+      }
 
       // Recovery path for a handoff that was selected but never actually
       // launched. Example: Lex completed, Elena was chosen, but n8n/Vercel
