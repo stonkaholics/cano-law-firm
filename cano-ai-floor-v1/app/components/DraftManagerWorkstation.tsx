@@ -6,6 +6,7 @@ import {
   CircleAlert,
   FilePenLine,
   FileDown,
+  ExternalLink,
   Loader2,
   RotateCcw,
   ShieldAlert,
@@ -36,6 +37,28 @@ export default function DraftManagerWorkstation({
   const state = states.drafting || {};
   const output: any = state.output || null;
   const draft = output?.draft || null;
+
+  const verifiedAuthorities = useMemo(() => {
+    return ["research", "habeas", "bond"].flatMap((agentId) =>
+      states[agentId]?.output?.authorities || []
+    );
+  }, [states]);
+
+  function sourceForChecklist(authorityName?: string) {
+    const needle = String(authorityName || "").trim().toLowerCase();
+    if (!needle) return null;
+
+    return (
+      verifiedAuthorities.find((authority) => {
+        const citation = String(authority?.citation || "").toLowerCase();
+        const title = String(authority?.title || "").toLowerCase();
+        return (
+          (citation && (needle.includes(citation) || citation.includes(needle))) ||
+          (title && (needle.includes(title) || title.includes(needle)))
+        );
+      }) || null
+    );
+  }
 
   const matterName = useMemo(() => String(
     matter?.caseBrain?.people?.detainee?.name ||
@@ -249,13 +272,32 @@ export default function DraftManagerWorkstation({
                 <details className="draft-review-details draft-authority-details" open>
                   <summary>Authority Checklist ({draft.authority_checklist?.length || 0})</summary>
                   <div className="draft-authority-list">
-                    {(draft.authority_checklist || []).map((item: any, i: number) => (
-                      <div key={i}>
-                        <strong>{item.authority}</strong>
-                        <span>{String(item.status || "").replaceAll("_", " ")}</span>
-                        <p>{item.note}</p>
-                      </div>
-                    ))}
+                    {(draft.authority_checklist || []).map((item: any, i: number) => {
+                      const source = sourceForChecklist(item.authority);
+                      return (
+                        <div key={i}>
+                          <strong>{item.authority}</strong>
+                          <span>{String(item.status || "").replaceAll("_", " ")}</span>
+                          <p>{item.note}</p>
+                          {source?.url ? (
+                            <a
+                              className="draft-authority-source-link"
+                              href={source.url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Verify source
+                              <ExternalLink size={12}/>
+                            </a>
+                          ) : null}
+                          {source?.relevance ? (
+                            <p className="draft-authority-relevance">
+                              <b>Why it may apply:</b> {source.relevance}
+                            </p>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
                 </details>
               </>

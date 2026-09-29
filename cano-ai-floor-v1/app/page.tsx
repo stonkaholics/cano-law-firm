@@ -32,6 +32,7 @@ import MatterCenter, {
 } from "./components/MatterCenter";
 import IntelligenceManagerWorkstation from "./components/IntelligenceManagerWorkstation";
 import DraftManagerWorkstation from "./components/DraftManagerWorkstation";
+import OperationsCenterDashboard from "./components/OperationsCenterDashboard";
 
 type AgentStatus = "Ready" | "Working" | "Needs Review" | "Review Ready";
 
@@ -1094,63 +1095,22 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="floor-wrap">
+      <section className="operations-center-wrap">
         <div className="floor-heading">
           <span>OPERATION CENTER</span>
-          <small>Click any workstation to open the agent</small>
+          <small>
+            Active-matter authority, case theory, specialist progress, and attorney decision support
+          </small>
         </div>
 
-        <div className="floor">
-          <Zone title="IMMIGRATION RESEARCH POD" agents={immigration} onOpen={setSelectedId} />
-
-          <div className="hallway">
-            <div className="hall-line" />
-            <span>CANO CENTRAL</span>
-            <div className="hall-line" />
-          </div>
-
-          <Zone title="CASE OPERATIONS" agents={caseOps} onOpen={setSelectedId} />
-        </div>
-      </section>
-
-      <section className="bottom-grid">
-        <div className="panel">
-          <div className="panel-title">Floor Activity</div>
-          {caseBrainMatter && (
-            <ActivityRow
-              title="Case Brain review ready"
-              text={caseBrainMatter.caseBrain?.summary?.brief || "Matter analysis completed"}
-              meta="Case Brain"
-            />
-          )}
-          <ActivityRow
-            title="Lex is researching"
-            text="Immigration detention authority packet"
-            meta="Research Pod"
-          />
-          <ActivityRow
-            title="Santiago available"
-            text="Ready to pull Monday matters and route work"
-            meta="Manager Office"
-          />
-        </div>
-
-        <div className="panel">
-          <div className="panel-title">V1 Workflow</div>
-          <div className="workflow">
-            {["Matter", "Santiago", "Case Brain", "Specialists", "Atlas", "Attorney"].map(
-              (item, index, array) => (
-                <div className="workflow-item" key={item}>
-                  <div className="workflow-node">{item}</div>
-                  {index < array.length - 1 && <ChevronRight size={16} />}
-                </div>
-              )
-            )}
-          </div>
-          <p className="panel-note">
-            Every Monday matter now persists independently in Supabase. Multiple Case Brain and specialist jobs can run concurrently while the Matter Center lets the team switch context without interrupting other work.
-          </p>
-        </div>
+        <OperationsCenterDashboard
+          matter={caseBrainMatter}
+          states={specialistStates}
+          onOpenSpecialist={openSpecialist}
+          onOpenCaseBrain={() => setCaseBrainOpen(true)}
+          onOpenAtlas={() => setIntelligenceManagerOpen(true)}
+          onOpenDraft={() => setDraftManagerOpen(true)}
+        />
       </section>
 
       {selected && (
