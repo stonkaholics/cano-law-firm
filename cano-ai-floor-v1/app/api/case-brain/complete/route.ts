@@ -149,6 +149,16 @@ export async function POST(request: NextRequest) {
       matter.assigned_attorney ||
       null;
 
+    const derivedRecommendedSpecialist = String(
+      caseBrain?.routing?.recommended_specialist ||
+      (["habeas", "bond", "timeline"].includes(
+        String(caseBrain?.agent_id || "").toLowerCase()
+      )
+        ? String(caseBrain.agent_id).toLowerCase()
+        : "") ||
+      ""
+    ).trim() || null;
+
     const snapshot = await insertSnapshot({
       matter_id: matter.id,
       monday_item_id: mondayItemId,
@@ -159,8 +169,7 @@ export async function POST(request: NextRequest) {
           ? "refresh"
           : "initial",
       analysis: caseBrain,
-      recommended_specialist:
-        caseBrain?.routing?.recommended_specialist || null,
+      recommended_specialist: derivedRecommendedSpecialist,
       attorney_review_required:
         Boolean(
           caseBrain?.review_status?.attorney_review_required ??
@@ -220,13 +229,11 @@ export async function POST(request: NextRequest) {
           ? "Case Brain analysis refreshed"
           : "Case Brain review ready",
       detail: `Recommended route: ${
-        caseBrain?.routing?.recommended_specialist ||
-        "unknown"
+        derivedRecommendedSpecialist || "unknown"
       }`,
       metadata: {
         snapshot_id: snapshot?.id || null,
-        recommended_specialist:
-          caseBrain?.routing?.recommended_specialist || null,
+        recommended_specialist: derivedRecommendedSpecialist,
       },
     });
 
@@ -263,12 +270,6 @@ export async function POST(request: NextRequest) {
     if (matter.pipeline_auto_enabled !== false) {
       const decision = chooseAfterCaseBrain(caseBrain);
 
-      await recordPipelineTransition({
-        mondayItemId,
-        fromStage: "case_brain",
-        decision,
-      });
-
       if (decision.nextAgent) {
         const pipelineResponse = await fetch(
           new URL("/api/pipeline/start-agent", request.nextUrl.origin),
@@ -284,6 +285,15 @@ export async function POST(request: NextRequest) {
         );
 
         if (!pipelineResponse.ok) {
+          await updateMatter(matter.id, {
+            pipeline_status: "paused",
+            pipeline_stage: "case_brain",
+            pipeline_next_agent: decision.nextAgent,
+            current_route: decision.routeLabel,
+            routed_by: "Santiago Auto-Pipeline",
+            routed_at: new Date().toISOString(),
+          });
+
           await insertActivity({
             matter_id: matter.id,
             monday_item_id: mondayItemId,
@@ -296,8 +306,24 @@ export async function POST(request: NextRequest) {
               attempted_agent: decision.nextAgent,
             },
           });
+
+          const latestMatter = await getMatterByMondayId(mondayItemId);
+          return NextResponse.json({
+            ok: true,
+            saved: "analysis",
+            snapshotId: snapshot?.id || null,
+            matter: await buildStoredMatter(latestMatter || updated || matter),
+            pipeline: "paused_start_error",
+            retryAgent: decision.nextAgent,
+          });
         }
       }
+
+      await recordPipelineTransition({
+        mondayItemId,
+        fromStage: "case_brain",
+        decision,
+      });
     }
 
     const latestMatter = await getMatterByMondayId(mondayItemId);
