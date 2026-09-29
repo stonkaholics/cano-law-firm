@@ -2113,3 +2113,506 @@ button { font: inherit; }
     justify-self: center;
   }
 }
+
+
+/* =========================================================
+   ATLAS — MATTER INTELLIGENCE MANAGER
+   ========================================================= */
+
+.cb-team-intelligence {
+  margin-top: 16px;
+  border: 1px solid rgba(173,194,206,.11);
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(164,110,255,.06), transparent 30%),
+    rgba(10,23,34,.8);
+  padding: 16px;
+}
+
+.cb-team-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cb-team-head h3 {
+  margin: 5px 0 4px;
+  font-family: Georgia, serif;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.cb-team-head p {
+  margin: 0;
+  max-width: 800px;
+  color: #718995;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.cb-atlas-open {
+  min-height: 35px;
+  border: 1px solid rgba(177,128,255,.24);
+  border-radius: 8px;
+  background: rgba(177,128,255,.055);
+  color: #c5a5ff;
+  padding: 8px 11px;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cb-atlas-summary {
+  margin-top: 13px;
+  border: 1px solid rgba(177,128,255,.14);
+  border-radius: 11px;
+  background: rgba(177,128,255,.025);
+  padding: 12px;
+}
+
+.cb-atlas-summary-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cb-atlas-summary-top strong {
+  font-size: 11px;
+  color: #d9c8f8;
+}
+
+.intel-status {
+  border: 1px solid rgba(173,194,206,.1);
+  border-radius: 999px;
+  color: #738b97;
+  padding: 4px 7px;
+  font-size: 7px;
+  text-transform: capitalize;
+}
+
+.intel-status.working {
+  color: #8dc8ef;
+  border-color: rgba(107,184,255,.2);
+}
+
+.intel-status.review_ready,
+.intel-status.needs_review {
+  color: #86d8b1;
+  border-color: rgba(100,215,160,.18);
+}
+
+.cb-atlas-summary p {
+  margin: 8px 0 0;
+  color: #a3b4bd;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.cb-team-agent-grid {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.cb-team-agent {
+  min-width: 0;
+  border: 1px solid rgba(173,194,206,.08);
+  border-radius: 10px;
+  background: rgba(255,255,255,.012);
+  color: #dce7ec;
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cb-team-agent-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cb-team-agent-top > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.cb-team-agent strong {
+  font-size: 10px;
+}
+
+.cb-team-agent-top span:not(.intel-dot) {
+  color: #647c88;
+  font-size: 7px;
+  margin-top: 2px;
+}
+
+.cb-team-agent > small {
+  display: block;
+  margin-top: 8px;
+  color: #7c94a0;
+  font-size: 7px;
+  text-transform: capitalize;
+}
+
+.cb-team-agent p {
+  margin: 6px 0 0;
+  color: #8196a1;
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.intel-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #465963;
+}
+
+.intel-dot.working {
+  background: #6bb8ff;
+  box-shadow: 0 0 7px rgba(107,184,255,.5);
+}
+
+.intel-dot.review_ready,
+.intel-dot.needs_review {
+  background: #64d7a0;
+  box-shadow: 0 0 7px rgba(100,215,160,.45);
+}
+
+.intel-dot.error {
+  background: #f0ad69;
+}
+
+.atlas-workstation {
+  position: fixed;
+  inset: 0;
+  z-index: 125;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(177,128,255,.065), transparent 28%),
+    linear-gradient(180deg,#08131d,#050b11);
+  color: #eef5f8;
+}
+
+.atlas-topbar {
+  min-height: 82px;
+  padding: 17px 28px;
+  border-bottom: 1px solid rgba(173,194,206,.12);
+  background: rgba(5,13,20,.86);
+  backdrop-filter: blur(18px);
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.atlas-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.atlas-title h2 {
+  margin: 4px 0 0;
+  font-family: Georgia, serif;
+  font-size: 25px;
+  font-weight: 500;
+}
+
+.atlas-icon {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(224,191,133,.23);
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: #d7b77d;
+  background: rgba(201,165,104,.045);
+}
+
+.atlas-shell {
+  max-width: 1510px;
+  margin: 0 auto;
+  padding: 24px 28px 50px;
+}
+
+.atlas-hero {
+  border: 1px solid rgba(173,194,206,.11);
+  border-radius: 15px;
+  background: rgba(10,23,34,.8);
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.atlas-hero h1 {
+  margin: 5px 0 7px;
+  font-family: Georgia, serif;
+  font-size: 31px;
+  font-weight: 500;
+}
+
+.atlas-hero p {
+  margin: 0;
+  color: #7c929e;
+  font-size: 10px;
+}
+
+.atlas-metrics {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 8px;
+}
+
+.atlas-metric {
+  border: 1px solid rgba(173,194,206,.08);
+  border-radius: 10px;
+  background: rgba(10,23,34,.74);
+  padding: 11px;
+  display: flex;
+  flex-direction: column;
+}
+
+.atlas-metric span {
+  color: #617985;
+  font-size: 7px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.atlas-metric strong {
+  margin-top: 5px;
+  color: #dce8ed;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.atlas-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: minmax(0,1.65fr) minmax(330px,.75fr);
+  gap: 12px;
+}
+
+.atlas-main,
+.atlas-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.atlas-card {
+  border: 1px solid rgba(173,194,206,.09);
+  border-radius: 13px;
+  background: rgba(10,23,34,.78);
+  padding: 14px;
+}
+
+.atlas-card-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #d7b77d;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.atlas-summary > p {
+  margin: 0;
+  color: #aab9c1;
+  font-size: 11px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.atlas-awaiting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #758d99;
+}
+
+.atlas-awaiting div {
+  display: flex;
+  flex-direction: column;
+}
+
+.atlas-awaiting strong {
+  color: #dce7ec;
+  font-size: 10px;
+}
+
+.atlas-awaiting span {
+  font-size: 8px;
+  margin-top: 2px;
+}
+
+.atlas-section-items {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.atlas-intel-item {
+  border: 1px solid rgba(173,194,206,.065);
+  border-radius: 9px;
+  background: rgba(255,255,255,.011);
+  padding: 10px;
+}
+
+.atlas-intel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.atlas-intel-head strong {
+  font-size: 10px;
+}
+
+.atlas-intel-item p {
+  margin: 6px 0 0;
+  color: #9bafb9;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.atlas-intel-item small {
+  display: block;
+  margin-top: 5px;
+  color: #617985;
+  font-size: 7px;
+}
+
+.atlas-team-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.atlas-agent-row {
+  width: 100%;
+  border: 1px solid rgba(173,194,206,.07);
+  border-radius: 9px;
+  background: rgba(255,255,255,.012);
+  color: #dce7ec;
+  padding: 9px;
+  display: grid;
+  grid-template-columns: 9px 1fr;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.atlas-agent-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 4px;
+  background: #455862;
+}
+
+.atlas-agent-dot.working {
+  background: #6bb8ff;
+}
+
+.atlas-agent-dot.review_ready,
+.atlas-agent-dot.needs_review {
+  background: #64d7a0;
+}
+
+.atlas-agent-dot.error {
+  background: #f0ad69;
+}
+
+.atlas-agent-row div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.atlas-agent-row strong {
+  font-size: 9px;
+}
+
+.atlas-agent-row small {
+  color: #667f8b;
+  font-size: 7px;
+  margin-top: 2px;
+  text-transform: capitalize;
+}
+
+.atlas-agent-row p {
+  margin: 6px 0 0;
+  color: #8096a1;
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.atlas-list {
+  margin: 0;
+  padding-left: 16px;
+  color: #9eb0b9;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.atlas-list li {
+  margin-bottom: 7px;
+}
+
+/* Three manager desks now fit the Manager Offices without changing the
+   open-floor agent layout. */
+.manager-grid {
+  grid-template-columns: repeat(3,minmax(0,1fr)) !important;
+  gap: 18px !important;
+}
+
+@media(max-width:1100px) {
+  .atlas-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .atlas-metrics {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+
+  .cb-team-agent-grid {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+
+  .manager-grid {
+    grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+  }
+}
+
+@media(max-width:720px) {
+  .atlas-shell {
+    padding: 15px;
+  }
+
+  .atlas-hero,
+  .cb-team-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .atlas-metrics,
+  .cb-team-agent-grid,
+  .manager-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

@@ -35,6 +35,7 @@ export type MatterQueueItem = StoredCaseMatter & {
 };
 
 const AGENT_LABELS: Record<string, string> = {
+  synthesis: "Atlas",
   habeas: "Elena",
   bond: "Mateo",
   research: "Lex",

@@ -46,6 +46,11 @@ const ROUTES: Record<
     agentName: "Avery",
     assignmentType: "hearing",
   },
+  "Atlas · Matter Intelligence": {
+    agentId: "synthesis",
+    agentName: "Atlas",
+    assignmentType: "synthesis",
+  },
   "Attorney Review": {
     agentId: "attorney_review",
     agentName: "Attorney Review",

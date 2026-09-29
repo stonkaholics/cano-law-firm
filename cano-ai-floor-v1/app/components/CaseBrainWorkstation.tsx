@@ -117,6 +117,7 @@ export default function CaseBrainWorkstation({
   onRefresh,
   onMatterUpdated,
   onOpenSpecialist,
+  specialistStates = {},
   onClose,
 }: {
   matter: StoredCaseMatter | null;
@@ -124,6 +125,7 @@ export default function CaseBrainWorkstation({
   onRefresh?: () => void;
   onMatterUpdated?: (matter: StoredCaseMatter) => void;
   onOpenSpecialist?: (agentId: string) => void;
+  specialistStates?: Record<string, any>;
   onClose: () => void;
 }) {
   if (!matter) {
@@ -380,6 +382,11 @@ export default function CaseBrainWorkstation({
             pipeline pauses when a specialist reports blocking information.
           </p>
         </section>
+
+        <TeamIntelligencePanel
+          states={specialistStates}
+          onOpen={onOpenSpecialist}
+        />
 
         {isProcessing && !hasSnapshot ? (
           <ProcessingState />
@@ -702,6 +709,101 @@ function pipelinePast(
 
   const targetIndex = order.indexOf(target || "");
   return currentIndex > targetIndex && targetIndex >= 0;
+}
+
+
+const TEAM_INTELLIGENCE_AGENTS = [
+  ["research", "Lex", "Research"],
+  ["habeas", "Elena", "Habeas"],
+  ["bond", "Mateo", "Bond"],
+  ["timeline", "Chronos", "Timeline"],
+  ["hearing", "Avery", "Hearing Prep"],
+  ["qa", "Veritas", "Filing QA"],
+] as const;
+
+function TeamIntelligencePanel({
+  states,
+  onOpen,
+}: {
+  states: Record<string, any>;
+  onOpen?: (agentId: string) => void;
+}) {
+  const atlas = states.synthesis;
+  const atlasOutput = atlas?.output;
+
+  return (
+    <section className="cb-team-intelligence">
+      <div className="cb-team-head">
+        <div>
+          <span className="cb-kicker">AI TEAM INTELLIGENCE</span>
+          <h3>Cross-Agent Matter Dossier</h3>
+          <p>
+            Case Brain remains the factual core. Specialist analyses stay
+            separate, while Atlas compiles their current intelligence into one
+            attorney-facing view.
+          </p>
+        </div>
+
+        <button
+          className="cb-atlas-open"
+          onClick={() => onOpen?.("synthesis")}
+        >
+          Open Atlas
+        </button>
+      </div>
+
+      <div className="cb-atlas-summary">
+        <div className="cb-atlas-summary-top">
+          <strong>Atlas · Matter Intelligence Manager</strong>
+          <span className={`intel-status ${atlas?.run?.status || "ready"}`}>
+            {(atlas?.run?.status || "ready").replaceAll("_", " ")}
+          </span>
+        </div>
+
+        <p>
+          {atlasOutput?.executive_summary ||
+            (atlas?.run?.status === "working"
+              ? "Atlas is compiling Case Brain and the latest specialist outputs."
+              : "Atlas will build the cross-agent brief as Case Brain and specialists complete.")}
+        </p>
+      </div>
+
+      <div className="cb-team-agent-grid">
+        {TEAM_INTELLIGENCE_AGENTS.map(([id, name, role]) => {
+          const state = states[id];
+          const status =
+            state?.run?.status ||
+            (state?.output ? "review_ready" : "not_run");
+
+          return (
+            <button
+              className="cb-team-agent"
+              key={id}
+              onClick={() => onOpen?.(id)}
+            >
+              <div className="cb-team-agent-top">
+                <div>
+                  <strong>{name}</strong>
+                  <span>{role}</span>
+                </div>
+                <span className={`intel-dot ${status}`} />
+              </div>
+
+              <small>{status.replaceAll("_", " ")}</small>
+
+              <p>
+                {state?.output?.executive_summary
+                  ? `${state.output.executive_summary.slice(0, 145)}${
+                      state.output.executive_summary.length > 145 ? "…" : ""
+                    }`
+                  : "No completed analysis yet."}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 function ProcessingState() {

@@ -10,7 +10,8 @@ export type SpecialistAgentId =
   | "research"
   | "timeline"
   | "qa"
-  | "hearing";
+  | "hearing"
+  | "synthesis";
 
 export type DbAgentRun = {
   id: string;
@@ -51,6 +52,10 @@ export const SPECIALIST_AGENTS: Record<
   timeline: { name: "Chronos", routeLabel: "Chronos · Timeline" },
   qa: { name: "Veritas", routeLabel: "Veritas · Filing QA" },
   hearing: { name: "Avery", routeLabel: "Avery · Hearing Prep" },
+  synthesis: {
+    name: "Atlas",
+    routeLabel: "Atlas · Matter Intelligence",
+  },
 };
 
 export function isSpecialistAgentId(value: string): value is SpecialistAgentId {

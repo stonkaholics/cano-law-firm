@@ -106,7 +106,8 @@ export async function POST(request: NextRequest) {
 
     await updateAgentRun(run.id, {
       status:
-        output?.readiness?.status === "not_ready"
+        output?.readiness?.status === "not_ready" ||
+        output?.readiness?.status === "needs_information"
           ? "needs_review"
           : "review_ready",
       error_message: null,
@@ -130,11 +131,50 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Any completed specialist updates Atlas, which maintains the
+    // cross-agent intelligence brief without changing the specialist's own output.
+    if (agentId !== "synthesis") {
+      const atlasResponse = await fetch(
+        new URL(
+          "/api/pipeline/start-agent",
+          request.nextUrl.origin
+        ),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mondayItemId: matter.monday_item_id,
+            agentId: "synthesis",
+          }),
+          cache: "no-store",
+        }
+      );
+
+      if (!atlasResponse.ok) {
+        await insertActivity({
+          matter_id: matter.id,
+          monday_item_id: matter.monday_item_id,
+          event_type: "intelligence_manager_start_error",
+          agent_id: "synthesis",
+          actor: run.agent_name,
+          title: "Atlas refresh could not start",
+          detail: await atlasResponse.text(),
+          metadata: {
+            source_agent: agentId,
+            source_run_id: run.id,
+          },
+        });
+      }
+    }
+
     const latestMatter = await getMatterByMondayId(
       matter.monday_item_id
     );
 
-    if (latestMatter?.pipeline_auto_enabled !== false) {
+    if (
+      agentId !== "synthesis" &&
+      latestMatter?.pipeline_auto_enabled !== false
+    ) {
       const caseBrainSnapshotId =
         latestMatter?.latest_case_brain_snapshot_id;
 

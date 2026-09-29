@@ -22,7 +22,8 @@ export type SpecialistAgentId =
   | "research"
   | "timeline"
   | "qa"
-  | "hearing";
+  | "hearing"
+  | "synthesis";
 
 export type SpecialistState = {
   run?: {
@@ -94,6 +95,11 @@ const CONFIG: Record<
     name: "Avery",
     role: "Hearing Prep Specialist",
     action: "Build Hearing Prep",
+  },
+  synthesis: {
+    name: "Atlas",
+    role: "Matter Intelligence Manager",
+    action: "Compile Intelligence",
   },
 };
 
@@ -191,6 +197,7 @@ export default function SpecialistWorkstation({
       timeline: "Chronos · Timeline",
       qa: "Veritas · Filing QA",
       hearing: "Avery · Hearing Prep",
+      synthesis: "Atlas · Matter Intelligence",
     };
 
     await fetch("/api/routing", {

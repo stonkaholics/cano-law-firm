@@ -15,6 +15,7 @@ import {
   Activity,
   Building2,
   UsersRound,
+  BrainCircuit,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import SantiagoWorkstation from "./components/SantiagoWorkstation";
@@ -28,6 +29,7 @@ import SpecialistWorkstation, {
 import MatterCenter, {
   type MatterQueueItem,
 } from "./components/MatterCenter";
+import IntelligenceManagerWorkstation from "./components/IntelligenceManagerWorkstation";
 
 type AgentStatus = "Ready" | "Working" | "Needs Review" | "Review Ready";
 
@@ -100,6 +102,31 @@ const baseAgents: Agent[] = [
       "Issue map",
       "Missing-data list",
       "People and entity index",
+    ],
+  },
+  {
+    id: "synthesis",
+    name: "Atlas",
+    role: "Matter Intelligence Manager",
+    shortRole: "Intelligence",
+    description:
+      "Compiles Case Brain and every specialist's separate analysis into one live attorney-facing matter dossier without overwriting the source records.",
+    status: "Ready",
+    icon: BrainCircuit,
+    zone: "Manager Offices",
+    capabilities: [
+      "Compile all specialist intelligence",
+      "Surface cross-agent consensus",
+      "Deduplicate blockers and next actions",
+      "Expose disagreements and assumptions",
+      "Maintain the attorney-facing matter brief",
+    ],
+    output: [
+      "Executive intelligence brief",
+      "Team consensus",
+      "Specialist summaries",
+      "Cross-agent conflict map",
+      "Attorney decision points",
     ],
   },
   {
@@ -304,6 +331,8 @@ export default function Home() {
   const [routingState, setRoutingState] = useState<RoutingState | null>(null);
   const [sharedStateError, setSharedStateError] = useState("");
   const [matterCenterOpen, setMatterCenterOpen] = useState(false);
+  const [intelligenceManagerOpen, setIntelligenceManagerOpen] =
+    useState(false);
   const [matters, setMatters] = useState<MatterQueueItem[]>([]);
   const [mattersLoading, setMattersLoading] = useState(false);
   const [santiagoInitialTab, setSantiagoInitialTab] =
@@ -925,7 +954,7 @@ export default function Home() {
         <div className="panel">
           <div className="panel-title">V1 Workflow</div>
           <div className="workflow">
-            {["Matter", "Santiago", "Case Brain", "Specialist", "QA", "Attorney"].map(
+            {["Matter", "Santiago", "Case Brain", "Specialists", "Atlas", "Attorney"].map(
               (item, index, array) => (
                 <div className="workflow-item" key={item}>
                   <div className="workflow-node">{item}</div>
@@ -990,6 +1019,9 @@ export default function Home() {
                   } else if (selected.id === "casebrain") {
                     setSelectedId(null);
                     setCaseBrainOpen(true);
+                  } else if (selected.id === "synthesis") {
+                    setSelectedId(null);
+                    setIntelligenceManagerOpen(true);
                   } else if (isBuiltSpecialist(selected.id)) {
                     openSpecialist(selected.id);
                   }
@@ -1018,6 +1050,17 @@ export default function Home() {
                     : caseBrainMatter
                     ? "Refresh Analysis"
                     : "Awaiting Matter"}
+                </button>
+              ) : selected.id === "synthesis" ? (
+                <button
+                  className="secondary-btn"
+                  disabled={!caseBrainMatter}
+                  onClick={() => {
+                    setSelectedId(null);
+                    setIntelligenceManagerOpen(true);
+                  }}
+                >
+                  Open Intelligence
                 </button>
               ) : selected.id === "documents" ? (
                 <button className="secondary-btn" disabled>
@@ -1049,6 +1092,8 @@ export default function Home() {
                 ? "Santiago assigns and routes matters."
                 : selected.id === "casebrain"
                 ? "Case Brain maintains the shared matter intelligence record."
+                : selected.id === "synthesis"
+                ? "Atlas compiles the live matter dossier while preserving every agent's individual output."
                 : selected.id === "documents"
                 ? "Docket/Documents is intentionally not connected in this build."
                 : isBuiltSpecialist(selected.id)
@@ -1105,13 +1150,39 @@ export default function Home() {
           refreshing={caseBrainRefreshing}
           onRefresh={() => refreshCaseBrainMatter(false)}
           onMatterUpdated={handleMatterUpdated}
+          specialistStates={specialistStates}
           onOpenSpecialist={(agentId) => {
-            if (isBuiltSpecialist(agentId)) {
+            if (agentId === "synthesis") {
+              setCaseBrainOpen(false);
+              setIntelligenceManagerOpen(true);
+            } else if (isBuiltSpecialist(agentId)) {
               setCaseBrainOpen(false);
               openSpecialist(agentId);
             }
           }}
           onClose={() => setCaseBrainOpen(false)}
+        />
+      )}
+
+      {intelligenceManagerOpen && (
+        <IntelligenceManagerWorkstation
+          matter={caseBrainMatter}
+          states={specialistStates}
+          onUpdated={() => {
+            void loadAllMatters({ preserveSelection: true });
+            if (caseBrainMatter) {
+              void loadSpecialistStates(
+                caseBrainMatter.mondayItemId ||
+                caseBrainMatter.matterId
+              );
+            }
+          }}
+          onOpenAgent={(agentId) => {
+            if (agentId === "synthesis") return;
+            setIntelligenceManagerOpen(false);
+            openSpecialist(agentId);
+          }}
+          onClose={() => setIntelligenceManagerOpen(false)}
         />
       )}
 

@@ -223,6 +223,34 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Keep Atlas synchronized with the newest factual record.
+    // Atlas is a separate synthesis layer; it never overwrites Case Brain.
+    const atlasResponse = await fetch(
+      new URL("/api/pipeline/start-agent", request.nextUrl.origin),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mondayItemId,
+          agentId: "synthesis",
+        }),
+        cache: "no-store",
+      }
+    );
+
+    if (!atlasResponse.ok) {
+      await insertActivity({
+        matter_id: matter.id,
+        monday_item_id: mondayItemId,
+        event_type: "intelligence_manager_start_error",
+        agent_id: "synthesis",
+        actor: "Case Brain",
+        title: "Atlas refresh could not start",
+        detail: await atlasResponse.text(),
+        metadata: { source: "case_brain_completion" },
+      });
+    }
+
     // Auto-pipeline:
     // Case Brain -> Lex first. Lex then hands off to the primary specialist.
     if (matter.pipeline_auto_enabled !== false) {
