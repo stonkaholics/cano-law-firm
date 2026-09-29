@@ -10,6 +10,8 @@ import {
   Layers3,
   CircleHelp,
   ListChecks,
+  Users,
+  ChevronRight,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { StoredCaseMatter } from "./CaseBrainWorkstation";
@@ -101,11 +103,13 @@ export default function SpecialistWorkstation({
   initialState,
   onClose,
   onStateUpdated,
+  onSelectMatter,
 }: {
   agentId: SpecialistAgentId;
   matter: StoredCaseMatter | null;
   initialState?: SpecialistState | null;
   onClose: () => void;
+  onSelectMatter?: (matter: StoredCaseMatter) => void;
   onStateUpdated?: (
     agentId: SpecialistAgentId,
     state: SpecialistState
@@ -117,6 +121,7 @@ export default function SpecialistWorkstation({
   );
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
+  const [queue, setQueue] = useState<any[]>([]);
 
   const detaineeName = useMemo(() => {
     return String(
@@ -126,6 +131,21 @@ export default function SpecialistWorkstation({
       "No Active Matter"
     );
   }, [matter]);
+
+  async function loadQueue() {
+    try {
+      const res = await fetch(
+        `/api/agents/queue?agentId=${encodeURIComponent(agentId)}`,
+        { cache: "no-store" }
+      );
+
+      const data = await res.json();
+
+      if (res.ok && data?.ok !== false) {
+        setQueue(Array.isArray(data.queue) ? data.queue : []);
+      }
+    } catch {}
+  }
 
   async function loadState() {
     if (!matter) return;
@@ -275,10 +295,13 @@ export default function SpecialistWorkstation({
 
   useEffect(() => {
     loadState();
+    loadQueue();
 
-    if (!matter) return;
+    const interval = window.setInterval(() => {
+      loadState();
+      loadQueue();
+    }, 10000);
 
-    const interval = window.setInterval(loadState, 10000);
     return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matter?.matterId, agentId]);
@@ -353,6 +376,53 @@ export default function SpecialistWorkstation({
                   </>
                 )}
               </button>
+            </section>
+
+            <section className="specialist-queue-card">
+              <div className="specialist-queue-head">
+                <div>
+                  <span className="ws-eyebrow">MATTER QUEUE</span>
+                  <h3>{config.name}'s matters</h3>
+                </div>
+                <span>{queue.length} tracked</span>
+              </div>
+
+              {queue.length === 0 ? (
+                <p className="specialist-none">
+                  No matters have been sent to {config.name} yet.
+                </p>
+              ) : (
+                <div className="specialist-queue-list">
+                  {queue.slice(0, 8).map((item) => {
+                    const current =
+                      item?.matter?.matterId === matter?.matterId;
+
+                    return (
+                      <button
+                        key={item.run.id}
+                        className={`specialist-queue-row ${
+                          current ? "current" : ""
+                        }`}
+                        onClick={() => {
+                          if (item.matter) {
+                            onSelectMatter?.(item.matter);
+                          }
+                        }}
+                      >
+                        <Users size={15} />
+                        <div>
+                          <strong>{item.name}</strong>
+                          <span>
+                            {(item.run.status || "ready").replaceAll("_", " ")}
+                            {item.pncName ? ` · PNC ${item.pncName}` : ""}
+                          </span>
+                        </div>
+                        <ChevronRight size={14} />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </section>
 
             {error && (

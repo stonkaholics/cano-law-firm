@@ -14,6 +14,7 @@ import {
   X,
   Activity,
   Building2,
+  UsersRound,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import SantiagoWorkstation from "./components/SantiagoWorkstation";
@@ -24,6 +25,9 @@ import SpecialistWorkstation, {
   type SpecialistAgentId,
   type SpecialistState,
 } from "./components/SpecialistWorkstation";
+import MatterCenter, {
+  type MatterQueueItem,
+} from "./components/MatterCenter";
 
 type AgentStatus = "Ready" | "Working" | "Needs Review" | "Review Ready";
 
@@ -299,6 +303,9 @@ export default function Home() {
     useState<Record<string, SpecialistState>>({});
   const [routingState, setRoutingState] = useState<RoutingState | null>(null);
   const [sharedStateError, setSharedStateError] = useState("");
+  const [matterCenterOpen, setMatterCenterOpen] = useState(false);
+  const [matters, setMatters] = useState<MatterQueueItem[]>([]);
+  const [mattersLoading, setMattersLoading] = useState(false);
   const [santiagoInitialTab, setSantiagoInitialTab] =
     useState<"intake" | "dispatch" | "activity">("intake");
 
@@ -324,9 +331,34 @@ export default function Home() {
     } catch {}
   }
 
-  async function loadSharedState() {
+  function applyMatterContext(matter: MatterQueueItem | StoredCaseMatter | null) {
+    setCaseBrainMatter(matter || null);
+
+    const specialistMap =
+      (matter as MatterQueueItem | null)?.specialists || {};
+    setSpecialistStates(specialistMap);
+
+    if (matter?.routing) {
+      setRoutingState({
+        matterId: matter.matterId,
+        target: matter.routing.target,
+        routedAt: matter.routing.routedAt || "",
+        routedBy: matter.routing.routedBy || "Santiago",
+      });
+    } else {
+      setRoutingState(null);
+    }
+  }
+
+  async function loadAllMatters({
+    preserveSelection = true,
+  }: {
+    preserveSelection?: boolean;
+  } = {}) {
+    setMattersLoading(true);
+
     try {
-      const res = await fetch("/api/matters/active", {
+      const res = await fetch("/api/matters?limit=150", {
         cache: "no-store",
       });
 
@@ -334,51 +366,90 @@ export default function Home() {
 
       if (!res.ok || data?.ok === false) {
         throw new Error(
-          data?.error || "Unable to load shared Cano AI state."
+          data?.error || "Unable to load shared Cano AI matters."
         );
       }
+
+      const nextMatters: MatterQueueItem[] = Array.isArray(data.matters)
+        ? data.matters
+        : [];
 
       setSharedStateError("");
-      setCaseBrainMatter(data.matter || null);
+      setMatters(nextMatters);
 
-      if (data.matter?.mondayItemId || data.matter?.matterId) {
-        await loadSpecialistStates(
-          data.matter.mondayItemId || data.matter.matterId
-        );
-      } else {
-        setSpecialistStates({});
+      const currentMondayId =
+        caseBrainMatter?.mondayItemId ||
+        caseBrainMatter?.matterId;
+
+      const refreshedSelection =
+        preserveSelection && currentMondayId
+          ? nextMatters.find(
+              (matter) =>
+                (matter.mondayItemId || matter.matterId) ===
+                currentMondayId
+            )
+          : null;
+
+      const nextSelected =
+        refreshedSelection ||
+        (!caseBrainMatter ? nextMatters[0] || null : null);
+
+      if (nextSelected) {
+        applyMatterContext(nextSelected);
+      } else if (!nextMatters.length) {
+        applyMatterContext(null);
       }
 
-      if (data.matter?.routing) {
-        setRoutingState({
-          matterId: data.matter.matterId,
-          target: data.matter.routing.target,
-          routedAt: data.matter.routing.routedAt,
-          routedBy: data.matter.routing.routedBy,
-        });
-      } else {
-        setRoutingState(null);
-      }
+      return nextMatters;
     } catch (error) {
       setSharedStateError(
         error instanceof Error
           ? error.message
           : "Unable to load shared Cano AI state."
       );
+      return [];
+    } finally {
+      setMattersLoading(false);
     }
   }
+
+  async function loadSharedState() {
+    await loadAllMatters({ preserveSelection: true });
+  }
+
+  async function selectMatter(matter: MatterQueueItem | StoredCaseMatter) {
+    applyMatterContext(matter);
+
+    const mondayItemId =
+      matter.mondayItemId || matter.matterId;
+
+    await loadSpecialistStates(mondayItemId);
+  }
+
+  async function openMatterCaseBrain(matter: MatterQueueItem) {
+    await selectMatter(matter);
+    setMatterCenterOpen(false);
+    setCaseBrainOpen(true);
+  }
+
+  const anyWorkRunning = useMemo(() => {
+    return matters.some((matter) => {
+      if (matter.caseBrainStatus === "case_brain_processing") {
+        return true;
+      }
+
+      return Object.values(matter.specialists || {}).some(
+        (state) => state?.run?.status === "working"
+      );
+    });
+  }, [matters]);
 
   useEffect(() => {
     loadSharedState();
 
-    const delay =
-      caseBrainMatter?.caseBrainStatus === "case_brain_processing"
-        ? 2500
-        : 15000;
-
     const interval = window.setInterval(
       loadSharedState,
-      delay
+      anyWorkRunning ? 2500 : 15000
     );
 
     const focusHandler = () => loadSharedState();
@@ -388,7 +459,8 @@ export default function Home() {
       window.clearInterval(interval);
       window.removeEventListener("focus", focusHandler);
     };
-  }, [caseBrainMatter?.caseBrainStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anyWorkRunning]);
 
   const agents = useMemo(() => {
     return baseAgents.map((agent) => {
@@ -404,6 +476,28 @@ export default function Home() {
 
       if (agent.id === "documents") {
         return { ...agent, status: "Ready" as AgentStatus };
+      }
+
+      const allAgentStates = matters
+        .map((matter) => matter.specialists?.[agent.id])
+        .filter(Boolean);
+
+      if (
+        allAgentStates.some(
+          (state) => state?.run?.status === "working"
+        )
+      ) {
+        return { ...agent, status: "Working" as AgentStatus };
+      }
+
+      if (
+        allAgentStates.some(
+          (state) =>
+            state?.run?.status === "review_ready" ||
+            state?.run?.status === "needs_review"
+        )
+      ) {
+        return { ...agent, status: "Review Ready" as AgentStatus };
       }
 
       const specialistState = specialistStates[agent.id];
@@ -444,6 +538,7 @@ export default function Home() {
     caseBrainRefreshing,
     routingState,
     specialistStates,
+    matters,
   ]);
 
   const selected = useMemo(
@@ -463,6 +558,7 @@ export default function Home() {
 
   function handleCaseBrainReady(matter: StoredCaseMatter) {
     setCaseBrainMatter(matter);
+    void loadAllMatters({ preserveSelection: true });
 
     if (matter.routing) {
       setRoutingState({
@@ -481,6 +577,7 @@ export default function Home() {
 
   function handleMatterUpdated(matter: StoredCaseMatter) {
     setCaseBrainMatter(matter);
+    void loadAllMatters({ preserveSelection: true });
 
     if (matter.routing) {
       setRoutingState({
@@ -648,9 +745,20 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="system-pill">
-          <span className="live-dot" />
-          Systems Online
+        <div className="topbar-actions">
+          <button
+            className="matter-center-button"
+            onClick={() => setMatterCenterOpen(true)}
+          >
+            <UsersRound size={15} />
+            Matter Center
+            <strong>{matters.length}</strong>
+          </button>
+
+          <div className="system-pill">
+            <span className="live-dot" />
+            Systems Online
+          </div>
         </div>
       </header>
 
@@ -667,11 +775,20 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="hero-stat">
-          <Activity size={18} />
-          <div>
-            <strong>{agents.length}</strong>
-            <span>specialists online</span>
+        <div className="hero-stat-stack">
+          <div className="hero-stat">
+            <Activity size={18} />
+            <div>
+              <strong>{agents.length}</strong>
+              <span>specialists online</span>
+            </div>
+          </div>
+          <div className="hero-stat">
+            <UsersRound size={18} />
+            <div>
+              <strong>{matters.length}</strong>
+              <span>shared matters</span>
+            </div>
           </div>
         </div>
       </section>
@@ -686,18 +803,45 @@ export default function Home() {
       {caseBrainMatter && (
         <section className="active-matter-strip">
           <div>
-            <span>ACTIVE CASE BRAIN MATTER</span>
+            <span>ACTIVE COMMAND-CENTER MATTER</span>
             <strong>
               {String(
                 caseBrainMatter.caseBrain?.people?.detainee?.name ||
                 caseBrainMatter.caseBrain?.people?.detainee?.full_name ||
+                caseBrainMatter.monday?.preview?.detaineeName ||
+                caseBrainMatter.monday?.preview?.name ||
                 `Matter ${caseBrainMatter.matterId}`
               )}
             </strong>
           </div>
           <div className="active-matter-meta">
-            <span>{caseBrainMatter.caseBrainStatus?.replaceAll("_", " ") || "review ready"}</span>
-            <button onClick={() => setCaseBrainOpen(true)}>Open Case Brain</button>
+            <span>
+              {caseBrainMatter.caseBrainStatus?.replaceAll("_", " ") ||
+                "review ready"}
+            </span>
+            <button
+              className="active-switch-btn"
+              onClick={() => setMatterCenterOpen(true)}
+            >
+              Switch Matter
+            </button>
+            <button onClick={() => setCaseBrainOpen(true)}>
+              Open Case Brain
+            </button>
+          </div>
+        </section>
+      )}
+
+      {!caseBrainMatter && matters.length > 0 && (
+        <section className="active-matter-strip empty-selection">
+          <div>
+            <span>NO MATTER SELECTED</span>
+            <strong>{matters.length} shared matters available</strong>
+          </div>
+          <div className="active-matter-meta">
+            <button onClick={() => setMatterCenterOpen(true)}>
+              Open Matter Center
+            </button>
           </div>
         </section>
       )}
@@ -791,7 +935,7 @@ export default function Home() {
             )}
           </div>
           <p className="panel-note">
-            Case Brain now receives a real Monday matter from Santiago and can open the returned analysis in its workstation.
+            Every Monday matter now persists independently in Supabase. Multiple Case Brain and specialist jobs can run concurrently while the Matter Center lets the team switch context without interrupting other work.
           </p>
         </div>
       </section>
@@ -917,6 +1061,29 @@ export default function Home() {
         </div>
       )}
 
+      {matterCenterOpen && (
+        <MatterCenter
+          matters={matters}
+          selectedMatterId={
+            caseBrainMatter?.mondayItemId ||
+            caseBrainMatter?.matterId ||
+            null
+          }
+          loading={mattersLoading}
+          onRefresh={() => {
+            void loadAllMatters({ preserveSelection: true });
+          }}
+          onSelect={(matter) => {
+            void selectMatter(matter);
+            setMatterCenterOpen(false);
+          }}
+          onOpenCaseBrain={(matter) => {
+            void openMatterCaseBrain(matter);
+          }}
+          onClose={() => setMatterCenterOpen(false)}
+        />
+      )}
+
       {santiagoOpen && (
         <SantiagoWorkstation
           key={santiagoInitialTab}
@@ -951,6 +1118,9 @@ export default function Home() {
               ...current,
               [agentId]: state,
             }));
+          }}
+          onSelectMatter={(matter) => {
+            void selectMatter(matter);
           }}
           onClose={() => setSpecialistOpenId(null)}
         />

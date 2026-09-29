@@ -83,6 +83,15 @@ export async function getLatestMatter() {
   return rows[0] || null;
 }
 
+
+export async function getAllMatters(limit = 100) {
+  return supabaseSelect<DbMatter>("ai_matters", {
+    select: "*",
+    order: "updated_at.desc",
+    limit,
+  });
+}
+
 export async function getSnapshotById(id?: string | null) {
   if (!id) return null;
 
@@ -167,7 +176,12 @@ export async function buildStoredMatter(matter: DbMatter | null) {
     mondayItemId: matter.monday_item_id,
     caseBrainStatus: matter.status,
     savedAt: snapshot?.created_at || matter.updated_at,
-    caseBrain: snapshot?.analysis || null,
+    monday: {
+      found: true,
+      preview: matter.monday_data?.preview || null,
+      raw: matter.monday_data || null,
+    },
+    caseBrain: snapshot?.analysis || {},
     routing: matter.current_route
       ? {
           target: matter.current_route,
