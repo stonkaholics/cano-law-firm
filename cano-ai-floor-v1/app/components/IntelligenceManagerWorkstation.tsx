@@ -103,6 +103,14 @@ export default function IntelligenceManagerWorkstation({
 
             {error && <div className="specialist-error"><CircleAlert size={16}/>{error}</div>}
 
+            {atlas?.run?.status === "working" && output && (
+              <div className="atlas-refresh-banner">
+                <Loader2 className="spin" size={14}/>
+                Atlas is refreshing in the background. The last completed dossier
+                remains visible until the new synthesis is saved.
+              </div>
+            )}
+
             <section className="atlas-metrics">
               <Metric label="Specialists Complete" value={`${completedCount}/${TEAM.length}`} />
               <Metric label="Current Pipeline" value={matter.pipeline?.stage?.replaceAll("_", " ") || "Awaiting stage"} />

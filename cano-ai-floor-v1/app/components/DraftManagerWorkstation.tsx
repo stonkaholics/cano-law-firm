@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   CircleAlert,
   FilePenLine,
+  FileDown,
   Loader2,
   RotateCcw,
   ShieldAlert,
@@ -30,6 +31,7 @@ export default function DraftManagerWorkstation({
   const [draftType, setDraftType] = useState<DraftType>("habeas");
   const [running, setRunning] = useState(false);
   const [reviewing, setReviewing] = useState(false);
+  const [exporting, setExporting] = useState<"docx" | "pdf" | null>(null);
   const [error, setError] = useState("");
   const state = states.drafting || {};
   const output: any = state.output || null;
@@ -56,7 +58,23 @@ export default function DraftManagerWorkstation({
           mondayItemId,
           agentId: "drafting",
           triggerType: state?.run ? "refresh" : "manual",
-          options: { draftType },
+          options: {
+            draftType,
+            draftingMode: "full_motion",
+            targetLength:
+              draftType === "habeas"
+                ? "4500-7000 words"
+                : "2500-4500 words",
+            attorneyWorkProduct: true,
+            draftingRequirements: [
+              "Return a complete attorney-editable pleading, not an outline.",
+              "Draft substantive prose for each section using the supplied matter record and specialist analyses.",
+              "Use ATTORNEY INPUT NEEDED placeholders only for facts that are actually missing.",
+              "Do not leave section-level notes telling the attorney to insert or adapt text later.",
+              "Use only authorities present in verified research inputs and preserve all citator-review warnings.",
+              "Include adverse facts, contradictions, and uncertainty where relevant.",
+            ],
+          },
         }),
       });
       const data = await res.json();
@@ -98,6 +116,49 @@ export default function DraftManagerWorkstation({
       setError(err instanceof Error ? err.message : "Unable to save attorney decision.");
     } finally {
       setReviewing(false);
+    }
+  }
+
+  async function exportDraft(format: "docx" | "pdf") {
+    if (!matter || !draft || exporting) return;
+    setExporting(format);
+    setError("");
+
+    try {
+      const mondayItemId = matter.mondayItemId || matter.matterId;
+      const res = await fetch(
+        `/api/drafts/export?mondayItemId=${encodeURIComponent(
+          mondayItemId
+        )}&format=${format}`,
+        { cache: "no-store" }
+      );
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || `Unable to export ${format.toUpperCase()}.`);
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="([^"]+)"/i);
+      const filename =
+        match?.[1] ||
+        `${matterName.replace(/[^a-z0-9]+/gi, "-")}-draft.${format}`;
+
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to export draft."
+      );
+    } finally {
+      setExporting(null);
     }
   }
 
@@ -155,6 +216,14 @@ export default function DraftManagerWorkstation({
                     <strong>{String(draft.approval_status || "pending_attorney_review").replaceAll("_", " ")}</strong>
                   </div>
                   <div className="draft-review-actions">
+                    <button className="draft-export-btn" disabled={Boolean(exporting)} onClick={() => exportDraft("docx")}>
+                      {exporting === "docx" ? <Loader2 className="spin" size={15}/> : <FileDown size={15}/>}
+                      DOCX
+                    </button>
+                    <button className="draft-export-btn" disabled={Boolean(exporting)} onClick={() => exportDraft("pdf")}>
+                      {exporting === "pdf" ? <Loader2 className="spin" size={15}/> : <FileDown size={15}/>}
+                      PDF
+                    </button>
                     <button className="draft-needs-btn" disabled={reviewing} onClick={() => review("needs_changes")}><XCircle size={15}/>Needs Changes</button>
                     <button className="draft-approve-btn" disabled={reviewing} onClick={() => review("approved")}><CheckCircle2 size={15}/>Approve Draft</button>
                   </div>
@@ -177,9 +246,17 @@ export default function DraftManagerWorkstation({
                   <ul>{(draft.placeholders || []).map((item: string, i: number) => <li key={i}>{item}</li>)}</ul>
                 </details>
 
-                <details className="draft-review-details">
+                <details className="draft-review-details draft-authority-details" open>
                   <summary>Authority Checklist ({draft.authority_checklist?.length || 0})</summary>
-                  <div className="draft-authority-list">{(draft.authority_checklist || []).map((item: any, i: number) => <div key={i}><strong>{item.authority}</strong><span>{String(item.status || "").replaceAll("_", " ")}</span><p>{item.note}</p></div>)}</div>
+                  <div className="draft-authority-list">
+                    {(draft.authority_checklist || []).map((item: any, i: number) => (
+                      <div key={i}>
+                        <strong>{item.authority}</strong>
+                        <span>{String(item.status || "").replaceAll("_", " ")}</span>
+                        <p>{item.note}</p>
+                      </div>
+                    ))}
+                  </div>
                 </details>
               </>
             )}

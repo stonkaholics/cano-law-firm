@@ -198,6 +198,147 @@ export default function CaseBrainWorkstation({
   const pipelineDisplayStage =
     matter.pipeline?.stage || "case_brain";
 
+  // Case Brain remains the original intake snapshot, while these display
+  // values roll in completed specialist intelligence as it arrives.
+  const specialistOutputs = Object.values(specialistStates || {})
+    .map((state: any) => state?.output)
+    .filter(Boolean);
+
+  const atlasOutput: any = (specialistStates as any)?.synthesis?.output || null;
+  const timelineOutput: any = (specialistStates as any)?.timeline?.output || null;
+
+  const allSpecialistItems = specialistOutputs.flatMap((output: any) =>
+    (output?.sections || []).flatMap((section: any) =>
+      (section?.items || []).map((item: any) => ({
+        ...item,
+        sectionTitle: section?.title || "",
+      }))
+    )
+  );
+
+  const liveSummary =
+    atlasOutput?.executive_summary ||
+    cb.summary?.detailed ||
+    cb.executive_summary ||
+    cb.summary?.brief ||
+    "No detailed summary returned.";
+
+  const liveKeyFacts =
+    (cb.key_facts || []).length > 0
+      ? cb.key_facts || []
+      : allSpecialistItems
+          .filter((item: any) =>
+            ["confirmed", "reported", "unclear"].includes(
+              String(item?.confidence || "").toLowerCase()
+            )
+          )
+          .slice(0, 16)
+          .map((item: any) => ({
+            fact: item.detail || item.label || "Fact",
+            source: item.source || item.sectionTitle || "Specialist analysis",
+            confidence: item.confidence || "reported",
+          }));
+
+  const chronosItems = (timelineOutput?.sections || []).flatMap((section: any) =>
+    (section?.items || []).map((item: any) => ({
+      ...item,
+      sectionTitle: section?.title || "",
+    }))
+  );
+
+  const liveTimeline =
+    (cb.timeline || []).length > 0
+      ? cb.timeline || []
+      : chronosItems.slice(0, 18).map((item: any) => ({
+          date_or_period: item.label || item.sectionTitle || "Date / period",
+          event: item.detail || "",
+          source: item.source || "Chronos timeline",
+        }));
+
+  const liveIssues =
+    (cb.issues || []).length > 0
+      ? cb.issues || []
+      : allSpecialistItems
+          .filter((item: any) =>
+            /issue|risk|question|jurisdiction|custody|removal|detention|authority/i.test(
+              `${item.sectionTitle} ${item.label}`
+            )
+          )
+          .slice(0, 14)
+          .map((item: any) => ({
+            issue: item.detail || item.label || "Issue",
+            type: "other",
+            source: item.source || item.sectionTitle || "Specialist analysis",
+          }));
+
+  const uniqueStrings = (values: any[]) =>
+    [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+
+  const liveMissingInformation = uniqueStrings([
+    ...(cb.missing_information || []),
+    ...specialistOutputs.flatMap((output: any) =>
+      output?.readiness?.blocking_items || []
+    ),
+  ]);
+
+  const atlasConflictItems = (atlasOutput?.sections || [])
+    .filter((section: any) =>
+      /conflict|contradict|uncertain|discrep/i.test(
+        String(section?.title || "")
+      )
+    )
+    .flatMap((section: any) => section?.items || []);
+
+  const liveContradictions =
+    (cb.contradictions || []).length > 0
+      ? cb.contradictions || []
+      : atlasConflictItems.slice(0, 12).map((item: any) => ({
+          description: item.detail || item.label || "Unresolved conflict",
+          sources: [item.source || "Atlas synthesis"],
+        }));
+
+  const liveNextQuestions = uniqueStrings([
+    ...(cb.next_questions || []),
+    ...(cb.open_questions || []),
+    ...specialistOutputs.flatMap((output: any) => output?.open_questions || []),
+  ]);
+
+  const specialistAttorneyReviewRequired = specialistOutputs.some(
+    (output: any) => output?.readiness?.attorney_review_required === true
+  );
+
+  const liveAttorneyReviewRequired =
+    pipelineDisplayStage === "attorney_review" ||
+    specialistAttorneyReviewRequired ||
+    cb.review_status?.attorney_review_required === true ||
+    cb.readiness?.attorney_review_required === true;
+
+  const liveReadyForSpecialist =
+    Boolean((specialistStates as any)?.research?.output) ||
+    ["research", "habeas", "bond", "timeline", "hearing_prep", "attorney_review"].includes(
+      pipelineDisplayStage
+    ) ||
+    cb.review_status?.ready_for_specialist === true;
+
+  const liveBlockingItems = uniqueStrings([
+    ...(cb.review_status?.blocking_items || []),
+    ...(cb.readiness?.blocking_items || []),
+    ...specialistOutputs.flatMap((output: any) =>
+      output?.readiness?.blocking_items || []
+    ),
+  ]);
+
+  const liveDetainee =
+    detainee ||
+    matter.monday?.preview?.detaineeName ||
+    matter.monday?.preview?.name ||
+    "—";
+
+  const livePnc =
+    pnc ||
+    matter.monday?.preview?.pncName ||
+    "—";
+
   const hasSnapshot = Boolean(
     matter.caseBrain &&
       (
@@ -530,19 +671,27 @@ export default function CaseBrainWorkstation({
         ) : isError && !hasSnapshot ? (
           <ErrorState />
         ) : (
+          <>
+          <div className="cb-live-rollup-note">
+            <Brain size={15} />
+            <span>
+              Live Case Intelligence: these panels keep Case Brain's original
+              matter snapshot but fill empty sections from completed specialist
+              outputs as Lex, Elena/Mateo, Chronos, Avery, Veritas, and Atlas
+              finish.
+            </span>
+          </div>
           <section className="cb-grid">
             <div className="cb-main">
               <Card icon={<Brain size={18} />} title="Matter Summary">
                 <p className="cb-detailed">
-                  {cb.summary?.detailed ||
-                    cb.executive_summary ||
-                    "No detailed summary returned."}
+                  {liveSummary}
                 </p>
               </Card>
 
               <Card icon={<ListChecks size={18} />} title="Key Facts">
                 <div className="cb-list">
-                  {(cb.key_facts || []).map((fact, i) => {
+                  {liveKeyFacts.map((fact, i) => {
                     if (typeof fact === "string") {
                       return (
                         <div className="cb-fact" key={i}>
@@ -580,7 +729,7 @@ export default function CaseBrainWorkstation({
 
               <Card icon={<Clock3 size={18} />} title="Timeline">
                 <div className="cb-timeline">
-                  {(cb.timeline || []).map((entry, i) => {
+                  {liveTimeline.map((entry, i) => {
                     if (typeof entry === "string") {
                       return (
                         <div className="timeline-row" key={i}>
@@ -616,7 +765,7 @@ export default function CaseBrainWorkstation({
                 title="Issues for Review"
               >
                 <div className="cb-simple-list">
-                  {(cb.issues || []).map((issue, i) => (
+                  {liveIssues.map((issue, i) => (
                     <div key={i}>
                       <strong>
                         {typeof issue === "string"
@@ -641,9 +790,9 @@ export default function CaseBrainWorkstation({
               <Card icon={<UserRound size={18} />} title="People">
                 <Info
                   label="Detainee"
-                  value={detainee || "—"}
+                  value={liveDetainee}
                 />
-                <Info label="PNC" value={pnc || "—"} />
+                <Info label="PNC" value={livePnc} />
                 <Info
                   label="Other People"
                   value={String(
@@ -667,10 +816,10 @@ export default function CaseBrainWorkstation({
                 title="Missing Information"
               >
                 <div className="number-badge">
-                  {cb.missing_information?.length || 0}
+                  {liveMissingInformation.length}
                 </div>
                 <ul className="cb-ul">
-                  {(cb.missing_information || []).map(
+                  {liveMissingInformation.map(
                     (item, i) => (
                       <li key={i}>{item}</li>
                     )
@@ -683,10 +832,10 @@ export default function CaseBrainWorkstation({
                 title="Contradictions"
               >
                 <div className="number-badge warning">
-                  {cb.contradictions?.length || 0}
+                  {liveContradictions.length}
                 </div>
                 <ul className="cb-ul">
-                  {(cb.contradictions || []).map((item, i) => (
+                  {liveContradictions.map((item, i) => (
                     <li key={i}>
                       {typeof item === "string"
                         ? item
@@ -707,7 +856,7 @@ export default function CaseBrainWorkstation({
                 title="Next Questions"
               >
                 <ul className="cb-ul">
-                  {(cb.next_questions || []).map(
+                  {liveNextQuestions.map(
                     (item, i) => (
                       <li key={i}>{item}</li>
                     )
@@ -722,7 +871,7 @@ export default function CaseBrainWorkstation({
                 <Info
                   label="Attorney Review"
                   value={
-                    cb.review_status?.attorney_review_required
+                    liveAttorneyReviewRequired
                       ? "Required"
                       : "Not Required"
                   }
@@ -730,21 +879,18 @@ export default function CaseBrainWorkstation({
                 <Info
                   label="Ready for Specialist"
                   value={
-                    cb.review_status?.ready_for_specialist
+                    liveReadyForSpecialist
                       ? "Yes"
                       : "No"
                   }
                 />
-                {(cb.review_status?.blocking_items || [])
-                  .length > 0 && (
+                {liveBlockingItems.length > 0 && (
                   <>
                     <div className="cb-subtitle">
                       BLOCKING ITEMS
                     </div>
                     <ul className="cb-ul">
-                      {(
-                        cb.review_status?.blocking_items || []
-                      ).map((item, i) => (
+                      {liveBlockingItems.map((item, i) => (
                         <li key={i}>{item}</li>
                       ))}
                     </ul>
@@ -753,6 +899,7 @@ export default function CaseBrainWorkstation({
               </Card>
             </aside>
           </section>
+          </>
         )}
       </div>
     </div>

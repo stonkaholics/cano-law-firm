@@ -75,6 +75,22 @@ export async function POST(request: NextRequest) {
     const priorAgents = await getLatestSpecialistState(matter.id);
     const config = SPECIALIST_AGENTS[agentId];
 
+    const existingState = priorAgents[agentId];
+    if (existingState?.run?.status === "working") {
+      return NextResponse.json(
+        {
+          ok: true,
+          accepted: true,
+          deduplicated: true,
+          runId: existingState.run.id,
+          agentId,
+          agentName: config.name,
+          status: "working",
+        },
+        { status: 202 }
+      );
+    }
+
     const inputPayload = {
       matter: storedMatter,
       request: options,
