@@ -2985,3 +2985,46 @@ button { font: inherit; }
     justify-content:flex-start;
   }
 }
+
+
+/* Matter Center active-matter control */
+.matter-activate-btn {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 13px;
+  border-radius: 10px;
+  border: 1px solid rgba(91, 157, 205, 0.28);
+  background:
+    linear-gradient(180deg, rgba(35, 91, 127, 0.18), rgba(17, 50, 72, 0.16));
+  color: #a9d7f1;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.matter-activate-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(105, 187, 237, 0.52);
+  background:
+    linear-gradient(180deg, rgba(35, 91, 127, 0.28), rgba(17, 50, 72, 0.22));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+
+.matter-activate-btn.active,
+.matter-activate-btn:disabled {
+  border-color: rgba(92, 226, 174, 0.28);
+  background:
+    linear-gradient(180deg, rgba(39, 118, 88, 0.18), rgba(21, 71, 55, 0.16));
+  color: #79e5b8;
+  cursor: default;
+  opacity: 1;
+}
