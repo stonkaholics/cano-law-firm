@@ -56,10 +56,14 @@ export function chooseAfterCaseBrain(caseBrain: any): PipelineDecision {
 
 export function chooseAfterResearch(
   caseBrain: any,
-  researchOutput: any
+  researchOutput: any,
+  persistedRecommendation?: string | null
 ): PipelineDecision {
-  const recommended =
-    String(caseBrain?.routing?.recommended_specialist || "").toLowerCase();
+  const recommended = String(
+    caseBrain?.routing?.recommended_specialist ||
+    persistedRecommendation ||
+    ""
+  ).toLowerCase();
 
   const readiness =
     String(researchOutput?.readiness?.status || "").toLowerCase();
