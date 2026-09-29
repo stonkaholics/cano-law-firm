@@ -120,6 +120,13 @@ export async function POST(request: NextRequest) {
       request.nextUrl.origin
     ).toString();
 
+    // Send the legal-authority endpoint explicitly with every specialist job.
+    // n8n should not have to reconstruct the Vercel origin.
+    const authorityResearchUrl = new URL(
+      "/api/legal-authorities/research",
+      request.nextUrl.origin
+    ).toString();
+
     const response = await fetch(webhook, {
       method: "POST",
       headers: {
@@ -137,6 +144,7 @@ export async function POST(request: NextRequest) {
         databaseMatterId: matter.id,
         triggerType,
         callbackUrl,
+        authorityResearchUrl,
         input: inputPayload,
       }),
       cache: "no-store",
