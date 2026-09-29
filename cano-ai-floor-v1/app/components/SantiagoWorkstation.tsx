@@ -25,6 +25,8 @@ import {
   ArrowRight,
   ShieldCheck,
   Presentation,
+  Upload,
+  X,
 } from "lucide-react";
 import type { StoredCaseMatter } from "./CaseBrainWorkstation";
 
@@ -116,6 +118,8 @@ export default function SantiagoWorkstation({
   const [error, setError] = useState("");
   const [activity, setActivity] = useState<SantiagoActivity[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [attorneyCaseNotes, setAttorneyCaseNotes] = useState("");
+  const [notesFileName, setNotesFileName] = useState("");
 
   const selected = useMemo(
     () => matters.find((m) => m.id === selectedId) ?? null,
@@ -371,7 +375,18 @@ export default function SantiagoWorkstation({
         body: JSON.stringify({
           matterId: selected.id,
           mondayItemId,
-          preview: selected,
+          preview: {
+            ...selected,
+            originalMondaySummary: selected.notesPreview || "",
+            notesPreview:
+              attorneyCaseNotes.trim() ||
+              selected.notesPreview ||
+              "",
+          },
+          attorneyCaseNotes: attorneyCaseNotes.trim() || null,
+          intakeSource: attorneyCaseNotes.trim()
+            ? "attorney_case_notes"
+            : "monday_short_case_summary",
         }),
       });
 
@@ -515,6 +530,8 @@ export default function SantiagoWorkstation({
                     onClick={() => {
                       setSelectedId(matter.id);
                       setResult(null);
+                      setAttorneyCaseNotes("");
+                      setNotesFileName("");
                     }}
                   >
                     <div>
@@ -578,10 +595,93 @@ export default function SantiagoWorkstation({
 
                 {selected.notesPreview && (
                   <div className="notes-preview">
-                    <span>SHORT CASE SUMMARY</span>
+                    <span>MONDAY SHORT CASE SUMMARY</span>
                     <p>{selected.notesPreview}</p>
                   </div>
                 )}
+
+                <div className="attorney-intake-notes">
+                  <div className="attorney-intake-notes-head">
+                    <div>
+                      <span>OPTIONAL · ATTORNEY CASE NOTES</span>
+                      <strong>Use your initial call notes instead</strong>
+                      <p>
+                        Paste the attorney's consultation/call notes here. If anything
+                        is entered, Case Brain will use these notes as the primary intake
+                        narrative instead of Monday's Short Case Summary. Leave this blank
+                        to keep using the Monday summary automatically.
+                      </p>
+                    </div>
+
+                    {attorneyCaseNotes.trim() ? (
+                      <div className="attorney-notes-source-pill active">
+                        Attorney notes will be used
+                      </div>
+                    ) : (
+                      <div className="attorney-notes-source-pill">
+                        Monday summary will be used
+                      </div>
+                    )}
+                  </div>
+
+                  <textarea
+                    value={attorneyCaseNotes}
+                    onChange={(event) => {
+                      setAttorneyCaseNotes(event.target.value);
+                      setNotesFileName("");
+                    }}
+                    placeholder="Paste initial consultation notes, detention history, prior filings, criminal history, family facts, procedural details, attorney observations, etc..."
+                    rows={8}
+                  />
+
+                  <div className="attorney-intake-notes-actions">
+                    <label className="attorney-notes-upload">
+                      <Upload size={14} />
+                      Upload .txt / .md notes
+                      <input
+                        type="file"
+                        accept=".txt,.md,text/plain,text/markdown"
+                        onChange={async (event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          const text = await file.text();
+                          setAttorneyCaseNotes(text);
+                          setNotesFileName(file.name);
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+
+                    {notesFileName ? (
+                      <span className="attorney-notes-file">
+                        {notesFileName}
+                      </span>
+                    ) : null}
+
+                    {attorneyCaseNotes.trim() ? (
+                      <button
+                        type="button"
+                        className="attorney-notes-clear"
+                        onClick={() => {
+                          setAttorneyCaseNotes("");
+                          setNotesFileName("");
+                        }}
+                      >
+                        <X size={13} />
+                        Clear notes
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="attorney-intake-source-preview">
+                    <span>CASE BRAIN INTAKE SOURCE</span>
+                    <strong>
+                      {attorneyCaseNotes.trim()
+                        ? "Attorney Case Notes"
+                        : "Monday Short Case Summary"}
+                    </strong>
+                  </div>
+                </div>
 
                 {result && (
                   <div className={`start-result ${result.ok ? "success" : "error"}`}>
