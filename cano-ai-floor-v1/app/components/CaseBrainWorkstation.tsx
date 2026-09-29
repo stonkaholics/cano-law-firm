@@ -490,10 +490,13 @@ export default function CaseBrainWorkstation({
           </div>
 
           <p className="cb-pipeline-copy">
-            Automatic mode uses Case Brain routing to sequence the matter.
-            Immigration matters run through Lex first, then the primary
-            specialist, Chronos, Avery, and finally attorney review. The
-            pipeline pauses when a specialist reports blocking information.
+            This row shows the planned sequence, not agents that were all sent
+            at once. Automatic mode starts one specialist at a time: Lex first,
+            then the Case Brain-selected primary specialist, then Chronos,
+            Avery, and finally attorney review. A green completed node means a
+            saved output exists; the active node is the stage currently being
+            worked. If an automatic handoff fails, Start Workflow retries only
+            the pending specialist instead of restarting completed work.
           </p>
         </section>
 
