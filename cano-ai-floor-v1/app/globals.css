@@ -4106,3 +4106,174 @@ button { font: inherit; }
     width: 100%;
   }
 }
+
+
+/* =========================================================
+   SANTIAGO · OPTIONAL ATTORNEY INTAKE NOTES
+   ========================================================= */
+.attorney-intake-notes {
+  margin-top: 14px;
+  border: 1px solid rgba(224,191,133,.15);
+  border-radius: 12px;
+  background: rgba(201,165,104,.025);
+  padding: 14px;
+}
+
+.attorney-intake-notes-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.attorney-intake-notes-head > div:first-child {
+  min-width: 0;
+}
+
+.attorney-intake-notes-head span {
+  display: block;
+  color: #c9a568;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .11em;
+}
+
+.attorney-intake-notes-head strong {
+  display: block;
+  margin-top: 4px;
+  color: #eef5f8;
+  font-family: Georgia, serif;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.attorney-intake-notes-head p {
+  margin: 6px 0 0;
+  max-width: 760px;
+  color: #7f96a3;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.attorney-notes-source-pill {
+  flex: 0 0 auto;
+  border: 1px solid rgba(107,184,255,.16);
+  border-radius: 999px;
+  background: rgba(107,184,255,.045);
+  color: #8dbfe0;
+  padding: 6px 9px;
+  font-size: 7px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.attorney-notes-source-pill.active {
+  border-color: rgba(100,215,160,.2);
+  background: rgba(100,215,160,.05);
+  color: #7ed9ad;
+}
+
+.attorney-intake-notes textarea {
+  width: 100%;
+  min-height: 150px;
+  margin-top: 12px;
+  resize: vertical;
+  border: 1px solid rgba(173,194,206,.12);
+  border-radius: 10px;
+  outline: none;
+  padding: 12px 13px;
+  background: #08141d;
+  color: #edf4f7;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.attorney-intake-notes textarea:focus {
+  border-color: rgba(224,191,133,.42);
+  box-shadow: 0 0 0 2px rgba(201,165,104,.06);
+}
+
+.attorney-intake-notes textarea::placeholder {
+  color: #516a77;
+}
+
+.attorney-intake-notes-actions {
+  margin-top: 9px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.attorney-notes-upload,
+.attorney-notes-clear {
+  min-height: 32px;
+  border: 1px solid rgba(173,194,206,.12);
+  border-radius: 8px;
+  background: rgba(255,255,255,.02);
+  color: #9db0ba;
+  padding: 6px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.attorney-notes-upload:hover,
+.attorney-notes-clear:hover {
+  border-color: rgba(224,191,133,.28);
+  color: #e1c68e;
+}
+
+.attorney-notes-upload input {
+  display: none;
+}
+
+.attorney-notes-file {
+  color: #708996;
+  font-size: 8px;
+}
+
+.attorney-notes-clear {
+  margin-left: auto;
+  color: #d28b8b;
+  border-color: rgba(210,110,110,.16);
+  background: rgba(210,110,110,.035);
+}
+
+.attorney-intake-source-preview {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(173,194,206,.07);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.attorney-intake-source-preview span {
+  color: #607b88;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .1em;
+}
+
+.attorney-intake-source-preview strong {
+  color: #d9c18e;
+  font-size: 9px;
+}
+
+@media(max-width:760px) {
+  .attorney-intake-notes-head {
+    flex-direction: column;
+  }
+  .attorney-notes-source-pill {
+    align-self: flex-start;
+  }
+  .attorney-notes-clear {
+    margin-left: 0;
+  }
+}
