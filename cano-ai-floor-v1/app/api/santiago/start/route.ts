@@ -35,6 +35,11 @@ export async function POST(request: NextRequest) {
     const existing = await getMatterByMondayId(mondayItemId);
     const preview = body.preview || {};
     const existingMondayData = existing?.monday_data || {};
+    const attorneyCaseNotes = String(body.attorneyCaseNotes || "").trim();
+    const intakeSource =
+      attorneyCaseNotes
+        ? "attorney_case_notes"
+        : "monday_short_case_summary";
 
     const matter = await upsertMatter({
       monday_item_id: mondayItemId,
@@ -69,6 +74,13 @@ export async function POST(request: NextRequest) {
         ...(preview && Object.keys(preview).length
           ? { preview }
           : {}),
+        intakeSource,
+        attorneyCaseNotes: attorneyCaseNotes || null,
+        originalMondaySummary:
+          preview.originalMondaySummary ||
+          existingMondayData?.originalMondaySummary ||
+          existingMondayData?.preview?.notesPreview ||
+          null,
       },
     });
 
@@ -91,10 +103,14 @@ export async function POST(request: NextRequest) {
           : "Case Brain analysis started",
       detail:
         action === "refresh_case_brain"
-          ? "The latest Monday data is being re-pulled for a fresh Case Brain snapshot."
-          : "Santiago sent the selected Monday matter to Case Brain.",
+          ? "The latest matter data is being re-pulled for a fresh Case Brain snapshot."
+          : attorneyCaseNotes
+          ? "Santiago sent the selected matter to Case Brain using attorney-supplied intake notes."
+          : "Santiago sent the selected Monday matter to Case Brain using the Monday Short Case Summary.",
       metadata: {
         action,
+        intakeSource,
+        attorneyCaseNotesProvided: Boolean(attorneyCaseNotes),
       },
     });
 
@@ -120,6 +136,8 @@ export async function POST(request: NextRequest) {
         matterId: mondayItemId,
         mondayItemId,
         preview: body.preview ?? null,
+        attorneyCaseNotes: attorneyCaseNotes || null,
+        intakeSource,
         callbackUrl,
       }),
       cache: "no-store",
