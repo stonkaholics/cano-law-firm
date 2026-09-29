@@ -4843,3 +4843,187 @@ button { font: inherit; }
     height: 121px;
   }
 }
+
+
+/* =========================================================
+   MOBILE VISUAL FLOOR / HERO ALIGNMENT FIX
+   ========================================================= */
+@media (max-width: 760px) {
+  /* Center the primary page intro on mobile */
+  .hero {
+    padding: 28px 18px 22px;
+    flex-direction: column;
+    align-items: center !important;
+    text-align: center;
+    gap: 22px;
+  }
+
+  .hero > div:first-child {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .eyebrow {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .hero h1 {
+    max-width: 640px;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+    line-height: 1.08;
+  }
+
+  .hero p {
+    max-width: 620px;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+  }
+
+  .hero-stat-stack {
+    width: min(100%, 420px);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    justify-items: center;
+  }
+
+  .hero-stat {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    text-align: left;
+  }
+
+  /* Center the active-matter section below the hero */
+  .active-matter-strip,
+  .active-matter-strip.empty-selection {
+    width: calc(100% - 28px);
+    margin: 0 auto 20px;
+    padding: 18px 16px;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 16px;
+  }
+
+  .active-matter-strip > div:first-child {
+    align-items: center;
+  }
+
+  .active-matter-strip strong {
+    text-align: center;
+  }
+
+  .active-matter-meta {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .active-matter-meta > span {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Center section heading */
+  .visual-floor-heading {
+    justify-content: center;
+    text-align: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .visual-floor-heading span {
+    width: 100%;
+    text-align: center;
+  }
+
+  /*
+   * On mobile the visual floor stacks vertically. The two desktop absolute
+   * group labels were occupying the same top-left area and overlapping.
+   * Hide those desktop labels and render a clean label inside each group.
+   */
+  .visual-top-label {
+    display: none !important;
+  }
+
+  .manager-office-box::before,
+  .open-floor-box::before {
+    display: block;
+    width: 100%;
+    margin: 0 auto 24px;
+    color: rgba(211,187,255,.68);
+    font-size: 10px;
+    line-height: 1.3;
+    font-weight: 800;
+    letter-spacing: .28em;
+    text-align: center;
+  }
+
+  .manager-office-box::before {
+    content: "MANAGER OFFICES";
+  }
+
+  .open-floor-box::before {
+    content: "OPEN AGENT FLOOR";
+  }
+
+  .manager-office-box {
+    padding-top: 24px !important;
+  }
+
+  .open-floor-box {
+    padding-top: 24px !important;
+  }
+
+  .manager-grid,
+  .open-floor-grid {
+    margin-top: 0;
+  }
+
+  /* Keep mobile agent cards centered and comfortably spaced */
+  .visual-node {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .visual-node + .visual-node {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  /* Slightly tighter mobile intro so it remains balanced on iPhone widths */
+  .hero {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .hero h1 {
+    font-size: clamp(42px, 12vw, 58px);
+  }
+
+  .hero p {
+    font-size: 16px;
+    line-height: 1.7;
+  }
+
+  .active-matter-strip {
+    width: calc(100% - 24px);
+  }
+
+  .active-matter-meta button {
+    min-height: 44px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
