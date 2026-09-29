@@ -58,7 +58,23 @@ export default function DraftManagerWorkstation({
           mondayItemId,
           agentId: "drafting",
           triggerType: state?.run ? "refresh" : "manual",
-          options: { draftType },
+          options: {
+            draftType,
+            draftingMode: "full_motion",
+            targetLength:
+              draftType === "habeas"
+                ? "4500-7000 words"
+                : "2500-4500 words",
+            attorneyWorkProduct: true,
+            draftingRequirements: [
+              "Return a complete attorney-editable pleading, not an outline.",
+              "Draft substantive prose for each section using the supplied matter record and specialist analyses.",
+              "Use ATTORNEY INPUT NEEDED placeholders only for facts that are actually missing.",
+              "Do not leave section-level notes telling the attorney to insert or adapt text later.",
+              "Use only authorities present in verified research inputs and preserve all citator-review warnings.",
+              "Include adverse facts, contradictions, and uncertainty where relevant.",
+            ],
+          },
         }),
       });
       const data = await res.json();
