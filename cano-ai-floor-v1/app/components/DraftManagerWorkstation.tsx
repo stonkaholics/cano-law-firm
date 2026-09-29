@@ -9,10 +9,12 @@ import {
   ExternalLink,
   Loader2,
   RotateCcw,
+  Save,
   ShieldAlert,
+  Sparkles,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { StoredCaseMatter } from "./CaseBrainWorkstation";
 import type { SpecialistState } from "./SpecialistWorkstation";
 
@@ -34,6 +36,8 @@ export default function DraftManagerWorkstation({
   const [reviewing, setReviewing] = useState(false);
   const [exporting, setExporting] = useState<"docx" | "pdf" | null>(null);
   const [error, setError] = useState("");
+  const [attorneyInputs, setAttorneyInputs] = useState<Record<string, string>>({});
+  const [inputSaved, setInputSaved] = useState(false);
   const state = states.drafting || {};
   const output: any = state.output || null;
   const draft = output?.draft || null;
@@ -60,6 +64,65 @@ export default function DraftManagerWorkstation({
     );
   }
 
+  const placeholders = useMemo(
+    () => (Array.isArray(draft?.placeholders) ? draft.placeholders : []),
+    [draft]
+  );
+
+  const mondayItemId = matter?.mondayItemId || matter?.matterId || "";
+  const inputStorageKey = mondayItemId
+    ? `cano_draft_attorney_inputs_${mondayItemId}`
+    : "";
+
+  useEffect(() => {
+    if (!inputStorageKey || typeof window === "undefined") {
+      setAttorneyInputs({});
+      return;
+    }
+
+    try {
+      const saved = window.localStorage.getItem(inputStorageKey);
+      setAttorneyInputs(saved ? JSON.parse(saved) : {});
+    } catch {
+      setAttorneyInputs({});
+    }
+  }, [inputStorageKey]);
+
+  function saveAttorneyInputs(next = attorneyInputs) {
+    if (!inputStorageKey || typeof window === "undefined") return;
+    window.localStorage.setItem(inputStorageKey, JSON.stringify(next));
+    setInputSaved(true);
+    window.setTimeout(() => setInputSaved(false), 1400);
+  }
+
+  function updateAttorneyInput(key: string, value: string) {
+    const next = { ...attorneyInputs, [key]: value };
+    setAttorneyInputs(next);
+    if (inputStorageKey && typeof window !== "undefined") {
+      window.localStorage.setItem(inputStorageKey, JSON.stringify(next));
+    }
+  }
+
+  const completedInputs = placeholders.filter(
+    (item: string) => String(attorneyInputs[item] || "").trim().length > 0
+  ).length;
+
+  function renderHighlightedDraft(markdown: string) {
+    const parts = String(markdown || "").split(
+      /(\[ATTORNEY INPUT NEEDED:[^\]]+\])/gi
+    );
+
+    return parts.map((part, index) =>
+      /^\[ATTORNEY INPUT NEEDED:/i.test(part) ? (
+        <mark className="draft-placeholder-highlight" key={index}>
+          {part}
+        </mark>
+      ) : (
+        <span key={index}>{part}</span>
+      )
+    );
+  }
+
   const matterName = useMemo(() => String(
     matter?.caseBrain?.people?.detainee?.name ||
     matter?.caseBrain?.people?.detainee?.full_name ||
@@ -69,9 +132,13 @@ export default function DraftManagerWorkstation({
     "No Active Matter"
   ), [matter]);
 
-  async function generate() {
+  async function generate(useAttorneyInputs = false) {
     if (!matter || running) return;
     setRunning(true); setError("");
+
+    if (useAttorneyInputs) {
+      saveAttorneyInputs();
+    }
     try {
       const mondayItemId = matter.mondayItemId || matter.matterId;
       const res = await fetch("/api/agents/run", {
@@ -89,6 +156,22 @@ export default function DraftManagerWorkstation({
                 ? "4500-7000 words"
                 : "2500-4500 words",
             attorneyWorkProduct: true,
+            attorneyInputs: useAttorneyInputs
+              ? Object.fromEntries(
+                  Object.entries(attorneyInputs).filter(
+                    ([, value]) => String(value || "").trim().length > 0
+                  )
+                )
+              : {},
+            attorneyInputInstructions: useAttorneyInputs
+              ? [
+                  "Treat each attorney input as attorney-supplied matter information.",
+                  "Use the supplied value to resolve the matching ATTORNEY INPUT NEEDED placeholder.",
+                  "Remove resolved placeholder language from the regenerated draft.",
+                  "Do not alter unrelated facts merely because attorney input was supplied.",
+                  "If an attorney input creates a conflict with existing matter data, preserve and flag that conflict for attorney review rather than silently resolving it."
+                ]
+              : [],
             draftingRequirements: [
               "Return a complete attorney-editable pleading, not an outline.",
               "Draft substantive prose for each section using the supplied matter record and specialist analyses.",
@@ -217,7 +300,7 @@ export default function DraftManagerWorkstation({
                   <option value="habeas">Habeas Corpus Draft</option>
                   <option value="bond_motion">Bond Motion Draft</option>
                 </select>
-                <button className="specialist-run-btn" onClick={generate} disabled={running}>
+                <button className="specialist-run-btn" onClick={() => generate(false)} disabled={running}>
                   {running || state?.run?.status === "working" ? <><Loader2 className="spin" size={16}/>Drafting...</> : <><FilePenLine size={16}/>{draft ? "Regenerate Draft" : "Generate Draft"}</>}
                 </button>
               </div>
@@ -255,18 +338,97 @@ export default function DraftManagerWorkstation({
                 <section className="draft-meta-grid">
                   <div><span>Document</span><strong>{String(draft.document_type || draftType).replaceAll("_", " ")}</strong></div>
                   <div><span>Template</span><strong>{String(draft.template_status || "no_template_supplied").replaceAll("_", " ")}</strong></div>
-                  <div><span>Placeholders</span><strong>{draft.placeholders?.length || 0}</strong></div>
+                  <div><span>Placeholders</span><strong>{placeholders.length}</strong></div>
                   <div><span>Authority Checks</span><strong>{draft.authority_checklist?.length || 0}</strong></div>
                 </section>
 
                 <details className="draft-review-details" open>
                   <summary>Working Draft · {draft.title || "Untitled"}</summary>
-                  <div className="draft-document">{draft.markdown || "No draft text returned."}</div>
+                  <div className="draft-document">{renderHighlightedDraft(draft.markdown || "No draft text returned.")}</div>
                 </details>
 
-                <details className="draft-review-details">
-                  <summary>Attorney Input Needed ({draft.placeholders?.length || 0})</summary>
-                  <ul>{(draft.placeholders || []).map((item: string, i: number) => <li key={i}>{item}</li>)}</ul>
+                <details className="draft-review-details draft-input-editor" open>
+                  <summary>
+                    Attorney Input Editor ({completedInputs}/{placeholders.length} completed)
+                  </summary>
+
+                  <div className="draft-input-editor-head">
+                    <div>
+                      <strong>Fill the missing facts here</strong>
+                      <span>
+                        These values save in this browser automatically. When ready,
+                        regenerate Scribe and the completed inputs are sent back into
+                        the matter draft so resolved placeholders can disappear.
+                      </span>
+                    </div>
+
+                    <div className="draft-input-editor-actions">
+                      <button
+                        className="draft-input-save-btn"
+                        onClick={() => saveAttorneyInputs()}
+                        type="button"
+                      >
+                        <Save size={14}/>
+                        {inputSaved ? "Saved" : "Save Inputs"}
+                      </button>
+
+                      <button
+                        className="draft-input-regenerate-btn"
+                        onClick={() => generate(true)}
+                        disabled={running || completedInputs === 0}
+                        type="button"
+                      >
+                        {running ? (
+                          <Loader2 className="spin" size={14}/>
+                        ) : (
+                          <Sparkles size={14}/>
+                        )}
+                        Regenerate With Inputs
+                      </button>
+                    </div>
+                  </div>
+
+                  {placeholders.length ? (
+                    <div className="draft-input-grid">
+                      {placeholders.map((item: string, i: number) => {
+                        const value = attorneyInputs[item] || "";
+                        return (
+                          <div
+                            className={`draft-input-card ${value.trim() ? "complete" : ""}`}
+                            key={i}
+                          >
+                            <div className="draft-input-card-number">{i + 1}</div>
+                            <div className="draft-input-card-body">
+                              <label htmlFor={`attorney-input-${i}`}>
+                                {String(item)
+                                  .replace(/^\[?ATTORNEY INPUT NEEDED:\s*/i, "")
+                                  .replace(/\]$/, "")}
+                              </label>
+                              <textarea
+                                id={`attorney-input-${i}`}
+                                value={value}
+                                onChange={(event) =>
+                                  updateAttorneyInput(item, event.target.value)
+                                }
+                                placeholder="Attorney input..."
+                                rows={3}
+                              />
+                              <span>
+                                {value.trim()
+                                  ? "Ready to integrate on regeneration"
+                                  : "Still unresolved"}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="draft-input-complete">
+                      <CheckCircle2 size={18}/>
+                      No unresolved attorney-input placeholders are listed.
+                    </div>
+                  )}
                 </details>
 
                 <details className="draft-review-details draft-authority-details" open>
