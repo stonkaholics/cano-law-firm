@@ -12,6 +12,7 @@ import {
   Save,
   ShieldAlert,
   Sparkles,
+  X,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -38,6 +39,7 @@ export default function DraftManagerWorkstation({
   const [error, setError] = useState("");
   const [attorneyInputs, setAttorneyInputs] = useState<Record<string, string>>({});
   const [inputSaved, setInputSaved] = useState(false);
+  const [activePlaceholder, setActivePlaceholder] = useState<string | null>(null);
   const state = states.drafting || {};
   const output: any = state.output || null;
   const draft = output?.draft || null;
@@ -107,20 +109,75 @@ export default function DraftManagerWorkstation({
     (item: string) => String(attorneyInputs[item] || "").trim().length > 0
   ).length;
 
+  function normalizePlaceholder(value: string) {
+    return String(value || "")
+      .replace(/^\[/, "")
+      .replace(/\]$/, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  function resolvePlaceholderFromDraft(part: string) {
+    const normalized = normalizePlaceholder(part);
+    return (
+      placeholders.find(
+        (item: string) => normalizePlaceholder(item) === normalized
+      ) || part
+    );
+  }
+
+  function scrollToInputEditor(focusPlaceholder?: string) {
+    const editor = document.getElementById("attorney-input-editor");
+    editor?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    if (!focusPlaceholder) return;
+
+    const index = placeholders.findIndex(
+      (item: string) =>
+        normalizePlaceholder(item) ===
+        normalizePlaceholder(focusPlaceholder)
+    );
+
+    if (index >= 0) {
+      window.setTimeout(() => {
+        const field = document.getElementById(
+          `attorney-input-${index}`
+        ) as HTMLTextAreaElement | null;
+        field?.focus();
+      }, 450);
+    }
+  }
+
+  function openPlaceholderEditor(part: string) {
+    setActivePlaceholder(resolvePlaceholderFromDraft(part));
+  }
+
   function renderHighlightedDraft(markdown: string) {
     const parts = String(markdown || "").split(
       /(\[ATTORNEY INPUT NEEDED:[^\]]+\])/gi
     );
 
-    return parts.map((part, index) =>
-      /^\[ATTORNEY INPUT NEEDED:/i.test(part) ? (
-        <mark className="draft-placeholder-highlight" key={index}>
+    return parts.map((part, index) => {
+      if (!/^\[ATTORNEY INPUT NEEDED:/i.test(part)) {
+        return <span key={index}>{part}</span>;
+      }
+
+      const key = resolvePlaceholderFromDraft(part);
+      const completed = Boolean(String(attorneyInputs[key] || "").trim());
+
+      return (
+        <button
+          className={`draft-placeholder-highlight ${completed ? "completed" : ""}`}
+          key={index}
+          type="button"
+          title="Click to fill this attorney input"
+          onClick={() => openPlaceholderEditor(part)}
+        >
           {part}
-        </mark>
-      ) : (
-        <span key={index}>{part}</span>
-      )
-    );
+        </button>
+      );
+    });
   }
 
   const matterName = useMemo(() => String(
@@ -322,6 +379,14 @@ export default function DraftManagerWorkstation({
                     <strong>{String(draft.approval_status || "pending_attorney_review").replaceAll("_", " ")}</strong>
                   </div>
                   <div className="draft-review-actions">
+                    <button
+                      className="draft-input-jump-btn"
+                      type="button"
+                      onClick={() => scrollToInputEditor()}
+                    >
+                      <FilePenLine size={15}/>
+                      Review Inputs ({placeholders.length - completedInputs})
+                    </button>
                     <button className="draft-export-btn" disabled={Boolean(exporting)} onClick={() => exportDraft("docx")}>
                       {exporting === "docx" ? <Loader2 className="spin" size={15}/> : <FileDown size={15}/>}
                       DOCX
@@ -347,7 +412,11 @@ export default function DraftManagerWorkstation({
                   <div className="draft-document">{renderHighlightedDraft(draft.markdown || "No draft text returned.")}</div>
                 </details>
 
-                <details className="draft-review-details draft-input-editor" open>
+                <details
+                  className="draft-review-details draft-input-editor"
+                  id="attorney-input-editor"
+                  open
+                >
                   <summary>
                     Attorney Input Editor ({completedInputs}/{placeholders.length} completed)
                   </summary>
@@ -395,6 +464,7 @@ export default function DraftManagerWorkstation({
                         return (
                           <div
                             className={`draft-input-card ${value.trim() ? "complete" : ""}`}
+                            id={`attorney-input-card-${i}`}
                             key={i}
                           >
                             <div className="draft-input-card-number">{i + 1}</div>
@@ -430,6 +500,110 @@ export default function DraftManagerWorkstation({
                     </div>
                   )}
                 </details>
+
+                {activePlaceholder ? (
+                  <div
+                    className="draft-quick-input-backdrop"
+                    onMouseDown={(event) => {
+                      if (event.currentTarget === event.target) {
+                        setActivePlaceholder(null);
+                      }
+                    }}
+                  >
+                    <section
+                      className="draft-quick-input"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-label="Attorney input"
+                    >
+                      <div className="draft-quick-input-head">
+                        <div>
+                          <span>ATTORNEY INPUT</span>
+                          <h3>
+                            {String(activePlaceholder)
+                              .replace(/^\[?ATTORNEY INPUT NEEDED:\s*/i, "")
+                              .replace(/\]$/, "")}
+                          </h3>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setActivePlaceholder(null)}
+                          aria-label="Close"
+                        >
+                          <X size={16}/>
+                        </button>
+                      </div>
+
+                      <textarea
+                        autoFocus
+                        rows={5}
+                        value={attorneyInputs[activePlaceholder] || ""}
+                        onChange={(event) =>
+                          updateAttorneyInput(
+                            activePlaceholder,
+                            event.target.value
+                          )
+                        }
+                        placeholder="Type the attorney-supplied information here..."
+                      />
+
+                      <div className="draft-quick-input-status">
+                        {String(attorneyInputs[activePlaceholder] || "").trim()
+                          ? "Saved locally and ready to integrate"
+                          : "This placeholder is still unresolved"}
+                      </div>
+
+                      <div className="draft-quick-input-actions">
+                        <button
+                          className="draft-input-save-btn"
+                          type="button"
+                          onClick={() => {
+                            saveAttorneyInputs();
+                            setActivePlaceholder(null);
+                          }}
+                        >
+                          <Save size={14}/>
+                          Save & Continue
+                        </button>
+
+                        <button
+                          className="draft-quick-jump-btn"
+                          type="button"
+                          onClick={() => {
+                            const target = activePlaceholder;
+                            setActivePlaceholder(null);
+                            scrollToInputEditor(target);
+                          }}
+                        >
+                          <FilePenLine size={14}/>
+                          Open in Input Editor
+                        </button>
+
+                        <button
+                          className="draft-input-regenerate-btn"
+                          type="button"
+                          disabled={
+                            running ||
+                            !String(
+                              attorneyInputs[activePlaceholder] || ""
+                            ).trim()
+                          }
+                          onClick={() => {
+                            setActivePlaceholder(null);
+                            generate(true);
+                          }}
+                        >
+                          {running ? (
+                            <Loader2 className="spin" size={14}/>
+                          ) : (
+                            <Sparkles size={14}/>
+                          )}
+                          Regenerate With Inputs
+                        </button>
+                      </div>
+                    </section>
+                  </div>
+                ) : null}
 
                 <details className="draft-review-details draft-authority-details" open>
                   <summary>Authority Checklist ({draft.authority_checklist?.length || 0})</summary>
