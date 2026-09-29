@@ -12,6 +12,9 @@ import {
   ListChecks,
   Users,
   ChevronRight,
+  Scale,
+  ExternalLink,
+  Landmark,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { StoredCaseMatter } from "./CaseBrainWorkstation";
@@ -60,6 +63,28 @@ export type SpecialistOutput = {
   next_actions?: string[];
   open_questions?: string[];
   warnings?: string[];
+  jurisdiction?: {
+    circuit?: string | null;
+    district?: string | null;
+    basis?: string;
+    confidence?: "high" | "medium" | "low" | string;
+  } | null;
+  authorities?: Array<{
+    kind?: string;
+    title?: string;
+    citation?: string | null;
+    court?: string | null;
+    date?: string | null;
+    binding_status?: "binding" | "persuasive" | "unknown" | string;
+    precedential_status?: string | null;
+    url?: string;
+    proposition?: string;
+    quote?: string | null;
+    quote_status?: string;
+    relevance?: string;
+    source_provider?: string;
+    citator_status?: string;
+  }>;
 };
 
 const CONFIG: Record<
@@ -486,6 +511,85 @@ function SpecialistOutputView({
           </div>
           <p>{output.executive_summary}</p>
         </div>
+
+        {(output.authorities || []).length > 0 && (
+          <section className="specialist-authorities">
+            <div className="specialist-authority-head">
+              <div>
+                <span className="ws-eyebrow">VERIFIED LEGAL AUTHORITY</span>
+                <h3>Cases, Statutes & Constitutional Sources</h3>
+                <p>
+                  Retrieved source material tied to this matter. Binding status
+                  is jurisdictional analysis only; every case still requires
+                  Shepard's/KeyCite or equivalent attorney citator review.
+                </p>
+              </div>
+
+              {output.jurisdiction && (
+                <div className="authority-jurisdiction">
+                  <Landmark size={15} />
+                  <div>
+                    <strong>{output.jurisdiction.circuit || "Circuit unresolved"}</strong>
+                    <span>{output.jurisdiction.district || "District requires confirmation"}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="authority-grid">
+              {(output.authorities || []).map((authority, index) => (
+                <article className="authority-card" key={`${authority.url}-${index}`}>
+                  <div className="authority-card-top">
+                    <div className="authority-kind">
+                      <Scale size={14} />
+                      {(authority.kind || "authority").replaceAll("_", " ")}
+                    </div>
+                    <div className={`authority-binding ${authority.binding_status || "unknown"}`}>
+                      {authority.binding_status || "unknown"}
+                    </div>
+                  </div>
+
+                  <h4>{authority.title || "Legal authority"}</h4>
+
+                  <div className="authority-meta">
+                    {authority.citation && <span>{authority.citation}</span>}
+                    {authority.court && <span>{authority.court}</span>}
+                    {authority.date && <span>{authority.date}</span>}
+                    {authority.precedential_status && <span>{authority.precedential_status}</span>}
+                  </div>
+
+                  {authority.proposition && (
+                    <div className="authority-proposition">
+                      <strong>Relevant proposition</strong>
+                      <p>{authority.proposition}</p>
+                    </div>
+                  )}
+
+                  {authority.quote && (
+                    <blockquote className="authority-quote">
+                      “{authority.quote}”
+                    </blockquote>
+                  )}
+
+                  <div className="authority-validation">
+                    <span>{authority.quote_status?.replaceAll("_"," ") || "source status unknown"}</span>
+                    <span>citator review required</span>
+                  </div>
+
+                  {authority.relevance && (
+                    <p className="authority-relevance">{authority.relevance}</p>
+                  )}
+
+                  {authority.url && (
+                    <a href={authority.url} target="_blank" rel="noreferrer" className="authority-link">
+                      Open source <ExternalLink size={12} />
+                    </a>
+                  )}
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
 
         {(output.sections || []).map((section, index) => (
           <div className="specialist-card" key={`${section.title}-${index}`}>
