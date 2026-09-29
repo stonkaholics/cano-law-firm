@@ -371,9 +371,14 @@ export default function Home() {
   useEffect(() => {
     loadSharedState();
 
+    const delay =
+      caseBrainMatter?.caseBrainStatus === "case_brain_processing"
+        ? 2500
+        : 15000;
+
     const interval = window.setInterval(
       loadSharedState,
-      15000
+      delay
     );
 
     const focusHandler = () => loadSharedState();
@@ -383,7 +388,7 @@ export default function Home() {
       window.clearInterval(interval);
       window.removeEventListener("focus", focusHandler);
     };
-  }, []);
+  }, [caseBrainMatter?.caseBrainStatus]);
 
   const agents = useMemo(() => {
     return baseAgents.map((agent) => {

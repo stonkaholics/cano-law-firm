@@ -13,6 +13,7 @@ import {
   Route,
   UserRound,
   RefreshCw,
+  Loader2,
 } from "lucide-react";
 
 export type CaseBrainResult = {
@@ -87,6 +88,12 @@ export type StoredCaseMatter = {
   monday?: {
     found?: boolean;
     fieldsImported?: number;
+    preview?: {
+      name?: string;
+      detaineeName?: string;
+      pncName?: string;
+      practiceArea?: string;
+    };
   };
   routing?: {
     target: string;
@@ -129,24 +136,90 @@ export default function CaseBrainWorkstation({
   const pnc = formatPerson(cb.people?.pnc);
   const routing = cb.routing?.recommended_specialist || "unknown";
 
+  const status = String(
+    matter.caseBrainStatus ||
+      cb.matter?.status ||
+      "review_ready"
+  );
+
+  const isProcessing = status === "case_brain_processing";
+  const isError = status === "case_brain_error";
+
+  const hasSnapshot = Boolean(
+    matter.caseBrain &&
+      (
+        cb.summary?.brief ||
+        cb.summary?.detailed ||
+        cb.people?.detainee ||
+        cb.people?.pnc ||
+        (cb.key_facts?.length || 0) > 0 ||
+        (cb.timeline?.length || 0) > 0 ||
+        (cb.issues?.length || 0) > 0 ||
+        cb.routing ||
+        cb.review_status
+      )
+  );
+
+  const displayName =
+    detainee ||
+    matter.monday?.preview?.detaineeName ||
+    matter.monday?.preview?.name ||
+    `Matter ${matter.matterId}`;
+
+  const practiceArea =
+    cb.matter?.practice_area ||
+    matter.monday?.preview?.practiceArea ||
+    "—";
+
+  const statusLabel = isProcessing
+    ? "Case Brain Processing"
+    : isError
+    ? "Case Brain Error"
+    : "Review Ready";
+
   return (
     <div className="casebrain-workstation">
-      <Topbar onClose={onClose} status={matter.caseBrainStatus || "review_ready"} />
+      <Topbar onClose={onClose} status={statusLabel} />
 
       <div className="cb-shell">
         <section className="cb-hero">
           <div>
             <div className="cb-kicker">ACTIVE MATTER · CASE BRAIN</div>
-            <h1>{detainee || `Matter ${matter.matterId}`}</h1>
-            <p>{cb.summary?.brief || matter.message || "Matter analysis ready for review."}</p>
+            <h1>{displayName}</h1>
+            <p>
+              {isProcessing
+                ? "Case Brain is analyzing this matter."
+                : isError
+                ? "Case Brain encountered an issue while analyzing this matter."
+                : cb.summary?.brief ||
+                  matter.message ||
+                  "Matter analysis ready for review."}
+            </p>
           </div>
 
           <div>
             <div className="cb-hero-stats">
-              <Stat label="Monday Item" value={cb.matter?.monday_item_id || matter.mondayItemId || matter.matterId} />
-              <Stat label="Practice Area" value={cb.matter?.practice_area || "—"} />
-              <Stat label="Next Route" value={routingLabel(routing)} />
-              <Stat label="Saved" value={formatSaved(matter.savedAt)} />
+              <Stat
+                label="Monday Item"
+                value={
+                  cb.matter?.monday_item_id ||
+                  matter.mondayItemId ||
+                  matter.matterId
+                }
+              />
+              <Stat label="Practice Area" value={practiceArea} />
+              <Stat
+                label="Next Route"
+                value={hasSnapshot ? routingLabel(routing) : "Pending"}
+              />
+              <Stat
+                label="Saved"
+                value={
+                  isProcessing && !hasSnapshot
+                    ? "Processing"
+                    : formatSaved(matter.savedAt)
+                }
+              />
             </div>
 
             <div className="cb-hero-actions">
@@ -155,204 +228,440 @@ export default function CaseBrainWorkstation({
                 disabled={refreshing || !onRefresh}
                 onClick={onRefresh}
               >
-                <RefreshCw className={refreshing ? "spin" : ""} size={16} />
-                {refreshing ? "Refreshing Analysis..." : "Refresh from Monday"}
+                <RefreshCw
+                  className={refreshing ? "spin" : ""}
+                  size={16}
+                />
+                {refreshing
+                  ? "Refreshing Analysis..."
+                  : "Refresh from Monday"}
               </button>
               <span>
-                Re-pulls this exact Monday matter and reruns Case Brain using the latest intake data.
+                Re-pulls this exact Monday matter and reruns Case Brain using the
+                latest intake data.
               </span>
             </div>
           </div>
         </section>
 
-        <section className="cb-grid">
-          <div className="cb-main">
-            <Card icon={<Brain size={18} />} title="Matter Summary">
-              <p className="cb-detailed">{cb.summary?.detailed || "No detailed summary returned."}</p>
-            </Card>
+        {isProcessing && !hasSnapshot ? (
+          <ProcessingState />
+        ) : isError && !hasSnapshot ? (
+          <ErrorState />
+        ) : (
+          <section className="cb-grid">
+            <div className="cb-main">
+              <Card icon={<Brain size={18} />} title="Matter Summary">
+                <p className="cb-detailed">
+                  {cb.summary?.detailed ||
+                    "No detailed summary returned."}
+                </p>
+              </Card>
 
-            <Card icon={<ListChecks size={18} />} title="Key Facts">
-              <div className="cb-list">
-                {(cb.key_facts || []).map((fact, i) => {
-                  if (typeof fact === "string") {
+              <Card icon={<ListChecks size={18} />} title="Key Facts">
+                <div className="cb-list">
+                  {(cb.key_facts || []).map((fact, i) => {
+                    if (typeof fact === "string") {
+                      return (
+                        <div className="cb-fact" key={i}>
+                          <span className="confidence reported">
+                            REPORTED
+                          </span>
+                          <div>
+                            <strong>{fact}</strong>
+                            <small>legacy Case Brain output</small>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div className="cb-fact" key={i}>
-                        <span className="confidence reported">REPORTED</span>
+                        <span
+                          className={`confidence ${
+                            fact.confidence || "unclear"
+                          }`}
+                        >
+                          {(fact.confidence || "unclear").toUpperCase()}
+                        </span>
                         <div>
-                          <strong>{fact}</strong>
-                          <small>legacy Case Brain output</small>
+                          <strong>{fact.fact || "Fact"}</strong>
+                          <small>
+                            {fact.source || "source unavailable"}
+                          </small>
                         </div>
                       </div>
                     );
-                  }
+                  })}
+                </div>
+              </Card>
 
-                  return (
-                    <div className="cb-fact" key={i}>
-                      <span className={`confidence ${fact.confidence || "unclear"}`}>
-                        {(fact.confidence || "unclear").toUpperCase()}
-                      </span>
-                      <div>
-                        <strong>{fact.fact || "Fact"}</strong>
-                        <small>{fact.source || "source unavailable"}</small>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
+              <Card icon={<Clock3 size={18} />} title="Timeline">
+                <div className="cb-timeline">
+                  {(cb.timeline || []).map((entry, i) => {
+                    if (typeof entry === "string") {
+                      return (
+                        <div className="timeline-row" key={i}>
+                          <div className="timeline-dot" />
+                          <div>
+                            <strong>{entry}</strong>
+                            <small>legacy Case Brain output</small>
+                          </div>
+                        </div>
+                      );
+                    }
 
-            <Card icon={<Clock3 size={18} />} title="Timeline">
-              <div className="cb-timeline">
-                {(cb.timeline || []).map((entry, i) => {
-                  if (typeof entry === "string") {
                     return (
                       <div className="timeline-row" key={i}>
                         <div className="timeline-dot" />
                         <div>
-                          <strong>{entry}</strong>
-                          <small>legacy Case Brain output</small>
+                          <strong>
+                            {entry.date_or_period || "Date unclear"}
+                          </strong>
+                          <p>{entry.event}</p>
+                          <small>
+                            {entry.source || "source unavailable"}
+                          </small>
                         </div>
                       </div>
                     );
-                  }
+                  })}
+                </div>
+              </Card>
 
-                  return (
-                    <div className="timeline-row" key={i}>
-                      <div className="timeline-dot" />
-                      <div>
-                        <strong>{entry.date_or_period || "Date unclear"}</strong>
-                        <p>{entry.event}</p>
-                        <small>{entry.source || "source unavailable"}</small>
-                      </div>
+              <Card
+                icon={<GitBranch size={18} />}
+                title="Issues for Review"
+              >
+                <div className="cb-simple-list">
+                  {(cb.issues || []).map((issue, i) => (
+                    <div key={i}>
+                      <strong>
+                        {typeof issue === "string"
+                          ? "Issue"
+                          : (issue.type || "issue").toUpperCase()}
+                      </strong>
+                      <span>
+                        {typeof issue === "string"
+                          ? issue
+                          : issue.issue}
+                      </span>
+                      {typeof issue !== "string" && issue.source && (
+                        <small>{issue.source}</small>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            </Card>
+                  ))}
+                </div>
+              </Card>
+            </div>
 
-            <Card icon={<GitBranch size={18} />} title="Issues for Review">
-              <div className="cb-simple-list">
-                {(cb.issues || []).map((issue, i) => (
-                  <div key={i}>
-                    <strong>
-                      {typeof issue === "string"
-                        ? "Issue"
-                        : (issue.type || "issue").toUpperCase()}
-                    </strong>
-                    <span>{typeof issue === "string" ? issue : issue.issue}</span>
-                    {typeof issue !== "string" && issue.source && <small>{issue.source}</small>}
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
+            <aside className="cb-side">
+              <Card icon={<UserRound size={18} />} title="People">
+                <Info
+                  label="Detainee"
+                  value={detainee || "—"}
+                />
+                <Info label="PNC" value={pnc || "—"} />
+                <Info
+                  label="Other People"
+                  value={String(
+                    cb.people?.other_people?.length || 0
+                  )}
+                />
+              </Card>
 
-          <aside className="cb-side">
-            <Card icon={<UserRound size={18} />} title="People">
-              <Info label="Detainee" value={detainee || "—"} />
-              <Info label="PNC" value={pnc || "—"} />
-              <Info
-                label="Other People"
-                value={String(cb.people?.other_people?.length || 0)}
-              />
-            </Card>
+              <Card icon={<Route size={18} />} title="Routing">
+                <div className="route-badge">
+                  {routingLabel(routing)}
+                </div>
+                <p className="side-copy">
+                  {cb.routing?.reason ||
+                    "No routing reason returned."}
+                </p>
+              </Card>
 
-            <Card icon={<Route size={18} />} title="Routing">
-              <div className="route-badge">{routingLabel(routing)}</div>
-              <p className="side-copy">{cb.routing?.reason || "No routing reason returned."}</p>
-            </Card>
+              <Card
+                icon={<FileQuestion size={18} />}
+                title="Missing Information"
+              >
+                <div className="number-badge">
+                  {cb.missing_information?.length || 0}
+                </div>
+                <ul className="cb-ul">
+                  {(cb.missing_information || []).map(
+                    (item, i) => (
+                      <li key={i}>{item}</li>
+                    )
+                  )}
+                </ul>
+              </Card>
 
-            <Card icon={<FileQuestion size={18} />} title="Missing Information">
-              <div className="number-badge">{cb.missing_information?.length || 0}</div>
-              <ul className="cb-ul">
-                {(cb.missing_information || []).map((item, i) => <li key={i}>{item}</li>)}
-              </ul>
-            </Card>
+              <Card
+                icon={<AlertTriangle size={18} />}
+                title="Contradictions"
+              >
+                <div className="number-badge warning">
+                  {cb.contradictions?.length || 0}
+                </div>
+                <ul className="cb-ul">
+                  {(cb.contradictions || []).map((item, i) => (
+                    <li key={i}>
+                      {typeof item === "string"
+                        ? item
+                        : item.description}
+                      {typeof item !== "string" &&
+                      item.sources?.length ? (
+                        <small>
+                          {item.sources.join(" · ")}
+                        </small>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
 
-            <Card icon={<AlertTriangle size={18} />} title="Contradictions">
-              <div className="number-badge warning">{cb.contradictions?.length || 0}</div>
-              <ul className="cb-ul">
-                {(cb.contradictions || []).map((item, i) => (
-                  <li key={i}>
-                    {typeof item === "string" ? item : item.description}
-                    {typeof item !== "string" && item.sources?.length ? (
-                      <small>{item.sources.join(" · ")}</small>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </Card>
+              <Card
+                icon={<MessageCircleQuestion size={18} />}
+                title="Next Questions"
+              >
+                <ul className="cb-ul">
+                  {(cb.next_questions || []).map(
+                    (item, i) => (
+                      <li key={i}>{item}</li>
+                    )
+                  )}
+                </ul>
+              </Card>
 
-            <Card icon={<MessageCircleQuestion size={18} />} title="Next Questions">
-              <ul className="cb-ul">
-                {(cb.next_questions || []).map((item, i) => <li key={i}>{item}</li>)}
-              </ul>
-            </Card>
-
-            <Card icon={<CheckCircle2 size={18} />} title="Review Status">
-              <Info
-                label="Attorney Review"
-                value={cb.review_status?.attorney_review_required ? "Required" : "Not Required"}
-              />
-              <Info
-                label="Ready for Specialist"
-                value={cb.review_status?.ready_for_specialist ? "Yes" : "No"}
-              />
-              {(cb.review_status?.blocking_items || []).length > 0 && (
-                <>
-                  <div className="cb-subtitle">BLOCKING ITEMS</div>
-                  <ul className="cb-ul">
-                    {(cb.review_status?.blocking_items || []).map((item, i) => <li key={i}>{item}</li>)}
-                  </ul>
-                </>
-              )}
-            </Card>
-          </aside>
-        </section>
+              <Card
+                icon={<CheckCircle2 size={18} />}
+                title="Review Status"
+              >
+                <Info
+                  label="Attorney Review"
+                  value={
+                    cb.review_status?.attorney_review_required
+                      ? "Required"
+                      : "Not Required"
+                  }
+                />
+                <Info
+                  label="Ready for Specialist"
+                  value={
+                    cb.review_status?.ready_for_specialist
+                      ? "Yes"
+                      : "No"
+                  }
+                />
+                {(cb.review_status?.blocking_items || [])
+                  .length > 0 && (
+                  <>
+                    <div className="cb-subtitle">
+                      BLOCKING ITEMS
+                    </div>
+                    <ul className="cb-ul">
+                      {(
+                        cb.review_status?.blocking_items || []
+                      ).map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </Card>
+            </aside>
+          </section>
+        )}
       </div>
     </div>
   );
 }
 
-function Topbar({ onClose, status }: { onClose: () => void; status: string }) {
+function ProcessingState() {
+  return (
+    <section className="casebrain-processing-shell">
+      <div className="casebrain-processing-card">
+        <div className="casebrain-processing-icon">
+          <Loader2 className="spin" size={28} />
+        </div>
+
+        <div className="cb-kicker">
+          CASE BRAIN · MATTER INTELLIGENCE
+        </div>
+        <h2>Building matter intelligence</h2>
+        <p>
+          The matter has been received and Case Brain is still analyzing
+          the latest Monday information. This workstation will update
+          automatically when the saved analysis is ready.
+        </p>
+
+        <div className="casebrain-processing-steps">
+          <ProcessingStep
+            label="Matter received"
+            state="done"
+          />
+          <ProcessingStep
+            label="Monday matter identified"
+            state="done"
+          />
+          <ProcessingStep
+            label="Building matter intelligence"
+            state="active"
+          />
+          <ProcessingStep
+            label="Saving analysis to Supabase"
+            state="waiting"
+          />
+          <ProcessingStep
+            label="Attorney review ready"
+            state="waiting"
+          />
+        </div>
+
+        <div className="casebrain-processing-note">
+          You can leave this workstation. The analysis continues in the
+          background and remains shared across the Cano AI floor.
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ErrorState() {
+  return (
+    <section className="casebrain-processing-shell">
+      <div className="casebrain-processing-card error">
+        <div className="casebrain-processing-icon">
+          <AlertTriangle size={28} />
+        </div>
+
+        <div className="cb-kicker">
+          CASE BRAIN · ATTENTION REQUIRED
+        </div>
+        <h2>Analysis did not complete</h2>
+        <p>
+          Review Santiago Activity for the latest workflow error, correct
+          the issue, then use Refresh from Monday to start Case Brain again.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function ProcessingStep({
+  label,
+  state,
+}: {
+  label: string;
+  state: "done" | "active" | "waiting";
+}) {
+  return (
+    <div className={`casebrain-processing-step ${state}`}>
+      <div className="casebrain-step-icon">
+        {state === "done" ? (
+          <CheckCircle2 size={15} />
+        ) : state === "active" ? (
+          <Loader2 className="spin" size={15} />
+        ) : (
+          <span />
+        )}
+      </div>
+      <strong>{label}</strong>
+    </div>
+  );
+}
+
+function Topbar({
+  onClose,
+  status,
+}: {
+  onClose: () => void;
+  status: string;
+}) {
   return (
     <div className="cb-topbar">
       <div className="cb-title-row">
-        <button className="ws-back" onClick={onClose}><ArrowLeft size={18} /></button>
-        <div className="cb-icon"><Brain size={22} /></div>
+        <button className="ws-back" onClick={onClose}>
+          <ArrowLeft size={18} />
+        </button>
+        <div className="cb-icon">
+          <Brain size={22} />
+        </div>
         <div>
-          <div className="cb-kicker">CASE BRAIN · MATTER INTELLIGENCE</div>
+          <div className="cb-kicker">
+            CASE BRAIN · MATTER INTELLIGENCE
+          </div>
           <h2>Case Brain Workstation</h2>
         </div>
       </div>
-      <div className="cb-status"><span />{status.replaceAll("_", " ")}</div>
+      <div className="cb-status">
+        <span />
+        {status}
+      </div>
     </div>
   );
 }
 
-function Card({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+function Card({
+  icon,
+  title,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="cb-card">
-      <div className="cb-card-title">{icon}<span>{title}</span></div>
+      <div className="cb-card-title">
+        {icon}
+        <span>{title}</span>
+      </div>
       {children}
     </section>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return <div className="cb-stat"><span>{label}</span><strong>{value}</strong></div>;
+function Stat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="cb-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
-  return <div className="cb-info"><span>{label}</span><strong>{value}</strong></div>;
+function Info({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="cb-info">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
 }
 
-function formatPerson(person?: Record<string, unknown> | null) {
+function formatPerson(
+  person?: Record<string, unknown> | null
+) {
   if (!person) return "";
   const keys = ["name", "full_name", "fullName"];
   for (const key of keys) {
     const value = person[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
   }
   return "";
 }
@@ -364,6 +673,8 @@ function routingLabel(value: string) {
     research: "Lex · Research",
     documents: "Docket · Documents",
     timeline: "Chronos · Timeline",
+    qa: "Veritas · Filing QA",
+    hearing: "Avery · Hearing Prep",
     attorney_review: "Attorney Review",
     unknown: "Unassigned",
   };
