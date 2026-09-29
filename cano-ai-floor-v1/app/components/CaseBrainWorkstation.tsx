@@ -190,8 +190,13 @@ export default function CaseBrainWorkstation({
     : "Review Ready";
 
   async function toggleAutoPipeline() {
-    const mondayItemId = matter.mondayItemId || matter.matterId;
-    const enabled = matter.pipeline?.autoEnabled !== false;
+    if (!matter) return;
+
+    const mondayItemId =
+      matter.mondayItemId || matter.matterId;
+
+    const enabled =
+      matter.pipeline?.autoEnabled !== false;
 
     const res = await fetch("/api/pipeline", {
       method: "POST",
