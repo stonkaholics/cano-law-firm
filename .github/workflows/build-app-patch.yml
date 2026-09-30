@@ -1,0 +1,25 @@
+name: Build App Patch Zip
+
+on:
+  push:
+    branches:
+      - chatgpt/compact-draft-placeholders-20260930
+    paths:
+      - ".github/workflows/build-app-patch.yml"
+      - "cano-ai-floor-v1/app/**"
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package app patch
+        run: |
+          mkdir -p artifact
+          cp -R cano-ai-floor-v1/app artifact/app
+          cd artifact
+          zip -r ../app-fix.zip app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-fix
+          path: app-fix.zip
