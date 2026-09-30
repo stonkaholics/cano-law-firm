@@ -1,4 +1,4 @@
-name: Build App Patch Zip
+name: Build Cano Full Patch Zip
 
 on:
   push:
@@ -7,19 +7,21 @@ on:
     paths:
       - ".github/workflows/build-app-patch.yml"
       - "cano-ai-floor-v1/app/**"
+      - "cano-ai-floor-v1/lib/**"
 
 jobs:
   package:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Package app patch
+      - name: Package app and lib patch
         run: |
           mkdir -p artifact
           cp -R cano-ai-floor-v1/app artifact/app
+          cp -R cano-ai-floor-v1/lib artifact/lib
           cd artifact
-          zip -r ../app-fix.zip app
+          zip -r ../cano-fix.zip app lib
       - uses: actions/upload-artifact@v4
         with:
-          name: app-fix
-          path: app-fix.zip
+          name: cano-fix
+          path: cano-fix.zip
