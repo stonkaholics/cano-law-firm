@@ -92,9 +92,7 @@ async function createEmbedding(input: string) {
   }
 
   const data = JSON.parse(text);
-
-  const embedding =
-    data?.data?.[0]?.embedding;
+  const embedding = data?.data?.[0]?.embedding;
 
   if (!Array.isArray(embedding)) {
     throw new Error(
@@ -109,8 +107,7 @@ function getSpecialistSummary(
   priorAgents: Record<string, any>,
   agentId: string
 ) {
-  const output =
-    priorAgents?.[agentId]?.output || null;
+  const output = priorAgents?.[agentId]?.output || null;
 
   if (!output) return "";
 
@@ -131,8 +128,7 @@ export function buildFirmDraftingRetrievalQuery({
   priorAgents: Record<string, any>;
   draftType: string;
 }) {
-  const caseBrain =
-    matter?.caseBrain || {};
+  const caseBrain = matter?.caseBrain || {};
 
   const matterName =
     caseBrain?.people?.detainee?.name ||
@@ -196,40 +192,28 @@ export function buildFirmDraftingRetrievalQuery({
         )}`
       : "",
 
-    getSpecialistSummary(
-      priorAgents,
-      "research"
-    )
+    getSpecialistSummary(priorAgents, "research")
       ? `Lex research: ${getSpecialistSummary(
           priorAgents,
           "research"
         )}`
       : "",
 
-    getSpecialistSummary(
-      priorAgents,
-      "habeas"
-    )
+    getSpecialistSummary(priorAgents, "habeas")
       ? `Elena habeas analysis: ${getSpecialistSummary(
           priorAgents,
           "habeas"
         )}`
       : "",
 
-    getSpecialistSummary(
-      priorAgents,
-      "bond"
-    )
+    getSpecialistSummary(priorAgents, "bond")
       ? `Mateo bond analysis: ${getSpecialistSummary(
           priorAgents,
           "bond"
         )}`
       : "",
 
-    getSpecialistSummary(
-      priorAgents,
-      "timeline"
-    )
+    getSpecialistSummary(priorAgents, "timeline")
       ? `Chronos timeline analysis: ${getSpecialistSummary(
           priorAgents,
           "timeline"
@@ -251,8 +235,7 @@ async function callFirmDraftingRpc({
   sourceRole: string;
   matchCount: number;
 }) {
-  const { url, secret } =
-    getSupabaseConfig();
+  const { url, secret } = getSupabaseConfig();
 
   const response = await fetch(
     `${url}/rest/v1/rpc/match_firm_drafting_chunks`,
@@ -265,12 +248,9 @@ async function callFirmDraftingRpc({
       },
       body: JSON.stringify({
         p_query_embedding: embedding,
-        p_document_family:
-          documentFamily,
-        p_source_role:
-          sourceRole,
-        p_match_count:
-          matchCount,
+        p_document_family: documentFamily,
+        p_source_role: sourceRole,
+        p_match_count: matchCount,
       }),
       cache: "no-store",
     }
@@ -295,45 +275,315 @@ async function callFirmDraftingRpc({
     : [];
 }
 
+function rowSimilarity(row: any) {
+  const n = Number(row?.similarity || 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function rowExampleKey(row: any) {
+  return String(
+    row?.example_id ||
+      row?.storage_path ||
+      row?.original_filename ||
+      ""
+  );
+}
+
+function rowSectionKey(row: any) {
+  return String(
+    row?.section_type ||
+      row?.heading ||
+      "other"
+  )
+    .trim()
+    .toLowerCase();
+}
+
+/*
+|--------------------------------------------------------------------------
+| DIVERSIFIED RETRIEVAL
+|--------------------------------------------------------------------------
+|
+| Goals:
+| 1. Do not let one petition consume all top slots.
+| 2. Prefer at least one strong chunk from several different firm examples.
+| 3. Prefer different section types where possible.
+| 4. Still preserve semantic relevance.
+| 5. Allow a second chunk from the same exemplar only after cross-document
+|    coverage has been attempted.
+|
+*/
+
 function diversifySources(
   rows: any[],
-  maxSources = 10
+  {
+    maxSources = 8,
+    maxPerExample = 2,
+    maxPerSectionType = 2,
+    relativeSimilarityWindow = 0.12,
+    absoluteSimilarityFloor = 0.35,
+  }: {
+    maxSources?: number;
+    maxPerExample?: number;
+    maxPerSectionType?: number;
+    relativeSimilarityWindow?: number;
+    absoluteSimilarityFloor?: number;
+  } = {}
 ) {
-  const selected: any[] = [];
-
-  const perExample = new Map<
-    string,
-    number
-  >();
-
-  for (const row of rows) {
-    if (!row?.content) continue;
-
-    const exampleId =
-      String(row.example_id || "");
-
-    const current =
-      perExample.get(exampleId) || 0;
-
-    // Avoid one petition completely dominating
-    // the retrieval context.
-    if (current >= 3) continue;
-
-    selected.push(row);
-
-    perExample.set(
-      exampleId,
-      current + 1
+  const cleaned = rows
+    .filter((row) => row?.content)
+    .sort(
+      (a, b) =>
+        rowSimilarity(b) -
+        rowSimilarity(a)
     );
 
+  if (!cleaned.length) {
+    return [];
+  }
+
+  const topSimilarity =
+    rowSimilarity(cleaned[0]);
+
+  const eligible = cleaned.filter(
+    (row) => {
+      const similarity =
+        rowSimilarity(row);
+
+      const withinRelativeWindow =
+        topSimilarity <= 0 ||
+        similarity >=
+          topSimilarity -
+            relativeSimilarityWindow;
+
+      const aboveAbsoluteFloor =
+        similarity >=
+        absoluteSimilarityFloor;
+
+      return (
+        withinRelativeWindow ||
+        aboveAbsoluteFloor
+      );
+    }
+  );
+
+  // If thresholding somehow eliminates everything,
+  // fall back to the original ranked result set.
+  const pool =
+    eligible.length
+      ? eligible
+      : cleaned;
+
+  const selected: any[] = [];
+  const selectedIds = new Set<string>();
+  const perExample =
+    new Map<string, number>();
+  const perSectionType =
+    new Map<string, number>();
+
+  const addRow = (row: any) => {
+    const rowId = String(
+      row?.id ||
+        `${rowExampleKey(row)}:${row?.section_order}:${rowSectionKey(row)}`
+    );
+
+    if (selectedIds.has(rowId)) {
+      return false;
+    }
+
+    const exampleKey =
+      rowExampleKey(row);
+
+    const sectionKey =
+      rowSectionKey(row);
+
+    const exampleCount =
+      perExample.get(exampleKey) || 0;
+
+    const sectionCount =
+      perSectionType.get(sectionKey) ||
+      0;
+
     if (
-      selected.length >= maxSources
+      exampleCount >=
+      maxPerExample
+    ) {
+      return false;
+    }
+
+    if (
+      sectionCount >=
+      maxPerSectionType
+    ) {
+      return false;
+    }
+
+    selected.push(row);
+    selectedIds.add(rowId);
+
+    perExample.set(
+      exampleKey,
+      exampleCount + 1
+    );
+
+    perSectionType.set(
+      sectionKey,
+      sectionCount + 1
+    );
+
+    return true;
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | PASS 1 — BEST CHUNK FROM EACH UNIQUE EXAMPLE
+  |--------------------------------------------------------------------------
+  */
+
+  const seenExamples =
+    new Set<string>();
+
+  for (const row of pool) {
+    const exampleKey =
+      rowExampleKey(row);
+
+    if (
+      !exampleKey ||
+      seenExamples.has(exampleKey)
+    ) {
+      continue;
+    }
+
+    if (addRow(row)) {
+      seenExamples.add(
+        exampleKey
+      );
+    }
+
+    if (
+      selected.length >=
+      maxSources
     ) {
       break;
     }
   }
 
-  return selected;
+  /*
+  |--------------------------------------------------------------------------
+  | PASS 2 — ADD SECTION-TYPE VARIETY
+  |--------------------------------------------------------------------------
+  |
+  | Prefer chunks whose section type is not already represented heavily.
+  |
+  */
+
+  if (
+    selected.length <
+    maxSources
+  ) {
+    const bySectionNovelty = [
+      ...pool,
+    ].sort((a, b) => {
+      const aCount =
+        perSectionType.get(
+          rowSectionKey(a)
+        ) || 0;
+
+      const bCount =
+        perSectionType.get(
+          rowSectionKey(b)
+        ) || 0;
+
+      if (aCount !== bCount) {
+        return aCount - bCount;
+      }
+
+      return (
+        rowSimilarity(b) -
+        rowSimilarity(a)
+      );
+    });
+
+    for (
+      const row of
+      bySectionNovelty
+    ) {
+      addRow(row);
+
+      if (
+        selected.length >=
+        maxSources
+      ) {
+        break;
+      }
+    }
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | PASS 3 — RELEVANCE FALLBACK
+  |--------------------------------------------------------------------------
+  |
+  | If strict section caps left open slots, fill them with the strongest
+  | remaining chunks while still enforcing maxPerExample.
+  |
+  */
+
+  if (
+    selected.length <
+    maxSources
+  ) {
+    for (const row of pool) {
+      const rowId = String(
+        row?.id ||
+          `${rowExampleKey(row)}:${row?.section_order}:${rowSectionKey(row)}`
+      );
+
+      if (
+        selectedIds.has(rowId)
+      ) {
+        continue;
+      }
+
+      const exampleKey =
+        rowExampleKey(row);
+
+      const exampleCount =
+        perExample.get(
+          exampleKey
+        ) || 0;
+
+      if (
+        exampleCount >=
+        maxPerExample
+      ) {
+        continue;
+      }
+
+      selected.push(row);
+      selectedIds.add(rowId);
+
+      perExample.set(
+        exampleKey,
+        exampleCount + 1
+      );
+
+      if (
+        selected.length >=
+        maxSources
+      ) {
+        break;
+      }
+    }
+  }
+
+  // Keep final output ordered by semantic similarity
+  // so match percentages still read naturally in the UI.
+  return selected.sort(
+    (a, b) =>
+      rowSimilarity(b) -
+      rowSimilarity(a)
+  );
 }
 
 export async function retrieveFirmDraftingSources({
@@ -347,6 +597,12 @@ export async function retrieveFirmDraftingSources({
 }): Promise<{
   query: string;
   sources: FirmDraftingSource[];
+  retrievalStats: {
+    candidateCount: number;
+    uniqueCandidateDocuments: number;
+    selectedCount: number;
+    uniqueSelectedDocuments: number;
+  };
 }> {
   const normalizedDraftType =
     String(draftType || "")
@@ -367,89 +623,147 @@ export async function retrieveFirmDraftingSources({
   const embedding =
     await createEmbedding(query);
 
-  // Retrieve extra rows first so we can
-  // diversify across multiple examples.
+  /*
+  |--------------------------------------------------------------------------
+  | RETRIEVE A LARGE CANDIDATE POOL
+  |--------------------------------------------------------------------------
+  |
+  | We intentionally ask for more than we send to Scribe.
+  | If we only retrieve the top 10-20 rows, a single petition can occupy
+  | almost the entire candidate set before diversification even begins.
+  |
+  */
+
   const rows =
     await callFirmDraftingRpc({
       embedding,
       documentFamily,
-      sourceRole: "style_exemplar",
-      matchCount: 20,
+      sourceRole:
+        "style_exemplar",
+      matchCount: 50,
     });
 
   const diversified =
-    diversifySources(rows, 10);
+    diversifySources(rows, {
+      maxSources: 8,
+      maxPerExample: 2,
+      maxPerSectionType: 2,
+      relativeSimilarityWindow:
+        0.12,
+      absoluteSimilarityFloor:
+        0.35,
+    });
 
   const sources: FirmDraftingSource[] =
-    diversified.map((row: any) => ({
-      id: String(row.id || ""),
-      exampleId: String(
-        row.example_id || ""
-      ),
-
-      sectionOrder:
-        Number(
-          row.section_order || 0
+    diversified.map(
+      (row: any) => ({
+        id: String(
+          row.id || ""
         ),
 
-      sectionType:
-        String(
-          row.section_type ||
-            "other"
+        exampleId: String(
+          row.example_id ||
+            ""
         ),
 
-      heading:
-        String(row.heading || ""),
-
-      content:
-        String(row.content || "")
-          .slice(0, 7000),
-
-      similarity:
-        Number(
+        sectionOrder:
           Number(
-            row.similarity || 0
-          ).toFixed(4)
-        ),
+            row.section_order ||
+              0
+          ),
 
-      title:
-        String(row.title || ""),
+        sectionType:
+          String(
+            row.section_type ||
+              "other"
+          ),
 
-      originalFilename:
-        String(
-          row.original_filename ||
-            ""
-        ),
+        heading:
+          String(
+            row.heading || ""
+          ),
 
-      documentType:
-        String(
-          row.document_type ||
-            ""
-        ),
+        content:
+          String(
+            row.content || ""
+          ).slice(0, 7000),
 
-      sourceRole:
-        String(
-          row.source_role ||
-            ""
-        ),
+        similarity:
+          Number(
+            Number(
+              row.similarity ||
+                0
+            ).toFixed(4)
+          ),
 
-      storagePath:
-        String(
-          row.storage_path ||
-            ""
-        ),
+        title:
+          String(
+            row.title || ""
+          ),
 
-      metadata:
-        row.metadata &&
-        typeof row.metadata ===
-          "object"
-          ? row.metadata
-          : {},
-    }));
+        originalFilename:
+          String(
+            row.original_filename ||
+              ""
+          ),
+
+        documentType:
+          String(
+            row.document_type ||
+              ""
+          ),
+
+        sourceRole:
+          String(
+            row.source_role ||
+              ""
+          ),
+
+        storagePath:
+          String(
+            row.storage_path ||
+              ""
+          ),
+
+        metadata:
+          row.metadata &&
+          typeof row.metadata ===
+            "object"
+            ? row.metadata
+            : {},
+      })
+    );
+
+  const uniqueCandidateDocuments =
+    new Set(
+      rows.map((row: any) =>
+        rowExampleKey(row)
+      )
+    ).size;
+
+  const uniqueSelectedDocuments =
+    new Set(
+      diversified.map(
+        (row: any) =>
+          rowExampleKey(row)
+      )
+    ).size;
 
   return {
     query,
     sources,
+
+    retrievalStats: {
+      candidateCount:
+        rows.length,
+
+      uniqueCandidateDocuments,
+
+      selectedCount:
+        sources.length,
+
+      uniqueSelectedDocuments,
+    },
   };
 }
 
