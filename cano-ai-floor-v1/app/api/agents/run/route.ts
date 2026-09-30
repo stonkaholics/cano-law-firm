@@ -10,6 +10,7 @@ import {
   getMatterByMondayId,
   insertActivity,
 } from "../../../../lib/supabase/matters";
+import { FIRM_HABEAS_DRAFTING_PROFILE } from "../../../../lib/legal/firm-habeas-profile";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -91,9 +92,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const draftingRequest =
+      agentId === "drafting" &&
+      String((options as any)?.draftType || "").toLowerCase() === "habeas"
+        ? {
+            ...options,
+            firmDraftingProfile: FIRM_HABEAS_DRAFTING_PROFILE,
+            firmTemplateStatus: "cano_habeas_exemplars_v1",
+          }
+        : options;
+
     const inputPayload = {
       matter: storedMatter,
-      request: options,
+      request: draftingRequest,
       prior_specialists: Object.fromEntries(
         Object.entries(priorAgents).map(([id, state]: [string, any]) => [
           id,
