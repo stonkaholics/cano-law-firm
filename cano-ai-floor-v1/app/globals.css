@@ -5027,3 +5027,43 @@ button { font: inherit; }
     padding-right: 14px;
   }
 }
+
+
+/* =========================================================
+   DRAFT PLACEHOLDERS · COMPACT INLINE LEGAL CAPTION TOKENS
+   ========================================================= */
+.draft-placeholder-highlight {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+  margin: 0 1px;
+  border: 0;
+  background: #f5df75;
+  color: #211a0b;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font: inherit;
+  font-weight: 800;
+  line-height: 1.25;
+  white-space: nowrap;
+  vertical-align: baseline;
+  cursor: pointer;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.draft-placeholder-highlight:hover {
+  background: #ffe98c;
+}
+
+.draft-placeholder-highlight.completed {
+  background: #9de1b9;
+  color: #102017;
+}
+
+@media(max-width:700px) {
+  .draft-placeholder-highlight {
+    white-space: normal;
+    text-align: left;
+  }
+}
