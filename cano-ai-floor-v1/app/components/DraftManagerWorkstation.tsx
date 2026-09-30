@@ -21,6 +21,97 @@ import type { SpecialistState } from "./SpecialistWorkstation";
 
 type DraftType = "habeas" | "bond_motion";
 
+const INLINE_PLACEHOLDER_MAP: Record<
+  string,
+  { short: string; detail: string }
+> = {
+  "ATTORNEY INPUT NEEDED: CONFIRM DIVISION": {
+    short: "DIVISION TBD",
+    detail: "Confirm the correct federal court division before filing.",
+  },
+  "ATTORNEY INPUT NEEDED: CORRECT DISTRICT": {
+    short: "DISTRICT TBD",
+    detail: "Confirm the correct federal district before filing.",
+  },
+  "ATTORNEY INPUT NEEDED: CONFIRM DISTRICT": {
+    short: "DISTRICT TBD",
+    detail: "Confirm the correct federal district before filing.",
+  },
+  "ATTORNEY INPUT NEEDED: PETITIONER FULL NAME": {
+    short: "PETITIONER NAME TBD",
+    detail: "Confirm the petitioner's full legal name.",
+  },
+  "ATTORNEY INPUT NEEDED: PRIMARY CUSTODIAN NAME AND TITLE": {
+    short: "RESPONDENT TBD",
+    detail: "Confirm the proper habeas respondent name and title.",
+  },
+  "ATTORNEY INPUT NEEDED: CIVIL ACTION NUMBER": {
+    short: "CASE NO. TBD",
+    detail: "Insert the civil action number once assigned.",
+  },
+  "ATTORNEY INPUT NEEDED: CASE NUMBER": {
+    short: "CASE NO. TBD",
+    detail: "Insert the case number once assigned.",
+  },
+  "ATTORNEY INPUT NEEDED: CONFIRM A-NUMBER": {
+    short: "A-NUMBER TBD",
+    detail: "Confirm the correct A-number.",
+  },
+  "ATTORNEY INPUT NEEDED: CONFIRM DETENTION DATE": {
+    short: "DETENTION DATE TBD",
+    detail: "Confirm the operative detention date from the record.",
+  },
+  "ATTORNEY INPUT NEEDED: CONFIRM REQUESTED RELIEF": {
+    short: "RELIEF TBD",
+    detail: "Confirm the final requested relief before filing.",
+  },
+  "ATTORNEY INPUT NEEDED: VERIFICATION DATE": {
+    short: "DATE TBD",
+    detail: "Insert the verification date.",
+  },
+};
+
+function normalizePlaceholderKey(raw: string) {
+  return String(raw || "")
+    .replace(/^\[/, "")
+    .replace(/\]$/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
+function shortPlaceholderLabel(raw: string) {
+  const normalized = normalizePlaceholderKey(raw);
+  const mapped = INLINE_PLACEHOLDER_MAP[normalized];
+  if (mapped) return mapped.short;
+
+  const cleaned = normalized
+    .replace(/^ATTORNEY INPUT NEEDED:\s*/i, "")
+    .replace(/^(CONFIRM|INSERT|PROVIDE|VERIFY)\s+/i, "")
+    .trim();
+
+  if (!cleaned) return "INPUT TBD";
+  if (cleaned.length <= 26) return `${cleaned} TBD`;
+
+  const firstMeaningful = cleaned
+    .split(/[,;:–—-]/)[0]
+    .trim()
+    .slice(0, 24)
+    .trim();
+
+  return `${firstMeaningful || "INPUT"} TBD`;
+}
+
+function placeholderDetail(raw: string) {
+  const normalized = normalizePlaceholderKey(raw);
+  return INLINE_PLACEHOLDER_MAP[normalized]?.detail || String(raw || "")
+    .replace(/^\[?ATTORNEY INPUT NEEDED:\s*/i, "")
+    .replace(/\]$/, "")
+    .trim();
+}
+
+
+
 export default function DraftManagerWorkstation({
   matter,
   states,
@@ -171,10 +262,10 @@ export default function DraftManagerWorkstation({
           className={`draft-placeholder-highlight ${completed ? "completed" : ""}`}
           key={index}
           type="button"
-          title="Click to fill this attorney input"
+          title={placeholderDetail(key)}
           onClick={() => openPlaceholderEditor(part)}
         >
-          {part}
+          [{shortPlaceholderLabel(key)}]
         </button>
       );
     });
@@ -484,9 +575,7 @@ export default function DraftManagerWorkstation({
                             <div className="draft-input-card-number">{i + 1}</div>
                             <div className="draft-input-card-body">
                               <label htmlFor={`attorney-input-${i}`}>
-                                {String(item)
-                                  .replace(/^\[?ATTORNEY INPUT NEEDED:\s*/i, "")
-                                  .replace(/\]$/, "")}
+                                {placeholderDetail(item)}
                               </label>
                               <textarea
                                 id={`attorney-input-${i}`}
@@ -534,9 +623,7 @@ export default function DraftManagerWorkstation({
                         <div>
                           <span>ATTORNEY INPUT</span>
                           <h3>
-                            {String(activePlaceholder)
-                              .replace(/^\[?ATTORNEY INPUT NEEDED:\s*/i, "")
-                              .replace(/\]$/, "")}
+                            {placeholderDetail(activePlaceholder)}
                           </h3>
                         </div>
                         <button
