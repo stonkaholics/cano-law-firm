@@ -210,8 +210,8 @@ export default function DraftManagerWorkstation({
             draftingMode: "full_motion",
             targetLength:
               draftType === "habeas"
-                ? "4500-7000 words"
-                : "2500-4500 words",
+                ? "5500-8500 words; aim for roughly 16-20 substantive pages when the supplied record genuinely supports that length"
+                : "3000-5000 words",
             attorneyWorkProduct: true,
             attorneyInputs: useAttorneyInputs
               ? Object.fromEntries(
@@ -236,6 +236,20 @@ export default function DraftManagerWorkstation({
               "Do not leave section-level notes telling the attorney to insert or adapt text later.",
               "Use only authorities present in verified research inputs and preserve all citator-review warnings.",
               "Include adverse facts, contradictions, and uncertainty where relevant.",
+              "Treat Case Brain and verified specialist outputs as the controlling factual record; raw intake remains provenance only.",
+              "Do not state a detention statute, final-order posture, respondent, district, division, venue, hearing history, or custody classification as established unless the supplied record actually verifies it.",
+              "When custody authority is unresolved between 8 U.S.C. sections 1225, 1226, and 1231, draft alternative theories conditionally and label the unresolved predicate rather than collapsing them into one conclusion.",
+              "Do not state that due process categorically requires a bond hearing, a particular burden of proof, or a particular evidentiary standard unless verified authority supplied for the governing jurisdiction supports that exact proposition.",
+              "Do not request immediate release, a bond hearing, fees, injunctions, or any other specific remedy as a settled filing position unless the record and verified authority support it; use an attorney decision placeholder when strategy remains open.",
+              "Use Supreme Court and governing circuit authority before persuasive district-court authority. Clearly label persuasive cases as persuasive.",
+              "Never use Constitution Annotated, a treatise, a blog, or a secondary source as a substitute for available primary authority. Secondary sources may orient the discussion but should not carry a dispositive proposition when primary authority is supplied.",
+              "Every material legal proposition in the argument should be traceable to an authority in draft.authority_checklist.",
+              "Every quoted proposition must come from supplied source text. If exact source text is unavailable, paraphrase without quotation marks.",
+              "Use careful record-language such as 'the supplied record does not show' instead of broad claims such as 'there is no evidence' when the system only lacks documents.",
+              "Do not add detention-condition allegations, family facts, supervision history, community ties, compliance history, or similar equities unless actually supplied.",
+              "Before finalizing the draft, run an internal consistency pass for names, A-number, dates, detention facility, court, district, division, detention statute, procedural posture, requested relief, and paragraph numbering.",
+              "The prayer for relief must track only arguments actually developed in the pleading and must preserve unresolved strategic choices for attorney review.",
+              "Until a firm-authored Cano Law Firm exemplar is supplied, use a conservative federal pleading structure and set draft.template_status to no_template_supplied.",
             ],
           },
         }),
