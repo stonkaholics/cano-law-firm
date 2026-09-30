@@ -91,6 +91,7 @@ function shortPlaceholderLabel(raw: string) {
     .trim();
 
   if (!cleaned) return "INPUT TBD";
+  if (/\bTBD\b$/i.test(cleaned)) return cleaned;
   if (cleaned.length <= 26) return `${cleaned} TBD`;
 
   const firstMeaningful = cleaned
@@ -209,13 +210,65 @@ export default function DraftManagerWorkstation({
       .toLowerCase();
   }
 
+  function placeholderAliases(item: string) {
+    const normalized = normalizePlaceholder(item);
+    const short = normalizePlaceholder(shortPlaceholderLabel(item));
+    const cleaned = normalizePlaceholder(
+      String(item || "")
+        .replace(/^\[?ATTORNEY INPUT NEEDED:\s*/i, "")
+        .replace(/^\[?ATTORNEY \/ RESEARCH INPUT NEEDED:\s*/i, "")
+        .replace(/\]$/, "")
+        .replace(/^(confirm|insert|provide|verify)\s+/i, "")
+        .trim()
+    );
+
+    return Array.from(new Set([normalized, short, cleaned].filter(Boolean)));
+  }
+
   function resolvePlaceholderFromDraft(part: string) {
     const normalized = normalizePlaceholder(part);
-    return (
-      placeholders.find(
-        (item: string) => normalizePlaceholder(item) === normalized
-      ) || part
+
+    const exact = placeholders.find((item: string) =>
+      placeholderAliases(item).includes(normalized)
     );
+    if (exact) return exact;
+
+    // Scribe sometimes emits the compact display token directly, e.g.
+    // [DIVISION TBD], [RESPONDENT TBD], [CASE NO. TBD]. Match those back
+    // to the original draft.placeholders entry so the yellow editor survives
+    // regeneration and compact-caption formatting.
+    const compactNeedle = normalized
+      .replace(/^attorney input needed:\s*/i, "")
+      .replace(/^attorney \/ research input needed:\s*/i, "")
+      .replace(/^(confirm|insert|provide|verify)\s+/i, "")
+      .trim();
+
+    const fuzzy = placeholders.find((item: string) =>
+      placeholderAliases(item).some((alias) => {
+        const compactAlias = alias
+          .replace(/^attorney input needed:\s*/i, "")
+          .replace(/^attorney \/ research input needed:\s*/i, "")
+          .replace(/^(confirm|insert|provide|verify)\s+/i, "")
+          .trim();
+
+        return (
+          compactAlias === compactNeedle ||
+          compactAlias.replace(/\btbd\b$/i, "").trim() ===
+            compactNeedle.replace(/\btbd\b$/i, "").trim()
+        );
+      })
+    );
+
+    return fuzzy || part;
+  }
+
+  function isEditablePlaceholderToken(part: string) {
+    if (!/^\[[^\]\n]+\]$/.test(part)) return false;
+
+    const resolved = resolvePlaceholderFromDraft(part);
+    if (placeholders.includes(resolved)) return true;
+
+    return /^\[(ATTORNEY INPUT NEEDED:|ATTORNEY \/ RESEARCH INPUT NEEDED:)/i.test(part);
   }
 
   function scrollToInputEditor(focusPlaceholder?: string) {
@@ -245,12 +298,14 @@ export default function DraftManagerWorkstation({
   }
 
   function renderHighlightedDraft(markdown: string) {
-    const parts = String(markdown || "").split(
-      /(\[ATTORNEY INPUT NEEDED:[^\]]+\])/gi
-    );
+    // Split on every bracket token, then only convert recognized unresolved
+    // draft.placeholders into interactive pills. This supports both the full
+    // [ATTORNEY INPUT NEEDED: ...] form and compact tokens such as
+    // [DIVISION TBD], [RESPONDENT TBD], and [CASE NO. TBD].
+    const parts = String(markdown || "").split(/(\[[^\]\n]{2,180}\])/g);
 
     return parts.map((part, index) => {
-      if (!/^\[ATTORNEY INPUT NEEDED:/i.test(part)) {
+      if (!isEditablePlaceholderToken(part)) {
         return <span key={index}>{part}</span>;
       }
 
@@ -340,7 +395,9 @@ export default function DraftManagerWorkstation({
               "Do not add detention-condition allegations, family facts, supervision history, community ties, compliance history, or similar equities unless actually supplied.",
               "Before finalizing the draft, run an internal consistency pass for names, A-number, dates, detention facility, court, district, division, detention statute, procedural posture, requested relief, and paragraph numbering.",
               "The prayer for relief must track only arguments actually developed in the pleading and must preserve unresolved strategic choices for attorney review.",
-              "Until a firm-authored Cano Law Firm exemplar is supplied, use a conservative federal pleading structure and set draft.template_status to no_template_supplied.",
+              "When request.firmDraftingProfile is supplied, treat it as Cano Law Firm's controlling STYLE + STRUCTURE profile for habeas drafting. Never copy exemplar client facts into the active matter.",
+              "The five firm petitions are drafting exemplars only. The court order is a separate outcome reference and must not be cited as authority unless it also appears in verified authority research.",
+              "When the Cano habeas profile is supplied, set draft.template_status to cano_habeas_exemplars_v1.",
             ],
           },
         }),
