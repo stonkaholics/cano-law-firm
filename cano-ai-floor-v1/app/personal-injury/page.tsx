@@ -99,6 +99,7 @@ type ReferralProspect = {
   organization_name: string;
   contact_name: string;
   category: string;
+  practice_area?: string;
   city: string;
   state: string;
   website: string;
@@ -416,6 +417,7 @@ const demoReferrals: ReferralProspect[] = [
     organization_name: "Immigration-focused firm · Miami",
     contact_name: "Referral partner prospect",
     category: "Attorney · Immigration",
+    practice_area: "Immigration",
     city: "Miami",
     state: "FL",
     website: "",
@@ -471,6 +473,7 @@ const demoReferrals: ReferralProspect[] = [
     organization_name: "Estate & Probate practice · South Florida",
     contact_name: "Referral partner prospect",
     category: "Attorney · Probate",
+    practice_area: "Probate / Estate",
     city: "Fort Lauderdale",
     state: "FL",
     website: "",
@@ -488,6 +491,7 @@ const demoReferrals: ReferralProspect[] = [
     organization_name: "Out-of-state litigation firm · Preview",
     contact_name: "Florida co-counsel prospect",
     category: "Attorney · Out-of-State",
+    practice_area: "General Litigation",
     city: "Atlanta",
     state: "GA",
     website: "",
@@ -607,6 +611,33 @@ function money(value: number) {
   }).format(value || 0);
 }
 
+
+function referralPracticeLabel(prospect: ReferralProspect) {
+  const explicit = String(prospect.practice_area || "").trim();
+
+  if (explicit) return explicit;
+
+  const category = String(prospect.category || "")
+    .replace(/^Attorney\s*·\s*/i, "")
+    .trim();
+
+  if (
+    category &&
+    !/unknown|review|professional referral candidate/i.test(category)
+  ) {
+    return category;
+  }
+
+  return "Practice area pending";
+}
+
+function referralLocationLabel(prospect: ReferralProspect) {
+  return [prospect.city, prospect.state]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(", ") || "Location pending";
+}
+
 export default function PersonalInjuryFloor() {
   const [selectedAgent, setSelectedAgent] = useState<PiAgent | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("referrals");
@@ -712,6 +743,7 @@ export default function PersonalInjuryFloor() {
           item.organization_name,
           item.contact_name,
           item.category,
+          item.practice_area,
           item.city,
           item.state,
           item.why_fit,
@@ -1275,69 +1307,211 @@ export default function PersonalInjuryFloor() {
       </section>
 
       {selectedAgent && (
-        <div
-          className={styles.modalBackdrop}
-          onMouseDown={(event) => {
-            if (event.currentTarget === event.target) {
-              setSelectedAgent(null);
-            }
-          }}
-        >
-          <aside className={styles.agentPanel}>
-            <button
-              className={styles.closeButton}
-              onClick={() => setSelectedAgent(null)}
-              aria-label="Close agent panel"
-            >
-              <X size={18} />
-            </button>
+        selectedAgent.id === "scout" ? (
+          <div
+            className={styles.scoutWorkstationBackdrop}
+            onMouseDown={(event) => {
+              if (event.currentTarget === event.target) {
+                setSelectedAgent(null);
+              }
+            }}
+          >
+            <section className={styles.scoutWorkstation}>
+              <div className={styles.scoutWorkstationHeader}>
+                <div className={styles.scoutWorkstationIdentity}>
+                  <div className={styles.panelIcon}>
+                    <selectedAgent.icon size={27} strokeWidth={1.7} />
+                  </div>
 
-            <div className={styles.panelHead}>
-              <div className={styles.panelIcon}>
-                <selectedAgent.icon size={27} strokeWidth={1.7} />
-              </div>
-              <div>
-                <div className={styles.panelStatus}>
-                  <span className={agentDot(selectedAgent.status)} />
-                  {selectedAgent.status === "review"
-                    ? "Human Review"
-                    : selectedAgent.status}
+                  <div>
+                    <div className={styles.panelStatus}>
+                      <span className={agentDot(selectedAgent.status)} />
+                      SCOUT · REFERRAL INTELLIGENCE
+                    </div>
+                    <h2>Scout Referral Workstation</h2>
+                    <p>
+                      Apollo-backed firm discovery, practice-area intelligence,
+                      contact enrichment, fit scoring, and human-controlled
+                      outreach selection.
+                    </p>
+                  </div>
                 </div>
-                <h2>{selectedAgent.name}</h2>
-                <p>{selectedAgent.role}</p>
+
+                <button
+                  className={styles.workstationCloseButton}
+                  onClick={() => setSelectedAgent(null)}
+                  aria-label="Close Scout workstation"
+                >
+                  <X size={19} />
+                </button>
               </div>
-            </div>
 
-            <p className={styles.panelDescription}>
-              {selectedAgent.description}
-            </p>
-
-            <div className={styles.panelSection}>
-              <h3>Capabilities</h3>
-              <ul>
-                {selectedAgent.capabilities.map((capability) => (
-                  <li key={capability}>{capability}</li>
-                ))}
-              </ul>
-            </div>
-
-            <div className={styles.panelSection}>
-              <h3>Typical Output</h3>
-              <div className={styles.chips}>
-                {selectedAgent.output.map((item) => (
-                  <span key={item}>{item}</span>
-                ))}
+              <div className={styles.scoutWorkstationStats}>
+                <div>
+                  <span>FIRMS LOADED</span>
+                  <strong>{referrals.length}</strong>
+                </div>
+                <div>
+                  <span>CONTACTS</span>
+                  <strong>
+                    {referrals.reduce(
+                      (total, referral) =>
+                        total + (referral.contacts || []).length,
+                      0
+                    )}
+                  </strong>
+                </div>
+                <div>
+                  <span>APOLLO CALLS</span>
+                  <strong>
+                    {workspace.apolloBudget.used}/{workspace.apolloBudget.limit}
+                  </strong>
+                </div>
+                <div>
+                  <span>APPROVED+</span>
+                  <strong>
+                    {
+                      referrals.filter((referral) =>
+                        ["approved", "contacted", "replied", "meeting", "partner"].includes(
+                          referral.relationship_status
+                        )
+                      ).length
+                    }
+                  </strong>
+                </div>
               </div>
-            </div>
 
-            <div className={styles.panelNotice}>
-              <ShieldCheck size={15} />
-              V1 is human-controlled. Research can be automated; outbound
-              messages, spend changes, and consumer-facing actions require an
-              approval step before execution.
-            </div>
-          </aside>
-        </div>
+              <div className={styles.scoutWorkstationBody}>
+                <ReferralEngine
+                  referrals={filteredReferrals}
+                  searchTerm={searchTerm}
+                  setSearchTerm={setSearchTerm}
+                  filter={referralFilter}
+                  setFilter={setReferralFilter}
+                  updatingId={updatingId}
+                  onStatus={updateReferralStatus}
+                  previewMode={previewMode}
+                  runningAgent={runningAgent}
+                  apolloBudget={workspace.apolloBudget}
+                  onContactSelection={updateReferralContact}
+                  onRunScout={() =>
+                    runPiAgent("scout", {
+                      mode: "standard_test",
+                      geography: "Florida",
+                      targetCategories: [
+                        "immigration attorney",
+                        "criminal defense attorney",
+                        "family law attorney",
+                        "probate attorney",
+                        "employment attorney",
+                        "general practice attorney",
+                        "out-of-state law firm seeking Florida referral counsel"
+                      ],
+                      maxResults: 10,
+                      apollo: {
+                        mode: "test",
+                        maxCallsPerHour: 10,
+                        maxSearchCallsThisRun: 2,
+                        maxEnrichmentCallsThisRun: 1,
+                        peoplePerSearch: 10,
+                        maxContactsPerFirm: 3,
+                      },
+                    })
+                  }
+                  onRunScoutTest10={() =>
+                    runPiAgent("scout", {
+                      mode: "nationwide_unique_firms_test",
+                      geography: "United States",
+                      targetCategories: [
+                        "immigration attorney",
+                        "criminal defense attorney",
+                        "family law attorney",
+                        "probate attorney",
+                        "employment attorney",
+                        "general practice attorney"
+                      ],
+                      maxResults: 10,
+                      uniqueFirms: true,
+                      oneContactPerFirm: true,
+                      apollo: {
+                        mode: "test",
+                        maxCallsPerHour: 10,
+                        maxSearchCallsThisRun: 1,
+                        maxEnrichmentCallsThisRun: 1,
+                        peoplePerSearch: 50,
+                        maxContactsPerFirm: 1
+                      }
+                    })
+                  }
+                />
+              </div>
+            </section>
+          </div>
+        ) : (
+          <div
+            className={styles.modalBackdrop}
+            onMouseDown={(event) => {
+              if (event.currentTarget === event.target) {
+                setSelectedAgent(null);
+              }
+            }}
+          >
+            <aside className={styles.agentPanel}>
+              <button
+                className={styles.closeButton}
+                onClick={() => setSelectedAgent(null)}
+                aria-label="Close agent panel"
+              >
+                <X size={18} />
+              </button>
+
+              <div className={styles.panelHead}>
+                <div className={styles.panelIcon}>
+                  <selectedAgent.icon size={27} strokeWidth={1.7} />
+                </div>
+                <div>
+                  <div className={styles.panelStatus}>
+                    <span className={agentDot(selectedAgent.status)} />
+                    {selectedAgent.status === "review"
+                      ? "Human Review"
+                      : selectedAgent.status}
+                  </div>
+                  <h2>{selectedAgent.name}</h2>
+                  <p>{selectedAgent.role}</p>
+                </div>
+              </div>
+
+              <p className={styles.panelDescription}>
+                {selectedAgent.description}
+              </p>
+
+              <div className={styles.panelSection}>
+                <h3>Capabilities</h3>
+                <ul>
+                  {selectedAgent.capabilities.map((capability) => (
+                    <li key={capability}>{capability}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className={styles.panelSection}>
+                <h3>Typical Output</h3>
+                <div className={styles.chips}>
+                  {selectedAgent.output.map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
+                </div>
+              </div>
+
+              <div className={styles.panelNotice}>
+                <ShieldCheck size={15} />
+                V1 is human-controlled. Research can be automated; outbound
+                messages, spend changes, and consumer-facing actions require an
+                approval step before execution.
+              </div>
+            </aside>
+          </div>
+        )
       )}
     </main>
   );
@@ -1541,7 +1715,12 @@ function ReferralEngine({
           <article className={styles.referralCard} key={prospect.id}>
             <div className={styles.cardHead}>
               <div>
-                <span className={styles.category}>{prospect.category}</span>
+                <div className={styles.practiceMetaRow}>
+                  <span className={styles.category}>{prospect.category}</span>
+                  <span className={styles.practiceBadge}>
+                    {referralPracticeLabel(prospect)}
+                  </span>
+                </div>
                 <h3>{prospect.organization_name}</h3>
                 <p>{prospect.contact_name}</p>
               </div>
@@ -1553,8 +1732,11 @@ function ReferralEngine({
             </div>
 
             <div className={styles.locationLine}>
-              <MapPin size={12} />
-              {prospect.city}, {prospect.state}
+              <MapPin size={15} />
+              <div>
+                <span>LOCATION</span>
+                <strong>{referralLocationLabel(prospect)}</strong>
+              </div>
             </div>
 
             <div className={styles.fitBox}>
@@ -1563,10 +1745,23 @@ function ReferralEngine({
             </div>
 
             <div className={styles.firmLinkRow}>
-              <ContactItem
-                icon={ExternalLink}
-                value={prospect.website || "Website pending"}
-              />
+              {prospect.website ? (
+                <a
+                  className={styles.websiteLink}
+                  href={prospect.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={`Open ${prospect.organization_name} website`}
+                >
+                  <ExternalLink size={12} />
+                  <span>{prospect.website}</span>
+                </a>
+              ) : (
+                <div className={`${styles.contactItem} ${styles.websitePending}`}>
+                  <ExternalLink size={12} />
+                  <span>Website pending</span>
+                </div>
+              )}
 
               {prospect.source_url ? (
                 <a

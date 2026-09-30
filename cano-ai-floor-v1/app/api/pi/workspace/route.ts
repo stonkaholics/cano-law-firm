@@ -439,6 +439,12 @@ export async function POST(
                 ""
               ),
 
+            practice_area:
+              String(
+                payload.practice_area ||
+                ""
+              ),
+
             city:
               String(
                 payload.city || ""
