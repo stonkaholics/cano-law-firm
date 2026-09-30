@@ -1984,3 +1984,392 @@
     font-size: 12px;
   }
 }
+
+
+/* =========================================================
+   V7 · MASS AGENT WORKSTATIONS + INCIDENT WATCH
+   ========================================================= */
+
+.workstationHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agentRunButton {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid rgba(224, 191, 133, 0.22);
+  border-radius: 9px;
+  background: rgba(224, 191, 133, 0.045);
+  color: #ddbd82;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.agentRunButton:hover:not(:disabled) {
+  border-color: rgba(224, 191, 133, 0.42);
+  background: rgba(224, 191, 133, 0.09);
+}
+
+.agentRunButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.agentMissionBar {
+  flex: 0 0 auto;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(173, 194, 206, 0.06);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.agentMissionBar > div {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(173, 194, 206, 0.07);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.009);
+}
+
+.agentMissionBar span {
+  color: #5d8092;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .09em;
+}
+
+.agentMissionChips {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.agentMissionChips em {
+  padding: 4px 6px;
+  border: 1px solid rgba(107,184,255,.1);
+  border-radius: 999px;
+  color: #8db4c8;
+  background: rgba(107,184,255,.025);
+  font-size: 6px;
+  font-style: normal;
+}
+
+.incidentWatchPanel,
+.opportunityStrip {
+  margin: 12px 14px 0;
+  border: 1px solid rgba(173,194,206,.08);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(2,10,16,.19);
+}
+
+.incidentWatchHead,
+.opportunityHead {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(173,194,206,.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.incidentWatchHead > div:first-child {
+  min-width: 0;
+}
+
+.incidentWatchHead span,
+.opportunityHead span {
+  color: #d8b97f;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.incidentWatchHead h3 {
+  margin: 4px 0 2px;
+  font-family: Georgia, serif;
+  color: #e1e8ec;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.incidentWatchHead p {
+  max-width: 820px;
+  margin: 0;
+  color: #647f8c;
+  font-size: 7px;
+  line-height: 1.5;
+}
+
+.incidentLegend {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 5px;
+}
+
+.incidentLegend span,
+.incidentTop em {
+  padding: 4px 6px;
+  border-radius: 999px;
+  font-size: 6px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: .05em;
+}
+
+.gateWaiting {
+  border: 1px solid rgba(224,191,133,.16);
+  color: #d7b978;
+  background: rgba(224,191,133,.035);
+}
+
+.gateEligible {
+  border: 1px solid rgba(100,215,160,.2);
+  color: #83d9ad;
+  background: rgba(100,215,160,.04);
+}
+
+.gateBlocked {
+  border: 1px solid rgba(226,108,108,.2);
+  color: #e39797;
+  background: rgba(226,108,108,.04);
+}
+
+.incidentGrid,
+.opportunityGrid {
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 9px;
+}
+
+.incidentCard,
+.opportunityCard {
+  min-width: 0;
+  border: 1px solid rgba(173,194,206,.07);
+  border-radius: 9px;
+  background: rgba(255,255,255,.008);
+  padding: 10px;
+}
+
+.incidentTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 9px;
+}
+
+.incidentTop > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.incidentTop span,
+.incidentDates span {
+  color: #54798a;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .07em;
+}
+
+.incidentTop strong {
+  color: #dce6eb;
+  font-size: 10px;
+}
+
+.incidentLocation {
+  margin-top: 9px;
+  min-height: 29px;
+  padding: 6px 8px;
+  border: 1px solid rgba(107,184,255,.08);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #8db5c7;
+}
+
+.incidentLocation strong {
+  font-size: 8px;
+}
+
+.incidentDates {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 6px;
+}
+
+.incidentDates > div {
+  padding: 6px 7px;
+  border: 1px solid rgba(173,194,206,.055);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.incidentDates strong {
+  color: #a8bdc8;
+  font-size: 7px;
+  font-weight: 600;
+}
+
+.incidentFooter {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(173,194,206,.055);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #5f7b88;
+  font-size: 6px;
+}
+
+.incidentFooter a,
+.opportunityCard a {
+  color: #82bbd9;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.emptyIncidentWatch,
+.emptyOpportunity {
+  grid-column: 1/-1;
+  padding: 16px;
+  border: 1px dashed rgba(173,194,206,.1);
+  border-radius: 8px;
+  color: #5f7b88;
+  font-size: 7px;
+  text-align: center;
+}
+
+.opportunityHead strong {
+  color: #8eacba;
+  font-size: 7px;
+}
+
+.opportunityCard > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.opportunityCard > div:first-child span {
+  color: #d7b879;
+  font-size: 6px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.opportunityCard > div:first-child em {
+  color: #76d7a8;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.opportunityCard h4 {
+  margin: 7px 0 4px;
+  color: #dfe8ec;
+  font-family: Georgia, serif;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.opportunityCard p {
+  min-height: 33px;
+  margin: 0;
+  color: #708996;
+  font-size: 7px;
+  line-height: 1.45;
+}
+
+.opportunityCard footer {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(173,194,206,.055);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.opportunityCard footer strong {
+  color: #829eaa;
+  font-size: 6px;
+}
+
+.complianceLiveBar {
+  margin: 12px 14px 0;
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 8px;
+}
+
+.complianceLiveBar > div {
+  min-height: 46px;
+  padding: 8px 10px;
+  border: 1px solid rgba(173,194,206,.07);
+  border-radius: 8px;
+  background: rgba(255,255,255,.008);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.complianceLiveBar span {
+  color: #5c7d8c;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .07em;
+}
+
+.complianceLiveBar strong {
+  color: #dce7eb;
+  font-family: Georgia,serif;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+@media (max-width: 840px) {
+  .agentMissionBar {
+    grid-template-columns: 1fr;
+    padding: 8px 14px;
+  }
+
+  .workstationHeaderActions {
+    align-items: flex-end;
+    flex-direction: column-reverse;
+  }
+
+  .agentRunButton {
+    min-height: 34px;
+    padding: 0 9px;
+  }
+
+  .incidentGrid,
+  .opportunityGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .incidentDates {
+    grid-template-columns: 1fr;
+  }
+
+  .complianceLiveBar {
+    grid-template-columns: 1fr;
+  }
+}

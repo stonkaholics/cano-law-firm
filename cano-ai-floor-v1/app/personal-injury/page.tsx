@@ -140,6 +140,61 @@ type PiLead = {
   is_demo?: boolean;
 };
 
+type IncidentWatch = {
+  id: string;
+  source: string;
+  external_id: string;
+  incident_type: string;
+  county: string;
+  location: string;
+  occurred_at: string;
+  report_filed_at?: string | null;
+  source_url: string;
+  severity: string;
+  identity_source: string;
+  identity_available: boolean;
+  solicitation_eligible_at?: string | null;
+  crash_report_public_at?: string | null;
+  earliest_contact_review_at?: string | null;
+  status:
+    | "observed"
+    | "bar_wait"
+    | "record_wait"
+    | "eligible_for_review"
+    | "blocked"
+    | "archived";
+  notes: string;
+};
+
+type MarketOpportunity = {
+  id: string;
+  agent_id: string;
+  kind: string;
+  title: string;
+  geography: string;
+  summary: string;
+  score: number;
+  status: "new" | "reviewing" | "approved" | "dismissed";
+  source_url: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+};
+
+type OutreachQueueItem = {
+  id: string;
+  referral_prospect_id?: string | null;
+  channel: string;
+  direction: string;
+  status: string;
+  subject: string;
+  message_summary: string;
+  approved_by: string;
+  approved_at?: string | null;
+  occurred_at?: string | null;
+  next_follow_up_at?: string | null;
+  created_at: string;
+};
+
 type Campaign = {
   id: string;
   name: string;
@@ -157,6 +212,9 @@ type WorkspacePayload = {
   referrals: ReferralProspect[];
   leads: PiLead[];
   campaigns: Campaign[];
+  incidents: IncidentWatch[];
+  opportunities: MarketOpportunity[];
+  outreach: OutreachQueueItem[];
   apolloBudget: ApolloBudget;
 };
 
@@ -638,6 +696,42 @@ function referralLocationLabel(prospect: ReferralProspect) {
     .join(", ") || "Location pending";
 }
 
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function incidentGateLabel(item: IncidentWatch) {
+  if (item.status === "eligible_for_review") return "ELIGIBLE FOR REVIEW";
+  if (item.status === "record_wait") return "60-DAY RECORD WAIT";
+  if (item.status === "bar_wait") return "30-DAY BAR WAIT";
+  if (item.status === "blocked") return "BLOCKED";
+  if (item.status === "archived") return "ARCHIVED";
+  return "OBSERVED";
+}
+
+function incidentGateTone(item: IncidentWatch) {
+  if (item.status === "eligible_for_review") return styles.gateEligible;
+  if (item.status === "blocked") return styles.gateBlocked;
+  return styles.gateWaiting;
+}
+
+function agentWorkspaceMode(agentId: string): TabId {
+  if (["scout", "bridge", "reach", "orbit"].includes(agentId)) return "referrals";
+  if (["pulse", "intake"].includes(agentId)) return "leads";
+  if (["beacon", "radar", "launch", "ledger", "catalyst"].includes(agentId)) return "campaigns";
+  return "compliance";
+}
+
 export default function PersonalInjuryFloor() {
   const [selectedAgent, setSelectedAgent] = useState<PiAgent | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("referrals");
@@ -646,6 +740,9 @@ export default function PersonalInjuryFloor() {
     referrals: [],
     leads: [],
     campaigns: [],
+    incidents: [],
+    opportunities: [],
+    outreach: [],
     apolloBudget: {
       limit: 10,
       used: 0,
@@ -681,6 +778,9 @@ export default function PersonalInjuryFloor() {
         referrals: Array.isArray(data.referrals) ? data.referrals : [],
         leads: Array.isArray(data.leads) ? data.leads : [],
         campaigns: Array.isArray(data.campaigns) ? data.campaigns : [],
+        incidents: Array.isArray(data.incidents) ? data.incidents : [],
+        opportunities: Array.isArray(data.opportunities) ? data.opportunities : [],
+        outreach: Array.isArray(data.outreach) ? data.outreach : [],
         apolloBudget:
           data?.apolloBudget &&
           typeof data.apolloBudget === "object"
@@ -707,10 +807,90 @@ export default function PersonalInjuryFloor() {
     void loadWorkspace();
   }, []);
 
+
+  async function pollWorkspaceAfterAgent(
+    baseline: {
+      referrals: number;
+      leads: number;
+      campaigns: number;
+      incidents: number;
+      opportunities: number;
+      outreach: number;
+    }
+  ) {
+    const started = Date.now();
+    const maxMs = 60000;
+    const intervalMs = 2500;
+
+    while (Date.now() - started < maxMs) {
+      await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
+
+      try {
+        const res = await fetch(
+          `/api/pi/workspace?ts=${Date.now()}`,
+          { cache: "no-store" }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok || data?.ok === false) continue;
+
+        const next: WorkspacePayload = {
+          ok: true,
+          referrals: Array.isArray(data.referrals) ? data.referrals : [],
+          leads: Array.isArray(data.leads) ? data.leads : [],
+          campaigns: Array.isArray(data.campaigns) ? data.campaigns : [],
+          incidents: Array.isArray(data.incidents) ? data.incidents : [],
+          opportunities: Array.isArray(data.opportunities)
+            ? data.opportunities
+            : [],
+          outreach: Array.isArray(data.outreach) ? data.outreach : [],
+          apolloBudget:
+            data?.apolloBudget &&
+            typeof data.apolloBudget === "object"
+              ? data.apolloBudget
+              : {
+                  limit: 10,
+                  used: 0,
+                  remaining: 10,
+                  window_minutes: 60,
+                },
+        };
+
+        setWorkspace(next);
+
+        const changed =
+          next.referrals.length !== baseline.referrals ||
+          next.leads.length !== baseline.leads ||
+          next.campaigns.length !== baseline.campaigns ||
+          next.incidents.length !== baseline.incidents ||
+          next.opportunities.length !== baseline.opportunities ||
+          next.outreach.length !== baseline.outreach;
+
+        if (changed) {
+          setAgentMessage(
+            "Agent results arrived and the workspace refreshed automatically."
+          );
+          return;
+        }
+      } catch {
+        // Keep polling; a transient network error should not stop the refresh loop.
+      }
+    }
+
+    setAgentMessage(
+      "Agent run is still processing. The workspace will refresh when you reopen or press refresh."
+    );
+  }
+
+
   const realDataExists =
     workspace.referrals.length > 0 ||
     workspace.leads.length > 0 ||
-    workspace.campaigns.length > 0;
+    workspace.campaigns.length > 0 ||
+    workspace.incidents.length > 0 ||
+    workspace.opportunities.length > 0 ||
+    workspace.outreach.length > 0;
 
   const referrals = realDataExists
     ? workspace.referrals
@@ -805,7 +985,19 @@ export default function PersonalInjuryFloor() {
   ).length;
 
   async function runPiAgent(
-    agentId: "scout" | "pulse" | "beacon" | "guard",
+    agentId:
+      | "catalyst"
+      | "scout"
+      | "pulse"
+      | "beacon"
+      | "bridge"
+      | "reach"
+      | "orbit"
+      | "radar"
+      | "launch"
+      | "intake"
+      | "ledger"
+      | "guard",
     requestPayload: Record<string, any> = {}
   ) {
     if (runningAgent) return;
@@ -834,9 +1026,16 @@ export default function PersonalInjuryFloor() {
           `${agentId} accepted the request. Refresh the workspace after the workflow finishes.`
       );
 
-      window.setTimeout(() => {
-        void loadWorkspace();
-      }, 1800);
+      const baseline = {
+        referrals: workspace.referrals.length,
+        leads: workspace.leads.length,
+        campaigns: workspace.campaigns.length,
+        incidents: workspace.incidents.length,
+        opportunities: workspace.opportunities.length,
+        outreach: workspace.outreach.length,
+      };
+
+      void pollWorkspaceAfterAgent(baseline);
     } catch (error) {
       setAgentMessage(
         error instanceof Error
@@ -1256,6 +1455,7 @@ export default function PersonalInjuryFloor() {
         {activeTab === "leads" && (
           <LeadEngine
             leads={filteredLeads}
+            incidents={workspace.incidents}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
             filter={leadFilter}
@@ -1275,6 +1475,7 @@ export default function PersonalInjuryFloor() {
         {activeTab === "campaigns" && (
           <CampaignIntel
             campaigns={campaigns}
+            opportunities={workspace.opportunities}
             previewMode={previewMode}
             runningAgent={runningAgent}
             onRunBeacon={() =>
@@ -1296,6 +1497,8 @@ export default function PersonalInjuryFloor() {
 
         {activeTab === "compliance" && (
           <ComplianceCenter
+            incidents={workspace.incidents}
+            outreach={workspace.outreach}
             runningAgent={runningAgent}
             onRunGuard={() =>
               runPiAgent("guard", {
@@ -1307,81 +1510,102 @@ export default function PersonalInjuryFloor() {
       </section>
 
       {selectedAgent && (
-        selectedAgent.id === "scout" ? (
-          <div
-            className={styles.scoutWorkstationBackdrop}
-            onMouseDown={(event) => {
-              if (event.currentTarget === event.target) {
-                setSelectedAgent(null);
-              }
-            }}
-          >
-            <section className={styles.scoutWorkstation}>
-              <div className={styles.scoutWorkstationHeader}>
-                <div className={styles.scoutWorkstationIdentity}>
-                  <div className={styles.panelIcon}>
-                    <selectedAgent.icon size={27} strokeWidth={1.7} />
-                  </div>
-
-                  <div>
-                    <div className={styles.panelStatus}>
-                      <span className={agentDot(selectedAgent.status)} />
-                      SCOUT · REFERRAL INTELLIGENCE
-                    </div>
-                    <h2>Scout Referral Workstation</h2>
-                    <p>
-                      Apollo-backed firm discovery, practice-area intelligence,
-                      contact enrichment, fit scoring, and human-controlled
-                      outreach selection.
-                    </p>
-                  </div>
+        <div
+          className={styles.scoutWorkstationBackdrop}
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              setSelectedAgent(null);
+            }
+          }}
+        >
+          <section className={styles.scoutWorkstation}>
+            <div className={styles.scoutWorkstationHeader}>
+              <div className={styles.scoutWorkstationIdentity}>
+                <div className={styles.panelIcon}>
+                  <selectedAgent.icon size={27} strokeWidth={1.7} />
                 </div>
+                <div>
+                  <div className={styles.panelStatus}>
+                    <span className={agentDot(selectedAgent.status)} />
+                    {selectedAgent.name.toUpperCase()} · {selectedAgent.shortRole.toUpperCase()}
+                  </div>
+                  <h2>{selectedAgent.name} Workstation</h2>
+                  <p>{selectedAgent.description}</p>
+                </div>
+              </div>
+
+              <div className={styles.workstationHeaderActions}>
+                <button
+                  className={styles.agentRunButton}
+                  disabled={Boolean(runningAgent)}
+                  onClick={() =>
+                    runPiAgent(selectedAgent.id as any, {
+                      mode: `manual_${selectedAgent.id}_run`,
+                      geography: "Florida",
+                      requestedFrom: "agent_workstation",
+                    })
+                  }
+                >
+                  {runningAgent === selectedAgent.id ? (
+                    <RefreshCw size={14} className={styles.spin} />
+                  ) : (
+                    <Sparkles size={14} />
+                  )}
+                  {runningAgent === selectedAgent.id
+                    ? "Running…"
+                    : `Run ${selectedAgent.name}`}
+                </button>
 
                 <button
                   className={styles.workstationCloseButton}
                   onClick={() => setSelectedAgent(null)}
-                  aria-label="Close Scout workstation"
+                  aria-label={`Close ${selectedAgent.name} workstation`}
                 >
                   <X size={19} />
                 </button>
               </div>
+            </div>
 
-              <div className={styles.scoutWorkstationStats}>
-                <div>
-                  <span>FIRMS LOADED</span>
-                  <strong>{referrals.length}</strong>
-                </div>
-                <div>
-                  <span>CONTACTS</span>
-                  <strong>
-                    {referrals.reduce(
-                      (total, referral) =>
-                        total + (referral.contacts || []).length,
-                      0
-                    )}
-                  </strong>
-                </div>
-                <div>
-                  <span>APOLLO CALLS</span>
-                  <strong>
-                    {workspace.apolloBudget.used}/{workspace.apolloBudget.limit}
-                  </strong>
-                </div>
-                <div>
-                  <span>APPROVED+</span>
-                  <strong>
-                    {
-                      referrals.filter((referral) =>
-                        ["approved", "contacted", "replied", "meeting", "partner"].includes(
-                          referral.relationship_status
-                        )
-                      ).length
-                    }
-                  </strong>
+            <div className={styles.agentMissionBar}>
+              <div>
+                <span>CAPABILITIES</span>
+                <div className={styles.agentMissionChips}>
+                  {selectedAgent.capabilities.map((item) => (
+                    <em key={item}>{item}</em>
+                  ))}
                 </div>
               </div>
+              <div>
+                <span>TYPICAL OUTPUT</span>
+                <div className={styles.agentMissionChips}>
+                  {selectedAgent.output.map((item) => (
+                    <em key={item}>{item}</em>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-              <div className={styles.scoutWorkstationBody}>
+            <div className={styles.scoutWorkstationStats}>
+              <div>
+                <span>REFERRALS</span>
+                <strong>{referrals.length}</strong>
+              </div>
+              <div>
+                <span>LEADS</span>
+                <strong>{leads.length}</strong>
+              </div>
+              <div>
+                <span>INCIDENT WATCH</span>
+                <strong>{workspace.incidents.length}</strong>
+              </div>
+              <div>
+                <span>OPPORTUNITIES</span>
+                <strong>{workspace.opportunities.length}</strong>
+              </div>
+            </div>
+
+            <div className={styles.scoutWorkstationBody}>
+              {["scout", "bridge", "reach", "orbit"].includes(selectedAgent.id) ? (
                 <ReferralEngine
                   referrals={filteredReferrals}
                   searchTerm={searchTerm}
@@ -1398,38 +1622,13 @@ export default function PersonalInjuryFloor() {
                     runPiAgent("scout", {
                       mode: "standard_test",
                       geography: "Florida",
-                      targetCategories: [
-                        "immigration attorney",
-                        "criminal defense attorney",
-                        "family law attorney",
-                        "probate attorney",
-                        "employment attorney",
-                        "general practice attorney",
-                        "out-of-state law firm seeking Florida referral counsel"
-                      ],
                       maxResults: 10,
-                      apollo: {
-                        mode: "test",
-                        maxCallsPerHour: 10,
-                        maxSearchCallsThisRun: 2,
-                        maxEnrichmentCallsThisRun: 1,
-                        peoplePerSearch: 10,
-                        maxContactsPerFirm: 3,
-                      },
                     })
                   }
                   onRunScoutTest10={() =>
                     runPiAgent("scout", {
                       mode: "nationwide_unique_firms_test",
                       geography: "United States",
-                      targetCategories: [
-                        "immigration attorney",
-                        "criminal defense attorney",
-                        "family law attorney",
-                        "probate attorney",
-                        "employment attorney",
-                        "general practice attorney"
-                      ],
                       maxResults: 10,
                       uniqueFirms: true,
                       oneContactPerFirm: true,
@@ -1439,79 +1638,72 @@ export default function PersonalInjuryFloor() {
                         maxSearchCallsThisRun: 1,
                         maxEnrichmentCallsThisRun: 1,
                         peoplePerSearch: 50,
-                        maxContactsPerFirm: 1
-                      }
+                        maxContactsPerFirm: 1,
+                      },
                     })
                   }
                 />
-              </div>
-            </section>
-          </div>
-        ) : (
-          <div
-            className={styles.modalBackdrop}
-            onMouseDown={(event) => {
-              if (event.currentTarget === event.target) {
-                setSelectedAgent(null);
-              }
-            }}
-          >
-            <aside className={styles.agentPanel}>
-              <button
-                className={styles.closeButton}
-                onClick={() => setSelectedAgent(null)}
-                aria-label="Close agent panel"
-              >
-                <X size={18} />
-              </button>
-
-              <div className={styles.panelHead}>
-                <div className={styles.panelIcon}>
-                  <selectedAgent.icon size={27} strokeWidth={1.7} />
-                </div>
-                <div>
-                  <div className={styles.panelStatus}>
-                    <span className={agentDot(selectedAgent.status)} />
-                    {selectedAgent.status === "review"
-                      ? "Human Review"
-                      : selectedAgent.status}
-                  </div>
-                  <h2>{selectedAgent.name}</h2>
-                  <p>{selectedAgent.role}</p>
-                </div>
-              </div>
-
-              <p className={styles.panelDescription}>
-                {selectedAgent.description}
-              </p>
-
-              <div className={styles.panelSection}>
-                <h3>Capabilities</h3>
-                <ul>
-                  {selectedAgent.capabilities.map((capability) => (
-                    <li key={capability}>{capability}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className={styles.panelSection}>
-                <h3>Typical Output</h3>
-                <div className={styles.chips}>
-                  {selectedAgent.output.map((item) => (
-                    <span key={item}>{item}</span>
-                  ))}
-                </div>
-              </div>
-
-              <div className={styles.panelNotice}>
-                <ShieldCheck size={15} />
-                V1 is human-controlled. Research can be automated; outbound
-                messages, spend changes, and consumer-facing actions require an
-                approval step before execution.
-              </div>
-            </aside>
-          </div>
-        )
+              ) : ["pulse", "intake"].includes(selectedAgent.id) ? (
+                <LeadEngine
+                  leads={filteredLeads}
+                  incidents={workspace.incidents}
+                  searchTerm={searchTerm}
+                  setSearchTerm={setSearchTerm}
+                  filter={leadFilter}
+                  setFilter={setLeadFilter}
+                  updatingId={updatingId}
+                  onStatus={updateLeadStatus}
+                  previewMode={previewMode}
+                  runningAgent={runningAgent}
+                  onRunPulse={() =>
+                    runPiAgent("pulse", {
+                      mode: "sync_and_qualify",
+                      includeIncidentWatch: true,
+                    })
+                  }
+                />
+              ) : ["beacon", "radar", "launch", "ledger", "catalyst"].includes(
+                  selectedAgent.id
+                ) ? (
+                <CampaignIntel
+                  campaigns={campaigns}
+                  opportunities={workspace.opportunities}
+                  previewMode={previewMode}
+                  runningAgent={runningAgent}
+                  onRunBeacon={() =>
+                    runPiAgent(
+                      selectedAgent.id === "catalyst"
+                        ? "catalyst"
+                        : selectedAgent.id === "radar"
+                        ? "radar"
+                        : selectedAgent.id === "launch"
+                        ? "launch"
+                        : selectedAgent.id === "ledger"
+                        ? "ledger"
+                        : "beacon",
+                      {
+                        geography: "Florida",
+                        practiceArea: "personal injury",
+                        mode: `manual_${selectedAgent.id}_run`,
+                      }
+                    )
+                  }
+                />
+              ) : (
+                <ComplianceCenter
+                  incidents={workspace.incidents}
+                  outreach={workspace.outreach}
+                  runningAgent={runningAgent}
+                  onRunGuard={() =>
+                    runPiAgent("guard", {
+                      mode: "review_open_items",
+                    })
+                  }
+                />
+              )}
+            </div>
+          </section>
+        </div>
       )}
     </main>
   );
@@ -1930,6 +2122,7 @@ function ReferralEngine({
 
 function LeadEngine({
   leads,
+  incidents,
   searchTerm,
   setSearchTerm,
   filter,
@@ -1941,6 +2134,7 @@ function LeadEngine({
   onRunPulse,
 }: {
   leads: PiLead[];
+  incidents: IncidentWatch[];
   searchTerm: string;
   setSearchTerm: (value: string) => void;
   filter: LeadStatus | "all";
@@ -2006,6 +2200,97 @@ function LeadEngine({
               {stage.label}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className={styles.incidentWatchPanel}>
+        <div className={styles.incidentWatchHead}>
+          <div>
+            <span>PULSE + GUARD · INCIDENT WATCH</span>
+            <h3>Florida Accident Intelligence Queue</h3>
+            <p>
+              Incidents can be observed immediately. Targeted consumer outreach
+              remains blocked until the applicable solicitation and source-access
+              gates have passed and Guard approves the communication.
+            </p>
+          </div>
+          <div className={styles.incidentLegend}>
+            <span className={styles.gateWaiting}>WAIT</span>
+            <span className={styles.gateEligible}>REVIEW</span>
+            <span className={styles.gateBlocked}>BLOCKED</span>
+          </div>
+        </div>
+
+        <div className={styles.incidentGrid}>
+          {incidents.length ? (
+            incidents.slice(0, 8).map((incident) => (
+              <article className={styles.incidentCard} key={incident.id}>
+                <div className={styles.incidentTop}>
+                  <div>
+                    <span>{incident.source || "PUBLIC INCIDENT SOURCE"}</span>
+                    <strong>{incident.incident_type || "Traffic incident"}</strong>
+                  </div>
+                  <em className={incidentGateTone(incident)}>
+                    {incidentGateLabel(incident)}
+                  </em>
+                </div>
+
+                <div className={styles.incidentLocation}>
+                  <MapPin size={13} />
+                  <strong>
+                    {[incident.county, incident.location]
+                      .filter(Boolean)
+                      .join(" · ") || "Location pending"}
+                  </strong>
+                </div>
+
+                <div className={styles.incidentDates}>
+                  <div>
+                    <span>OCCURRED</span>
+                    <strong>{formatDateTime(incident.occurred_at)}</strong>
+                  </div>
+                  <div>
+                    <span>30-DAY BAR GATE</span>
+                    <strong>
+                      {formatDateTime(incident.solicitation_eligible_at)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>CRASH REPORT PUBLIC</span>
+                    <strong>{formatDateTime(incident.crash_report_public_at)}</strong>
+                  </div>
+                  <div>
+                    <span>EARLIEST REVIEW</span>
+                    <strong>
+                      {formatDateTime(incident.earliest_contact_review_at)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className={styles.incidentFooter}>
+                  <span>
+                    {incident.identity_available
+                      ? `Identity source: ${incident.identity_source || "lawful public source"}`
+                      : "No consumer identity stored"}
+                  </span>
+                  {incident.source_url ? (
+                    <a
+                      href={incident.source_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open source <ExternalLink size={10} />
+                    </a>
+                  ) : null}
+                </div>
+              </article>
+            ))
+          ) : (
+            <div className={styles.emptyIncidentWatch}>
+              No incident-watch records yet. Run Pulse once its incident-source
+              branch is connected in n8n.
+            </div>
+          )}
         </div>
       </div>
 
@@ -2083,11 +2368,13 @@ function LeadEngine({
 
 function CampaignIntel({
   campaigns,
+  opportunities,
   previewMode,
   runningAgent,
   onRunBeacon,
 }: {
   campaigns: Campaign[];
+  opportunities: MarketOpportunity[];
   previewMode: boolean;
   runningAgent: string | null;
   onRunBeacon: () => void;
@@ -2117,6 +2404,40 @@ function CampaignIntel({
             )}
             {runningAgent === "beacon" ? "Beacon Running…" : "Run Market Scan"}
           </button>
+        </div>
+      </div>
+
+      <div className={styles.opportunityStrip}>
+        <div className={styles.opportunityHead}>
+          <span>BEACON + RADAR · MARKET OPPORTUNITIES</span>
+          <strong>{opportunities.length} open intelligence items</strong>
+        </div>
+        <div className={styles.opportunityGrid}>
+          {opportunities.length ? (
+            opportunities.slice(0, 6).map((item) => (
+              <article key={item.id} className={styles.opportunityCard}>
+                <div>
+                  <span>{item.kind || item.agent_id || "MARKET SIGNAL"}</span>
+                  <em>{item.score || 0}</em>
+                </div>
+                <h4>{item.title}</h4>
+                <p>{item.summary}</p>
+                <footer>
+                  <strong>{item.geography || "Florida"}</strong>
+                  {item.source_url ? (
+                    <a href={item.source_url} target="_blank" rel="noreferrer">
+                      Source <ExternalLink size={10} />
+                    </a>
+                  ) : null}
+                </footer>
+              </article>
+            ))
+          ) : (
+            <div className={styles.emptyOpportunity}>
+              No market-opportunity records yet. Beacon and Radar can write
+              search-demand, directory, competitor, and geographic opportunities here.
+            </div>
+          )}
         </div>
       </div>
 
@@ -2181,9 +2502,13 @@ function CampaignIntel({
 }
 
 function ComplianceCenter({
+  incidents,
+  outreach,
   runningAgent,
   onRunGuard,
 }: {
+  incidents: IncidentWatch[];
+  outreach: OutreachQueueItem[];
   runningAgent: string | null;
   onRunGuard: () => void;
 }) {
@@ -2251,6 +2576,33 @@ function ComplianceCenter({
             )}
             {runningAgent === "guard" ? "Guard Running…" : "Review Open Items"}
           </button>
+        </div>
+      </div>
+
+      <div className={styles.complianceLiveBar}>
+        <div>
+          <span>INCIDENTS ON WAIT</span>
+          <strong>
+            {
+              incidents.filter((item) =>
+                ["bar_wait", "record_wait"].includes(item.status)
+              ).length
+            }
+          </strong>
+        </div>
+        <div>
+          <span>ELIGIBLE FOR HUMAN REVIEW</span>
+          <strong>
+            {
+              incidents.filter(
+                (item) => item.status === "eligible_for_review"
+              ).length
+            }
+          </strong>
+        </div>
+        <div>
+          <span>OUTREACH DRAFTS / QUEUE</span>
+          <strong>{outreach.length}</strong>
         </div>
       </div>
 

@@ -4,7 +4,10 @@ type TableName =
   | "pi_referral_prospects"
   | "pi_referral_contacts"
   | "pi_leads"
-  | "pi_campaigns";
+  | "pi_campaigns"
+  | "pi_incident_watch"
+  | "pi_market_opportunities"
+  | "pi_outreach_events";
 
 const APOLLO_TEST_LIMIT_PER_HOUR = 10;
 
@@ -104,6 +107,9 @@ export async function GET() {
       contacts,
       leads,
       campaigns,
+      incidents,
+      opportunities,
+      outreach,
       apolloBudget,
     ] = await Promise.all([
       readTable(
@@ -120,6 +126,18 @@ export async function GET() {
       ),
       readTable(
         "pi_campaigns",
+        "created_at.desc"
+      ),
+      readTable(
+        "pi_incident_watch",
+        "occurred_at.desc"
+      ),
+      readTable(
+        "pi_market_opportunities",
+        "score.desc,created_at.desc"
+      ),
+      readTable(
+        "pi_outreach_events",
         "created_at.desc"
       ),
       getApolloBudget(),
@@ -160,6 +178,9 @@ export async function GET() {
       referrals: hydratedReferrals,
       leads,
       campaigns,
+      incidents,
+      opportunities,
+      outreach,
       apolloBudget,
     });
   } catch (error) {
@@ -1142,6 +1163,133 @@ export async function POST(
       return NextResponse.json({
         ok: true,
         row,
+      });
+    }
+
+    if (
+      action ===
+      "bulk_upsert_incidents"
+    ) {
+      const rows =
+        Array.isArray(body?.rows)
+          ? body.rows
+          : [];
+
+      if (!rows.length) {
+        return NextResponse.json(
+          { ok: false, error: "rows are required." },
+          { status: 400 }
+        );
+      }
+
+      const normalized =
+        rows.map((payload: any) => ({
+          source: String(payload.source || ""),
+          external_id: String(payload.external_id || ""),
+          incident_type: String(payload.incident_type || ""),
+          county: String(payload.county || ""),
+          location: String(payload.location || ""),
+          occurred_at:
+            payload.occurred_at ||
+            new Date().toISOString(),
+          report_filed_at:
+            payload.report_filed_at ||
+            null,
+          source_url: String(payload.source_url || ""),
+          severity: String(payload.severity || ""),
+          identity_source: String(payload.identity_source || ""),
+          identity_available: Boolean(payload.identity_available),
+          solicitation_eligible_at:
+            payload.solicitation_eligible_at ||
+            null,
+          crash_report_public_at:
+            payload.crash_report_public_at ||
+            null,
+          earliest_contact_review_at:
+            payload.earliest_contact_review_at ||
+            null,
+          status: String(payload.status || "observed"),
+          notes: String(payload.notes || ""),
+          metadata:
+            payload.metadata &&
+            typeof payload.metadata === "object"
+              ? payload.metadata
+              : {},
+          updated_at: new Date().toISOString(),
+        }));
+
+      const result =
+        await supabaseRequest(
+          "pi_incident_watch?on_conflict=source,external_id",
+          {
+            method: "POST",
+            headers: {
+              Prefer:
+                "resolution=merge-duplicates,return=representation",
+            },
+            body: JSON.stringify(normalized),
+          }
+        );
+
+      return NextResponse.json({
+        ok: true,
+        rows: Array.isArray(result) ? result : [],
+      });
+    }
+
+    if (
+      action ===
+      "bulk_upsert_opportunities"
+    ) {
+      const rows =
+        Array.isArray(body?.rows)
+          ? body.rows
+          : [];
+
+      if (!rows.length) {
+        return NextResponse.json(
+          { ok: false, error: "rows are required." },
+          { status: 400 }
+        );
+      }
+
+      const normalized =
+        rows.map((payload: any) => ({
+          agent_id: String(payload.agent_id || ""),
+          kind: String(payload.kind || ""),
+          title: String(payload.title || ""),
+          geography: String(payload.geography || "Florida"),
+          summary: String(payload.summary || ""),
+          score: Math.max(
+            0,
+            Math.min(100, Number(payload.score || 0))
+          ),
+          status: String(payload.status || "new"),
+          source_url: String(payload.source_url || ""),
+          metadata:
+            payload.metadata &&
+            typeof payload.metadata === "object"
+              ? payload.metadata
+              : {},
+          updated_at: new Date().toISOString(),
+        }));
+
+      const result =
+        await supabaseRequest(
+          "pi_market_opportunities?on_conflict=agent_id,kind,title,geography",
+          {
+            method: "POST",
+            headers: {
+              Prefer:
+                "resolution=merge-duplicates,return=representation",
+            },
+            body: JSON.stringify(normalized),
+          }
+        );
+
+      return NextResponse.json({
+        ok: true,
+        rows: Array.isArray(result) ? result : [],
       });
     }
 
