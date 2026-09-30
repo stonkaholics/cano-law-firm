@@ -7,7 +7,8 @@ type TableName =
   | "pi_campaigns"
   | "pi_incident_watch"
   | "pi_market_opportunities"
-  | "pi_outreach_events";
+  | "pi_outreach_events"
+  | "pi_incident_sources";
 
 const APOLLO_TEST_LIMIT_PER_HOUR = 10;
 
@@ -110,6 +111,7 @@ export async function GET() {
       incidents,
       opportunities,
       outreach,
+      incidentSources,
       apolloBudget,
     ] = await Promise.all([
       readTable(
@@ -139,6 +141,10 @@ export async function GET() {
       readTable(
         "pi_outreach_events",
         "created_at.desc"
+      ),
+      readTable(
+        "pi_incident_sources",
+        "region.asc,name.asc"
       ),
       getApolloBudget(),
     ]);
@@ -181,6 +187,7 @@ export async function GET() {
       incidents,
       opportunities,
       outreach,
+      incidentSources,
       apolloBudget,
     });
   } catch (error) {
@@ -1284,6 +1291,69 @@ export async function POST(
                 "resolution=merge-duplicates,return=representation",
             },
             body: JSON.stringify(normalized),
+          }
+        );
+
+      return NextResponse.json({
+        ok: true,
+        rows: Array.isArray(result) ? result : [],
+      });
+    }
+
+    if (
+      action ===
+      "update_incident_source"
+    ) {
+      const sourceKey =
+        String(body?.source_key || "").trim();
+
+      if (!sourceKey) {
+        return NextResponse.json(
+          { ok: false, error: "source_key is required." },
+          { status: 400 }
+        );
+      }
+
+      const patch: Record<string, any> = {
+        last_checked_at:
+          body.last_checked_at ||
+          new Date().toISOString(),
+        updated_at:
+          new Date().toISOString(),
+      };
+
+      if ("status" in body) {
+        patch.status =
+          String(body.status || "");
+      }
+
+      if ("last_success_at" in body) {
+        patch.last_success_at =
+          body.last_success_at || null;
+      }
+
+      if ("last_error" in body) {
+        patch.last_error =
+          body.last_error || null;
+      }
+
+      if (
+        body.metadata &&
+        typeof body.metadata === "object"
+      ) {
+        patch.metadata =
+          body.metadata;
+      }
+
+      const result =
+        await supabaseRequest(
+          `pi_incident_sources?source_key=eq.${encodeURIComponent(sourceKey)}`,
+          {
+            method: "PATCH",
+            headers: {
+              Prefer: "return=representation",
+            },
+            body: JSON.stringify(patch),
           }
         );
 

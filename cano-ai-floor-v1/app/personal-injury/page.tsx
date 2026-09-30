@@ -195,6 +195,25 @@ type OutreachQueueItem = {
   created_at: string;
 };
 
+
+type IncidentSource = {
+  id: string;
+  source_key: string;
+  name: string;
+  region: string;
+  source_type: string;
+  coverage: string;
+  source_url: string;
+  enabled: boolean;
+  mode: string;
+  status: string;
+  notes: string;
+  last_checked_at?: string | null;
+  last_success_at?: string | null;
+  last_error?: string | null;
+  metadata?: Record<string, any>;
+};
+
 type Campaign = {
   id: string;
   name: string;
@@ -215,6 +234,7 @@ type WorkspacePayload = {
   incidents: IncidentWatch[];
   opportunities: MarketOpportunity[];
   outreach: OutreachQueueItem[];
+  incidentSources: IncidentSource[];
   apolloBudget: ApolloBudget;
 };
 
@@ -743,6 +763,7 @@ export default function PersonalInjuryFloor() {
     incidents: [],
     opportunities: [],
     outreach: [],
+    incidentSources: [],
     apolloBudget: {
       limit: 10,
       used: 0,
@@ -781,6 +802,9 @@ export default function PersonalInjuryFloor() {
         incidents: Array.isArray(data.incidents) ? data.incidents : [],
         opportunities: Array.isArray(data.opportunities) ? data.opportunities : [],
         outreach: Array.isArray(data.outreach) ? data.outreach : [],
+        incidentSources: Array.isArray(data.incidentSources)
+          ? data.incidentSources
+          : [],
         apolloBudget:
           data?.apolloBudget &&
           typeof data.apolloBudget === "object"
@@ -845,6 +869,9 @@ export default function PersonalInjuryFloor() {
             ? data.opportunities
             : [],
           outreach: Array.isArray(data.outreach) ? data.outreach : [],
+          incidentSources: Array.isArray(data.incidentSources)
+            ? data.incidentSources
+            : [],
           apolloBudget:
             data?.apolloBudget &&
             typeof data.apolloBudget === "object"
@@ -1456,6 +1483,7 @@ export default function PersonalInjuryFloor() {
           <LeadEngine
             leads={filteredLeads}
             incidents={workspace.incidents}
+            incidentSources={workspace.incidentSources}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
             filter={leadFilter}
@@ -1647,6 +1675,7 @@ export default function PersonalInjuryFloor() {
                 <LeadEngine
                   leads={filteredLeads}
                   incidents={workspace.incidents}
+                  incidentSources={workspace.incidentSources}
                   searchTerm={searchTerm}
                   setSearchTerm={setSearchTerm}
                   filter={leadFilter}
@@ -1659,6 +1688,25 @@ export default function PersonalInjuryFloor() {
                     runPiAgent("pulse", {
                       mode: "sync_and_qualify",
                       includeIncidentWatch: true,
+                    })
+                  }
+                  onSyncMiamiDade={() =>
+                    runPiAgent("pulse", {
+                      mode: "sync_public_incidents",
+                      geography: "Miami-Dade County, Florida",
+                      sources: ["miami_dade_mdfr"],
+                    })
+                  }
+                  onSyncBroward={() =>
+                    runPiAgent("pulse", {
+                      mode: "sync_public_incidents",
+                      geography: "Broward County, Florida",
+                      sources: [
+                        "fort_lauderdale_fire_active_calls",
+                        "broward_bso_public_alerts",
+                        "fl511_broward",
+                        "fhp_broward"
+                      ],
                     })
                   }
                 />
@@ -2123,6 +2171,7 @@ function ReferralEngine({
 function LeadEngine({
   leads,
   incidents,
+  incidentSources,
   searchTerm,
   setSearchTerm,
   filter,
@@ -2132,9 +2181,12 @@ function LeadEngine({
   previewMode,
   runningAgent,
   onRunPulse,
+  onSyncMiamiDade,
+  onSyncBroward,
 }: {
   leads: PiLead[];
   incidents: IncidentWatch[];
+  incidentSources: IncidentSource[];
   searchTerm: string;
   setSearchTerm: (value: string) => void;
   filter: LeadStatus | "all";
@@ -2144,6 +2196,8 @@ function LeadEngine({
   previewMode: boolean;
   runningAgent: string | null;
   onRunPulse: () => void;
+  onSyncMiamiDade: () => void;
+  onSyncBroward: () => void;
 }) {
   return (
     <div className={styles.tabContent}>
@@ -2219,6 +2273,80 @@ function LeadEngine({
             <span className={styles.gateEligible}>REVIEW</span>
             <span className={styles.gateBlocked}>BLOCKED</span>
           </div>
+        </div>
+
+        <div className={styles.sourceMonitorGrid}>
+          {incidentSources.length ? (
+            incidentSources.map((source) => (
+              <article className={styles.sourceMonitorCard} key={source.id}>
+                <div className={styles.sourceMonitorTop}>
+                  <div>
+                    <span>{source.region}</span>
+                    <strong>{source.name}</strong>
+                  </div>
+                  <em
+                    className={
+                      source.status === "ready"
+                        ? styles.sourceReady
+                        : source.status === "watch"
+                        ? styles.sourceWatch
+                        : styles.sourcePending
+                    }
+                  >
+                    {source.status.toUpperCase()}
+                  </em>
+                </div>
+
+                <p>{source.coverage}</p>
+
+                <div className={styles.sourceMonitorMeta}>
+                  <span>{source.source_type}</span>
+                  <span>{source.mode}</span>
+                </div>
+
+                <div className={styles.sourceMonitorFooter}>
+                  <span>
+                    {source.last_success_at
+                      ? `Last success ${formatDateTime(source.last_success_at)}`
+                      : "Awaiting first sync"}
+                  </span>
+                  {source.source_url ? (
+                    <a href={source.source_url} target="_blank" rel="noreferrer">
+                      Open source <ExternalLink size={10} />
+                    </a>
+                  ) : null}
+                </div>
+              </article>
+            ))
+          ) : (
+            <div className={styles.emptyIncidentWatch}>
+              Incident sources will appear here after pi_floor_v5.sql is run.
+            </div>
+          )}
+        </div>
+
+        <div className={styles.incidentSourceActions}>
+          <button
+            onClick={onSyncMiamiDade}
+            disabled={Boolean(runningAgent)}
+          >
+            <RefreshCw
+              size={13}
+              className={runningAgent === "pulse" ? styles.spin : undefined}
+            />
+            Sync Miami-Dade
+          </button>
+
+          <button
+            onClick={onSyncBroward}
+            disabled={Boolean(runningAgent)}
+          >
+            <RefreshCw
+              size={13}
+              className={runningAgent === "pulse" ? styles.spin : undefined}
+            />
+            Sync Broward
+          </button>
         </div>
 
         <div className={styles.incidentGrid}>
