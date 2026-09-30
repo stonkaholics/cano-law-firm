@@ -1,0 +1,39 @@
+SCRIBE ATTORNEY INPUT EDITOR PATCH
+
+If you already replaced Build Specialist Prompt with the full Scribe prompt patch,
+you only need to add the rules below inside the "drafting" prompt.
+
+The website now sends:
+body.input.request.attorneyInputs
+body.input.request.attorneyInputInstructions
+
+Add this under the drafting prompt's FACTUAL RULES:
+
+ATTORNEY-SUPPLIED INPUTS
+
+When request.attorneyInputs is present:
+
+- Treat each non-empty value as attorney-supplied matter information.
+- Match the input key to the corresponding ATTORNEY INPUT NEEDED placeholder.
+- Use the attorney-supplied value to resolve that specific missing item.
+- Remove the resolved placeholder from draft.markdown.
+- Remove the resolved placeholder from draft.placeholders.
+- Integrate the supplied information naturally into all affected factual and legal sections.
+- Do not change unrelated facts merely because attorney input was supplied.
+- Do not invent additional facts around the supplied input.
+- If the attorney-supplied input conflicts with Case Brain, Monday intake, or another specialist record:
+  - preserve the conflict,
+  - state that the attorney supplied a new/contrary fact,
+  - flag it in warnings or attorney review notes,
+  - do not silently overwrite the conflicting source.
+- Any remaining unresolved ATTORNEY INPUT NEEDED item must remain both:
+  1. visibly bracketed in draft.markdown, and
+  2. listed in draft.placeholders.
+
+Add this immediately before MATTER INPUT in the drafting user prompt:
+
+ATTORNEY INPUTS:
+\${JSON.stringify(body.input?.request?.attorneyInputs || {}, null, 2)}
+
+ATTORNEY INPUT INSTRUCTIONS:
+\${JSON.stringify(body.input?.request?.attorneyInputInstructions || [], null, 2)}

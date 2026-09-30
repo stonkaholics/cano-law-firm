@@ -1,0 +1,50 @@
+CASE BRAIN ATTORNEY NOTES OVERRIDE
+
+Santiago now sends these fields to the existing Case Brain webhook:
+
+body.attorneyCaseNotes
+body.intakeSource
+body.preview.originalMondaySummary
+body.preview.notesPreview
+
+IMPORTANT:
+body.preview.notesPreview is already replaced by the attorney notes when the attorney
+entered anything in the optional Santiago field.
+
+For maximum safety, wherever your Case Brain prompt currently chooses the intake
+summary / case notes, use this priority:
+
+const attorneyCaseNotes = String(body.attorneyCaseNotes || "").trim();
+const mondaySummary = String(
+  body.preview?.originalMondaySummary ||
+  body.preview?.notesPreview ||
+  ""
+).trim();
+
+const primaryIntakeNarrative =
+  attorneyCaseNotes ||
+  String(body.preview?.notesPreview || "").trim() ||
+  mondaySummary;
+
+const primaryIntakeSource =
+  attorneyCaseNotes
+    ? "Attorney-supplied initial call notes"
+    : "Monday Short Case Summary";
+
+Then pass both into Case Brain:
+
+PRIMARY INTAKE SOURCE:
+\${primaryIntakeSource}
+
+PRIMARY INTAKE NARRATIVE:
+\${primaryIntakeNarrative}
+
+OPTIONAL ORIGINAL MONDAY SUMMARY:
+\${mondaySummary}
+
+RULES:
+- If attorneyCaseNotes is non-empty, treat those notes as the primary intake narrative.
+- Do not silently merge a conflicting Monday summary into the attorney notes as though both are confirmed.
+- The original Monday summary may still be used as a secondary source for comparison and contradiction detection.
+- If the attorney notes and Monday summary conflict, preserve and flag the contradiction.
+- If attorneyCaseNotes is blank, preserve the existing behavior and use the Monday Short Case Summary.
