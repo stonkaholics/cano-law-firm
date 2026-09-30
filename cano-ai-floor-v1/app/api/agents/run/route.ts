@@ -11,6 +11,7 @@ import {
   insertActivity,
 } from "../../../../lib/supabase/matters";
 import { FIRM_HABEAS_DRAFTING_PROFILE } from "../../../../lib/legal/firm-habeas-profile";
+import { getFirmDraftingExamplesForMatter } from "../../../../lib/legal/firm-drafting-library";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -92,13 +93,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let firmDraftingExamples: any = null;
+
+    if (
+      agentId === "drafting" &&
+      String((options as any)?.draftType || "").toLowerCase() === "habeas"
+    ) {
+      try {
+        firmDraftingExamples = await getFirmDraftingExamplesForMatter({
+          matter: storedMatter,
+          priorSpecialists: Object.fromEntries(
+            Object.entries(priorAgents).map(([id, state]: [string, any]) => [
+              id,
+              state?.output || null,
+            ])
+          ),
+          draftType: "habeas",
+        });
+      } catch (error) {
+        console.warn(
+          "Firm drafting exemplar retrieval unavailable; continuing with static Cano drafting profile.",
+          error
+        );
+      }
+    }
+
     const draftingRequest =
       agentId === "drafting" &&
       String((options as any)?.draftType || "").toLowerCase() === "habeas"
         ? {
             ...options,
             firmDraftingProfile: FIRM_HABEAS_DRAFTING_PROFILE,
-            firmTemplateStatus: "cano_habeas_exemplars_v1",
+            firmDraftingExamples,
+            firmTemplateStatus:
+              firmDraftingExamples?.chunks?.length
+                ? "cano_habeas_rag_v1"
+                : "cano_habeas_exemplars_v1",
           }
         : options;
 
