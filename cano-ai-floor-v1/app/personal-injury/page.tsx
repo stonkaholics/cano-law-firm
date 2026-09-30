@@ -1171,6 +1171,7 @@ export default function PersonalInjuryFloor() {
             onContactSelection={updateReferralContact}
             onRunScout={() =>
               runPiAgent("scout", {
+                mode: "standard_test",
                 geography: "Florida",
                 targetCategories: [
                   "immigration attorney",
@@ -1190,6 +1191,31 @@ export default function PersonalInjuryFloor() {
                   peoplePerSearch: 10,
                   maxContactsPerFirm: 3,
                 },
+              })
+            }
+            onRunScoutTest10={() =>
+              runPiAgent("scout", {
+                mode: "nationwide_unique_firms_test",
+                geography: "United States",
+                targetCategories: [
+                  "immigration attorney",
+                  "criminal defense attorney",
+                  "family law attorney",
+                  "probate attorney",
+                  "employment attorney",
+                  "general practice attorney"
+                ],
+                maxResults: 10,
+                uniqueFirms: true,
+                oneContactPerFirm: true,
+                apollo: {
+                  mode: "test",
+                  maxCallsPerHour: 10,
+                  maxSearchCallsThisRun: 1,
+                  maxEnrichmentCallsThisRun: 1,
+                  peoplePerSearch: 50,
+                  maxContactsPerFirm: 1
+                }
               })
             }
           />
@@ -1394,6 +1420,7 @@ function ReferralEngine({
   apolloBudget,
   onContactSelection,
   onRunScout,
+  onRunScoutTest10,
 }: {
   referrals: ReferralProspect[];
   searchTerm: string;
@@ -1410,6 +1437,7 @@ function ReferralEngine({
     selectedForOutreach: boolean
   ) => void;
   onRunScout: () => void;
+  onRunScoutTest10: () => void;
 }) {
   return (
     <div className={styles.tabContent}>
@@ -1433,29 +1461,48 @@ function ReferralEngine({
             <small>calls used in the last hour</small>
           </div>
 
-          <button
-            onClick={onRunScout}
-            disabled={
-              Boolean(runningAgent) ||
-              apolloBudget.remaining <= 0
-            }
-            title={
-              apolloBudget.remaining <= 0
-                ? "Apollo hourly test budget is exhausted."
-                : "Run a small Apollo-backed Scout discovery test."
-            }
-          >
-            {runningAgent === "scout" ? (
-              <RefreshCw size={14} className={styles.spin} />
-            ) : (
-              <FileSearch size={14} />
-            )}
-            {runningAgent === "scout"
-              ? "Scout Running…"
-              : apolloBudget.remaining <= 0
-              ? "Apollo Limit Reached"
-              : "Run Scout Discovery"}
-          </button>
+          <div className={styles.scoutButtonGroup}>
+            <button
+              onClick={onRunScout}
+              disabled={
+                Boolean(runningAgent) ||
+                apolloBudget.remaining <= 0
+              }
+              title={
+                apolloBudget.remaining <= 0
+                  ? "Apollo hourly test budget is exhausted."
+                  : "Run the normal Florida Scout discovery test."
+              }
+            >
+              {runningAgent === "scout" ? (
+                <RefreshCw size={14} className={styles.spin} />
+              ) : (
+                <FileSearch size={14} />
+              )}
+              {runningAgent === "scout"
+                ? "Scout Running…"
+                : apolloBudget.remaining <= 0
+                ? "Apollo Limit Reached"
+                : "Run Scout Discovery"}
+            </button>
+
+            <button
+              className={styles.testTenButton}
+              onClick={onRunScoutTest10}
+              disabled={
+                Boolean(runningAgent) ||
+                apolloBudget.remaining < 2
+              }
+              title={
+                apolloBudget.remaining < 2
+                  ? "The 10-firm test reserves up to 2 Apollo calls, so at least 2 hourly calls must remain."
+                  : "Test Scout now: find 10 contacts from 10 different firms across the United States."
+              }
+            >
+              <UsersRound size={14} />
+              Test 10 Firms
+            </button>
+          </div>
         </div>
       </div>
 

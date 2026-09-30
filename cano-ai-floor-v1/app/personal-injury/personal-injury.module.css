@@ -1697,3 +1697,39 @@
     grid-column: 2;
   }
 }
+
+
+.scoutButtonGroup {
+  display: flex;
+  align-items: stretch;
+  gap: 7px;
+}
+
+.scoutButtonGroup > button {
+  min-height: 34px;
+}
+
+.scoutButtonGroup > .testTenButton {
+  border-color: rgba(100, 215, 160, 0.20);
+  background: rgba(100, 215, 160, 0.04);
+  color: #84d8ad;
+}
+
+.scoutButtonGroup > .testTenButton:hover:not(:disabled) {
+  border-color: rgba(100, 215, 160, 0.40);
+  background: rgba(100, 215, 160, 0.085);
+  color: #afe8c9;
+}
+
+@media (max-width: 840px) {
+  .scoutButtonGroup {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .scoutButtonGroup > button {
+    width: 100%;
+    justify-content: center;
+  }
+}

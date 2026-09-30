@@ -97,23 +97,66 @@ export async function POST(
     |
     */
 
+    const scoutMode =
+      String(
+        requestPayload?.mode ||
+        "standard_test"
+      );
+
+    const isNationwideTenFirmTest =
+      agentId === "scout" &&
+      scoutMode ===
+        "nationwide_unique_firms_test";
+
     const normalizedRequest =
       agentId === "scout"
         ? {
             ...requestPayload,
 
-            maxResults:
-              Math.max(
-                1,
-                Math.min(
-                  10,
-                  Number(
+            mode:
+              isNationwideTenFirmTest
+                ? "nationwide_unique_firms_test"
+                : scoutMode,
+
+            geography:
+              isNationwideTenFirmTest
+                ? "United States"
+                : String(
                     requestPayload
-                      ?.maxResults ||
-                    10
-                  )
-                )
-              ),
+                      ?.geography ||
+                    "Florida"
+                  ),
+
+            maxResults:
+              isNationwideTenFirmTest
+                ? 10
+                : Math.max(
+                    1,
+                    Math.min(
+                      10,
+                      Number(
+                        requestPayload
+                          ?.maxResults ||
+                        10
+                      )
+                    )
+                  ),
+
+            uniqueFirms:
+              isNationwideTenFirmTest
+                ? true
+                : Boolean(
+                    requestPayload
+                      ?.uniqueFirms
+                  ),
+
+            oneContactPerFirm:
+              isNationwideTenFirmTest
+                ? true
+                : Boolean(
+                    requestPayload
+                      ?.oneContactPerFirm
+                  ),
 
             apollo: {
               mode: "test",
@@ -121,61 +164,76 @@ export async function POST(
               maxCallsPerHour:
                 10,
 
+              /*
+              | Nationwide test:
+              | 1 People Search request returning up to 50 people
+              | + 1 bulk enrichment request for the final 10 contacts
+              | = 2 Apollo requests maximum for the button click.
+              */
+
               maxSearchCallsThisRun:
-                Math.max(
-                  1,
-                  Math.min(
-                    2,
-                    Number(
-                      requestPayload
-                        ?.apollo
-                        ?.maxSearchCallsThisRun ||
-                      2
-                    )
-                  )
-                ),
+                isNationwideTenFirmTest
+                  ? 1
+                  : Math.max(
+                      1,
+                      Math.min(
+                        2,
+                        Number(
+                          requestPayload
+                            ?.apollo
+                            ?.maxSearchCallsThisRun ||
+                          2
+                        )
+                      )
+                    ),
 
               maxEnrichmentCallsThisRun:
-                Math.max(
-                  0,
-                  Math.min(
-                    1,
-                    Number(
-                      requestPayload
-                        ?.apollo
-                        ?.maxEnrichmentCallsThisRun ??
-                      1
-                    )
-                  )
-                ),
+                isNationwideTenFirmTest
+                  ? 1
+                  : Math.max(
+                      0,
+                      Math.min(
+                        1,
+                        Number(
+                          requestPayload
+                            ?.apollo
+                            ?.maxEnrichmentCallsThisRun ??
+                          1
+                        )
+                      )
+                    ),
 
               peoplePerSearch:
-                Math.max(
-                  1,
-                  Math.min(
-                    10,
-                    Number(
-                      requestPayload
-                        ?.apollo
-                        ?.peoplePerSearch ||
-                      10
-                    )
-                  )
-                ),
+                isNationwideTenFirmTest
+                  ? 50
+                  : Math.max(
+                      1,
+                      Math.min(
+                        25,
+                        Number(
+                          requestPayload
+                            ?.apollo
+                            ?.peoplePerSearch ||
+                          10
+                        )
+                      )
+                    ),
 
               maxContactsPerFirm:
-                Math.max(
-                  1,
-                  Math.min(
-                    3,
-                    Number(
-                      requestPayload
-                        ?.apollo
-                        ?.maxContactsPerFirm ||
-                      3
-                    )
-                  )
-                ),
+                isNationwideTenFirmTest
+                  ? 1
+                  : Math.max(
+                      1,
+                      Math.min(
+                        3,
+                        Number(
+                          requestPayload
+                            ?.apollo
+                            ?.maxContactsPerFirm ||
+                          3
+                        )
+                      )
+                    ),
             },
           }
         : requestPayload;
