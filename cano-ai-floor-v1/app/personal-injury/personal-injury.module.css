@@ -100,7 +100,8 @@
 }
 
 .hero {
-  max-width: 1510px;
+  max-width: none;
+  width: 100%;
   margin: 0 auto;
   padding: 42px 28px 18px;
   display: grid;
@@ -198,7 +199,8 @@
 
 .previewBanner,
 .errorBanner {
-  max-width: 1454px;
+  max-width: none;
+  width: calc(100% - 24px);
   margin: 0 auto 12px;
   padding: 11px 13px;
   border-radius: 10px;
@@ -242,8 +244,8 @@
 }
 
 .sectionHeading {
-  width: calc(100% - 44px);
-  max-width: 1500px;
+  width: calc(100% - 24px);
+  max-width: none;
   margin: 0 auto;
   padding: 12px 0 8px;
   display: flex;
@@ -262,8 +264,8 @@
 }
 
 .floorBoard {
-  width: calc(100% - 44px);
-  max-width: 1500px;
+  width: calc(100% - 24px);
+  max-width: none;
   margin: 0 auto;
   border: 1px solid rgba(106, 70, 163, 0.25);
   border-radius: 17px;
@@ -464,8 +466,8 @@
 .commandStats,
 .tabBar,
 .tabContent {
-  width: calc(100% - 44px);
-  max-width: 1500px;
+  width: calc(100% - 24px);
+  max-width: none;
   margin-left: auto;
   margin-right: auto;
 }
@@ -1390,5 +1392,86 @@
 
   .panelHero {
     flex-direction: column;
+  }
+}
+
+
+.agentBanner {
+  width: calc(100% - 24px);
+  margin: 0 auto 12px;
+  padding: 11px 13px;
+
+  border: 1px solid rgba(100, 215, 160, 0.16);
+  border-radius: 10px;
+
+  background: rgba(100, 215, 160, 0.035);
+  color: #9ad8b7;
+
+  display: grid;
+  grid-template-columns: 18px 1fr 28px;
+  gap: 9px;
+  align-items: center;
+}
+
+.agentBanner > svg {
+  color: #64d7a0;
+}
+
+.agentBanner > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.agentBanner strong {
+  color: #e2edf1;
+  font-size: 9px;
+}
+
+.agentBanner span {
+  margin-top: 2px;
+  color: #84a394;
+  font-size: 8px;
+}
+
+.agentBanner button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #789486;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.agentBanner button:hover {
+  background: rgba(255,255,255,.03);
+  color: #dce7e1;
+}
+
+/* Floor 02 intentionally uses the whole desktop canvas like Floor 01. */
+@media (min-width: 1160px) {
+  .hero {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+
+  .sectionHeading,
+  .floorBoard,
+  .commandStats,
+  .tabBar,
+  .tabContent,
+  .previewBanner,
+  .errorBanner,
+  .agentBanner {
+    width: calc(100% - 24px);
+    max-width: none;
+  }
+
+  .floorBoard {
+    padding-left: 20px;
+    padding-right: 20px;
   }
 }

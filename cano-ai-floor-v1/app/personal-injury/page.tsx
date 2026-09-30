@@ -556,6 +556,8 @@ export default function PersonalInjuryFloor() {
   );
   const [leadFilter, setLeadFilter] = useState<LeadStatus | "all">("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [runningAgent, setRunningAgent] = useState<string | null>(null);
+  const [agentMessage, setAgentMessage] = useState("");
 
   async function loadWorkspace() {
     setLoading(true);
@@ -678,6 +680,50 @@ export default function PersonalInjuryFloor() {
   const activeCampaigns = campaigns.filter(
     (campaign) => campaign.status === "active"
   ).length;
+
+  async function runPiAgent(
+    agentId: "scout" | "pulse" | "beacon" | "guard",
+    requestPayload: Record<string, any> = {}
+  ) {
+    if (runningAgent) return;
+
+    setRunningAgent(agentId);
+    setAgentMessage("");
+
+    try {
+      const res = await fetch("/api/pi/agents/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId,
+          request: requestPayload,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data?.ok === false) {
+        throw new Error(data?.error || `Unable to start ${agentId}.`);
+      }
+
+      setAgentMessage(
+        data?.message ||
+          `${agentId} accepted the request. Refresh the workspace after the workflow finishes.`
+      );
+
+      window.setTimeout(() => {
+        void loadWorkspace();
+      }, 1800);
+    } catch (error) {
+      setAgentMessage(
+        error instanceof Error
+          ? error.message
+          : `Unable to start ${agentId}.`
+      );
+    } finally {
+      setRunningAgent(null);
+    }
+  }
 
   async function updateReferralStatus(id: string, status: ReferralStatus) {
     const item = referrals.find((referral) => referral.id === id);
@@ -837,6 +883,23 @@ export default function PersonalInjuryFloor() {
         </section>
       )}
 
+      {agentMessage && (
+        <section className={styles.agentBanner}>
+          <Sparkles size={15} />
+          <div>
+            <strong>PI agent workflow</strong>
+            <span>{agentMessage}</span>
+          </div>
+          <button
+            type="button"
+            aria-label="Dismiss PI agent message"
+            onClick={() => setAgentMessage("")}
+          >
+            <X size={14} />
+          </button>
+        </section>
+      )}
+
       <section className={styles.floorWrap}>
         <div className={styles.sectionHeading}>
           <span>VISUAL FLOOR VIEW</span>
@@ -965,6 +1028,22 @@ export default function PersonalInjuryFloor() {
             updatingId={updatingId}
             onStatus={updateReferralStatus}
             previewMode={previewMode}
+            runningAgent={runningAgent}
+            onRunScout={() =>
+              runPiAgent("scout", {
+                geography: "Florida",
+                targetCategories: [
+                  "immigration attorney",
+                  "criminal defense attorney",
+                  "family law attorney",
+                  "probate attorney",
+                  "employment attorney",
+                  "general practice attorney",
+                  "out-of-state law firm seeking Florida referral counsel"
+                ],
+                maxResults: 30,
+              })
+            }
           />
         )}
 
@@ -978,14 +1057,47 @@ export default function PersonalInjuryFloor() {
             updatingId={updatingId}
             onStatus={updateLeadStatus}
             previewMode={previewMode}
+            runningAgent={runningAgent}
+            onRunPulse={() =>
+              runPiAgent("pulse", {
+                mode: "sync_and_qualify",
+              })
+            }
           />
         )}
 
         {activeTab === "campaigns" && (
-          <CampaignIntel campaigns={campaigns} previewMode={previewMode} />
+          <CampaignIntel
+            campaigns={campaigns}
+            previewMode={previewMode}
+            runningAgent={runningAgent}
+            onRunBeacon={() =>
+              runPiAgent("beacon", {
+                geography: "Florida",
+                practiceArea: "personal injury",
+                focus: [
+                  "car accidents",
+                  "truck accidents",
+                  "wrongful death",
+                  "pedestrian accidents",
+                  "motorcycle accidents",
+                  "nursing home negligence"
+                ],
+              })
+            }
+          />
         )}
 
-        {activeTab === "compliance" && <ComplianceCenter />}
+        {activeTab === "compliance" && (
+          <ComplianceCenter
+            runningAgent={runningAgent}
+            onRunGuard={() =>
+              runPiAgent("guard", {
+                mode: "review_open_items",
+              })
+            }
+          />
+        )}
       </section>
 
       {selectedAgent && (
@@ -1130,6 +1242,8 @@ function ReferralEngine({
   updatingId,
   onStatus,
   previewMode,
+  runningAgent,
+  onRunScout,
 }: {
   referrals: ReferralProspect[];
   searchTerm: string;
@@ -1139,6 +1253,8 @@ function ReferralEngine({
   updatingId: string | null;
   onStatus: (id: string, status: ReferralStatus) => void;
   previewMode: boolean;
+  runningAgent: string | null;
+  onRunScout: () => void;
 }) {
   return (
     <div className={styles.tabContent}>
@@ -1154,9 +1270,17 @@ function ReferralEngine({
         </div>
 
         <div className={styles.panelActions}>
-          <button disabled title="Wire Scout discovery through n8n next">
-            <FileSearch size={14} />
-            Discovery Connector Next
+          <button
+            onClick={onRunScout}
+            disabled={Boolean(runningAgent)}
+            title="Send a referral discovery job to the PI n8n agent workflow"
+          >
+            {runningAgent === "scout" ? (
+              <RefreshCw size={14} className={styles.spin} />
+            ) : (
+              <FileSearch size={14} />
+            )}
+            {runningAgent === "scout" ? "Scout Running…" : "Run Scout Discovery"}
           </button>
         </div>
       </div>
@@ -1294,6 +1418,8 @@ function LeadEngine({
   updatingId,
   onStatus,
   previewMode,
+  runningAgent,
+  onRunPulse,
 }: {
   leads: PiLead[];
   searchTerm: string;
@@ -1303,6 +1429,8 @@ function LeadEngine({
   updatingId: string | null;
   onStatus: (id: string, status: LeadStatus) => void;
   previewMode: boolean;
+  runningAgent: string | null;
+  onRunPulse: () => void;
 }) {
   return (
     <div className={styles.tabContent}>
@@ -1315,6 +1443,20 @@ function LeadEngine({
             professional referrals. The goal is response speed, qualification,
             attribution, and signed-case conversion.
           </p>
+        </div>
+
+        <div className={styles.panelActions}>
+          <button
+            onClick={onRunPulse}
+            disabled={Boolean(runningAgent)}
+          >
+            {runningAgent === "pulse" ? (
+              <RefreshCw size={14} className={styles.spin} />
+            ) : (
+              <HeartPulse size={14} />
+            )}
+            {runningAgent === "pulse" ? "Pulse Running…" : "Run Lead Sync"}
+          </button>
         </div>
       </div>
 
@@ -1423,9 +1565,13 @@ function LeadEngine({
 function CampaignIntel({
   campaigns,
   previewMode,
+  runningAgent,
+  onRunBeacon,
 }: {
   campaigns: Campaign[];
   previewMode: boolean;
+  runningAgent: string | null;
+  onRunBeacon: () => void;
 }) {
   return (
     <div className={styles.tabContent}>
@@ -1438,6 +1584,20 @@ function CampaignIntel({
             spend, and acquisition cost. V1 does not autonomously change
             budgets or publish advertising.
           </p>
+        </div>
+
+        <div className={styles.panelActions}>
+          <button
+            onClick={onRunBeacon}
+            disabled={Boolean(runningAgent)}
+          >
+            {runningAgent === "beacon" ? (
+              <RefreshCw size={14} className={styles.spin} />
+            ) : (
+              <Compass size={14} />
+            )}
+            {runningAgent === "beacon" ? "Beacon Running…" : "Run Market Scan"}
+          </button>
         </div>
       </div>
 
@@ -1501,7 +1661,13 @@ function CampaignIntel({
   );
 }
 
-function ComplianceCenter() {
+function ComplianceCenter({
+  runningAgent,
+  onRunGuard,
+}: {
+  runningAgent: string | null;
+  onRunGuard: () => void;
+}) {
   const controls = [
     {
       title: "Professional referral outreach",
@@ -1552,6 +1718,20 @@ function ComplianceCenter() {
             aggressively while putting irreversible external actions behind
             explicit approval gates.
           </p>
+        </div>
+
+        <div className={styles.panelActions}>
+          <button
+            onClick={onRunGuard}
+            disabled={Boolean(runningAgent)}
+          >
+            {runningAgent === "guard" ? (
+              <RefreshCw size={14} className={styles.spin} />
+            ) : (
+              <ShieldCheck size={14} />
+            )}
+            {runningAgent === "guard" ? "Guard Running…" : "Review Open Items"}
+          </button>
         </div>
       </div>
 

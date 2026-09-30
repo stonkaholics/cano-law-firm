@@ -7,8 +7,9 @@ import styles from "./FloorSwitcher.module.css";
 export default function FloorSwitcher() {
   const pathname = usePathname();
 
-  // Immigration remains the main/default floor.
-  // Only show the PI switch on the Immigration home page.
+  // Floor 01 remains the main/default floor.
+  // Floor 02 already has its own "Immigration Floor" button,
+  // so this global switcher only renders on the Immigration home page.
   if (pathname !== "/") {
     return null;
   }
@@ -21,7 +22,7 @@ export default function FloorSwitcher() {
     >
       <span className={styles.liveDot} />
       <Activity size={14} strokeWidth={1.9} />
-      <span className={styles.label}>Personal Injury</span>
+      <span>Personal Injury</span>
       <strong>Floor 02</strong>
     </a>
   );
