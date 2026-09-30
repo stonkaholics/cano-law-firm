@@ -19,6 +19,68 @@ import { getLatestSpecialistState } from "../../../../lib/supabase/agents";
 
 export const dynamic = "force-dynamic";
 
+const INLINE_PLACEHOLDER_MAP: Record<string, string> = {
+  "ATTORNEY INPUT NEEDED: CONFIRM DIVISION": "DIVISION TBD",
+  "ATTORNEY INPUT NEEDED: CORRECT DISTRICT": "DISTRICT TBD",
+  "ATTORNEY INPUT NEEDED: CONFIRM DISTRICT": "DISTRICT TBD",
+  "ATTORNEY INPUT NEEDED: PETITIONER FULL NAME": "PETITIONER NAME TBD",
+  "ATTORNEY INPUT NEEDED: PRIMARY CUSTODIAN NAME AND TITLE": "RESPONDENT TBD",
+  "ATTORNEY INPUT NEEDED: CIVIL ACTION NUMBER": "CASE NO. TBD",
+  "ATTORNEY INPUT NEEDED: CASE NUMBER": "CASE NO. TBD",
+  "ATTORNEY INPUT NEEDED: CONFIRM A-NUMBER": "A-NUMBER TBD",
+  "ATTORNEY INPUT NEEDED: CONFIRM DETENTION DATE": "DETENTION DATE TBD",
+  "ATTORNEY INPUT NEEDED: CONFIRM REQUESTED RELIEF": "RELIEF TBD",
+  "ATTORNEY INPUT NEEDED: VERIFICATION DATE": "DATE TBD",
+};
+
+function normalizePlaceholderKey(raw: string) {
+  return String(raw || "")
+    .replace(/^\[/, "")
+    .replace(/\]$/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
+function shortPlaceholderLabel(raw: string) {
+  const normalized = normalizePlaceholderKey(raw);
+  const mapped = INLINE_PLACEHOLDER_MAP[normalized];
+  if (mapped) return mapped;
+
+  const cleaned = normalized
+    .replace(/^ATTORNEY INPUT NEEDED:\s*/i, "")
+    .replace(/^(CONFIRM|INSERT|PROVIDE|VERIFY)\s+/i, "")
+    .trim();
+
+  if (!cleaned) return "INPUT TBD";
+  if (cleaned.length <= 26) return `${cleaned} TBD`;
+
+  const firstMeaningful = cleaned
+    .split(/[,;:–—-]/)[0]
+    .trim()
+    .slice(0, 24)
+    .trim();
+
+  return `${firstMeaningful || "INPUT"} TBD`;
+}
+
+function compactInlinePlaceholders(value: string) {
+  return String(value || "")
+    .replace(
+      /\[ATTORNEY INPUT NEEDED:\s*([^\]]+)\]/gi,
+      (_match, inner) =>
+        `[${shortPlaceholderLabel(
+          `ATTORNEY INPUT NEEDED: ${String(inner || "").trim()}`
+        )}]`
+    )
+    .replace(/FOR\s+THF\.?/gi, "FOR THE");
+}
+
+function isCompactPlaceholder(value: string) {
+  return /^\[[^\]]+\]$/.test(String(value || "").trim());
+}
+
+
 function cleanMarkdownText(value: string) {
   return String(value || "")
     .replace(/\*\*(.*?)\*\*/g, "$1")
@@ -47,9 +109,9 @@ function docxRunsForText(
   text: string,
   options: { bold?: boolean; size?: number } = {}
 ) {
-  const cleaned = cleanMarkdownText(text);
+  const cleaned = compactInlinePlaceholders(cleanMarkdownText(text));
   const parts = cleaned.split(
-    /(\[ATTORNEY INPUT NEEDED:[^\]]+\])/gi
+    /(\[[^\]]+\])/g
   );
 
   return parts
@@ -62,8 +124,8 @@ function docxRunsForText(
           size: options.size || 24,
           bold:
             options.bold ||
-            /^\[ATTORNEY INPUT NEEDED:/i.test(part),
-          highlight: /^\[ATTORNEY INPUT NEEDED:/i.test(part)
+            isCompactPlaceholder(part),
+          highlight: isCompactPlaceholder(part)
             ? "yellow"
             : undefined,
         })
@@ -71,14 +133,14 @@ function docxRunsForText(
 }
 
 function isAttorneyInputLine(text: string) {
-  return /\[ATTORNEY INPUT NEEDED:/i.test(text);
+  return /\[[^\]]+\]/.test(compactInlinePlaceholders(text));
 }
 
 function buildDocxParagraphs(markdown: string) {
   const paragraphs: Paragraph[] = [];
 
   for (const raw of markdownLines(markdown)) {
-    const line = raw.trim();
+    const line = compactInlinePlaceholders(raw.trim());
 
     if (!line) {
       paragraphs.push(new Paragraph({ children: [new TextRun("")] }));
@@ -146,7 +208,9 @@ function wrapText(
   fontSize: number,
   maxWidth: number
 ) {
-  const words = cleanMarkdownText(text).split(/\s+/).filter(Boolean);
+  const words = compactInlinePlaceholders(cleanMarkdownText(text))
+    .split(/\s+/)
+    .filter(Boolean);
   const lines: string[] = [];
   let current = "";
 
@@ -185,7 +249,7 @@ async function buildPdf(markdown: string, title: string) {
     if (y - needed < margin) addPage();
   };
 
-  const titleText = cleanMarkdownText(title);
+  const titleText = compactInlinePlaceholders(cleanMarkdownText(title));
   const titleLines = wrapText(
     titleText,
     boldFont,
@@ -389,7 +453,7 @@ export async function GET(request: NextRequest) {
                 }),
               ],
             }),
-            ...buildDocxParagraphs(drafting.markdown),
+            ...buildDocxParagraphs(compactInlinePlaceholders(drafting.markdown)),
           ],
           footers: {
             default: new Footer({
