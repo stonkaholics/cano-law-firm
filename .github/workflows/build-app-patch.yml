@@ -1,9 +1,9 @@
-name: Build Cano Full Patch Zip
+name: Build Firm Drafting RAG Patch
 
 on:
   push:
     branches:
-      - chatgpt/compact-draft-placeholders-20260930
+      - chatgpt/firm-drafting-rag-20260930
     paths:
       - ".github/workflows/build-app-patch.yml"
       - "cano-ai-floor-v1/app/**"
@@ -14,14 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Package app and lib patch
+      - name: Package app and lib
         run: |
           mkdir -p artifact
           cp -R cano-ai-floor-v1/app artifact/app
           cp -R cano-ai-floor-v1/lib artifact/lib
           cd artifact
-          zip -r ../cano-fix.zip app lib
+          zip -r ../cano-rag.zip app lib
       - uses: actions/upload-artifact@v4
         with:
-          name: cano-fix
-          path: cano-fix.zip
+          name: cano-rag
+          path: cano-rag.zip
