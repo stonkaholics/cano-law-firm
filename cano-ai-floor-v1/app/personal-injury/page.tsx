@@ -425,7 +425,6 @@ const demoReferrals: ReferralProspect[] = [
       "Complementary practice area with substantial client overlap and no PI positioning identified in the preview record.",
     source_url: "",
     relationship_status: "new",
-    score: 92,
     contacts: [
       {
         id: "demo-contact-1",
