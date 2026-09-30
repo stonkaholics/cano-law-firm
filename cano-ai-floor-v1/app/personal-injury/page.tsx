@@ -75,6 +75,25 @@ type PiAgent = {
   status: "ready" | "working" | "review";
 };
 
+type ReferralContact = {
+  id: string;
+  prospect_id: string;
+  apollo_person_id: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  title: string;
+  seniority: string;
+  email: string;
+  phone: string;
+  linkedin_url: string;
+  priority: number;
+  selected_for_outreach: boolean;
+  enrichment_status: string;
+  email_status: string;
+  is_demo?: boolean;
+};
+
 type ReferralProspect = {
   id: string;
   organization_name: string;
@@ -89,9 +108,19 @@ type ReferralProspect = {
   source_url: string;
   relationship_status: ReferralStatus;
   score: number;
+  apollo_organization_id?: string;
+  organization_domain?: string;
+  contacts?: ReferralContact[];
   last_contact_at?: string | null;
   next_follow_up_at?: string | null;
   is_demo?: boolean;
+};
+
+type ApolloBudget = {
+  limit: number;
+  used: number;
+  remaining: number;
+  window_minutes: number;
 };
 
 type PiLead = {
@@ -127,6 +156,7 @@ type WorkspacePayload = {
   referrals: ReferralProspect[];
   leads: PiLead[];
   campaigns: Campaign[];
+  apolloBudget: ApolloBudget;
 };
 
 const agents: PiAgent[] = [
@@ -396,6 +426,45 @@ const demoReferrals: ReferralProspect[] = [
     source_url: "",
     relationship_status: "new",
     score: 92,
+    contacts: [
+      {
+        id: "demo-contact-1",
+        prospect_id: "demo-ref-1",
+        apollo_person_id: "preview-1",
+        first_name: "Managing",
+        last_name: "Partner",
+        full_name: "Managing Partner · Preview",
+        title: "Managing Partner",
+        seniority: "partner",
+        email: "",
+        phone: "",
+        linkedin_url: "",
+        priority: 1,
+        selected_for_outreach: true,
+        enrichment_status: "preview",
+        email_status: "",
+        is_demo: true,
+      },
+      {
+        id: "demo-contact-2",
+        prospect_id: "demo-ref-1",
+        apollo_person_id: "preview-2",
+        first_name: "Partner",
+        last_name: "Two",
+        full_name: "Second Partner · Preview",
+        title: "Partner",
+        seniority: "partner",
+        email: "",
+        phone: "",
+        linkedin_url: "",
+        priority: 2,
+        selected_for_outreach: false,
+        enrichment_status: "preview",
+        email_status: "",
+        is_demo: true,
+      },
+    ],
+    score: 92,
     is_demo: true,
   },
   {
@@ -547,6 +616,12 @@ export default function PersonalInjuryFloor() {
     referrals: [],
     leads: [],
     campaigns: [],
+    apolloBudget: {
+      limit: 10,
+      used: 0,
+      remaining: 10,
+      window_minutes: 60,
+    },
   });
   const [loading, setLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState("");
@@ -576,6 +651,16 @@ export default function PersonalInjuryFloor() {
         referrals: Array.isArray(data.referrals) ? data.referrals : [],
         leads: Array.isArray(data.leads) ? data.leads : [],
         campaigns: Array.isArray(data.campaigns) ? data.campaigns : [],
+        apolloBudget:
+          data?.apolloBudget &&
+          typeof data.apolloBudget === "object"
+            ? data.apolloBudget
+            : {
+                limit: 10,
+                used: 0,
+                remaining: 10,
+                window_minutes: 60,
+              },
       });
     } catch (error) {
       setWorkspaceError(
@@ -631,6 +716,13 @@ export default function PersonalInjuryFloor() {
           item.city,
           item.state,
           item.why_fit,
+          ...(Array.isArray(item.contacts)
+            ? item.contacts.flatMap((contact) => [
+                contact.full_name,
+                contact.title,
+                contact.email,
+              ])
+            : []),
         ]
           .join(" ")
           .toLowerCase()
@@ -722,6 +814,53 @@ export default function PersonalInjuryFloor() {
       );
     } finally {
       setRunningAgent(null);
+    }
+  }
+
+  async function updateReferralContact(
+    contactId: string,
+    selectedForOutreach: boolean
+  ) {
+    const allContacts = referrals.flatMap(
+      (referral) => referral.contacts || []
+    );
+
+    const contact = allContacts.find(
+      (item) => item.id === contactId
+    );
+
+    if (!contact || contact.is_demo) return;
+
+    setUpdatingId(contactId);
+
+    try {
+      const res = await fetch("/api/pi/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_referral_contact",
+          id: contactId,
+          selected_for_outreach: selectedForOutreach,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data?.ok === false) {
+        throw new Error(
+          data?.error || "Unable to update referral contact."
+        );
+      }
+
+      await loadWorkspace();
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to update referral contact."
+      );
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -1029,6 +1168,8 @@ export default function PersonalInjuryFloor() {
             onStatus={updateReferralStatus}
             previewMode={previewMode}
             runningAgent={runningAgent}
+            apolloBudget={workspace.apolloBudget}
+            onContactSelection={updateReferralContact}
             onRunScout={() =>
               runPiAgent("scout", {
                 geography: "Florida",
@@ -1041,7 +1182,15 @@ export default function PersonalInjuryFloor() {
                   "general practice attorney",
                   "out-of-state law firm seeking Florida referral counsel"
                 ],
-                maxResults: 30,
+                maxResults: 10,
+                apollo: {
+                  mode: "test",
+                  maxCallsPerHour: 10,
+                  maxSearchCallsThisRun: 2,
+                  maxEnrichmentCallsThisRun: 1,
+                  peoplePerSearch: 10,
+                  maxContactsPerFirm: 3,
+                },
               })
             }
           />
@@ -1243,6 +1392,8 @@ function ReferralEngine({
   onStatus,
   previewMode,
   runningAgent,
+  apolloBudget,
+  onContactSelection,
   onRunScout,
 }: {
   referrals: ReferralProspect[];
@@ -1254,6 +1405,11 @@ function ReferralEngine({
   onStatus: (id: string, status: ReferralStatus) => void;
   previewMode: boolean;
   runningAgent: string | null;
+  apolloBudget: ApolloBudget;
+  onContactSelection: (
+    contactId: string,
+    selectedForOutreach: boolean
+  ) => void;
   onRunScout: () => void;
 }) {
   return (
@@ -1270,17 +1426,36 @@ function ReferralEngine({
         </div>
 
         <div className={styles.panelActions}>
+          <div className={styles.apolloBudget}>
+            <span>APOLLO TEST MODE</span>
+            <strong>
+              {apolloBudget.used}/{apolloBudget.limit}
+            </strong>
+            <small>calls used in the last hour</small>
+          </div>
+
           <button
             onClick={onRunScout}
-            disabled={Boolean(runningAgent)}
-            title="Send a referral discovery job to the PI n8n agent workflow"
+            disabled={
+              Boolean(runningAgent) ||
+              apolloBudget.remaining <= 0
+            }
+            title={
+              apolloBudget.remaining <= 0
+                ? "Apollo hourly test budget is exhausted."
+                : "Run a small Apollo-backed Scout discovery test."
+            }
           >
             {runningAgent === "scout" ? (
               <RefreshCw size={14} className={styles.spin} />
             ) : (
               <FileSearch size={14} />
             )}
-            {runningAgent === "scout" ? "Scout Running…" : "Run Scout Discovery"}
+            {runningAgent === "scout"
+              ? "Scout Running…"
+              : apolloBudget.remaining <= 0
+              ? "Apollo Limit Reached"
+              : "Run Scout Discovery"}
           </button>
         </div>
       </div>
@@ -1341,16 +1516,119 @@ function ReferralEngine({
               <p>{prospect.why_fit}</p>
             </div>
 
-            <div className={styles.contactGrid}>
-              <ContactItem icon={Mail} value={prospect.email || "Not enriched"} />
-              <ContactItem
-                icon={Phone}
-                value={prospect.phone || "Not enriched"}
-              />
+            <div className={styles.firmLinkRow}>
               <ContactItem
                 icon={ExternalLink}
                 value={prospect.website || "Website pending"}
               />
+
+              {prospect.source_url ? (
+                <a
+                  className={styles.sourceLink}
+                  href={prospect.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Source
+                  <ExternalLink size={11} />
+                </a>
+              ) : null}
+            </div>
+
+            <div className={styles.contactStack}>
+              <div className={styles.contactStackHead}>
+                <span>POTENTIAL CONTACTS</span>
+                <small>
+                  {(prospect.contacts || []).length} found
+                </small>
+              </div>
+
+              {(prospect.contacts || []).length ? (
+                (prospect.contacts || [])
+                  .slice()
+                  .sort(
+                    (a, b) =>
+                      Number(a.priority || 99) -
+                      Number(b.priority || 99)
+                  )
+                  .slice(0, 3)
+                  .map((contact, contactIndex) => (
+                    <div
+                      className={`${styles.personContact} ${
+                        contact.selected_for_outreach
+                          ? styles.personContactSelected
+                          : ""
+                      }`}
+                      key={contact.id}
+                    >
+                      <button
+                        type="button"
+                        className={styles.contactSelect}
+                        disabled={
+                          Boolean(contact.is_demo) ||
+                          updatingId === contact.id
+                        }
+                        onClick={() =>
+                          onContactSelection(
+                            contact.id,
+                            !contact.selected_for_outreach
+                          )
+                        }
+                        title={
+                          contact.selected_for_outreach
+                            ? "Remove from approved outreach contacts"
+                            : "Select as a potential outreach contact"
+                        }
+                      >
+                        {contact.selected_for_outreach ? (
+                          <CheckCircle2 size={15} />
+                        ) : (
+                          <span>{contactIndex + 1}</span>
+                        )}
+                      </button>
+
+                      <div className={styles.personIdentity}>
+                        <strong>
+                          {contact.full_name ||
+                            [contact.first_name, contact.last_name]
+                              .filter(Boolean)
+                              .join(" ") ||
+                            "Apollo contact"}
+                        </strong>
+                        <span>
+                          {contact.title || "Title unavailable"}
+                        </span>
+                      </div>
+
+                      <div className={styles.personMethods}>
+                        <span>
+                          <Mail size={11} />
+                          {contact.email || "Email not enriched"}
+                        </span>
+                        <span>
+                          <Phone size={11} />
+                          {contact.phone || "Phone not enriched"}
+                        </span>
+                      </div>
+
+                      {contact.linkedin_url ? (
+                        <a
+                          href={contact.linkedin_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={styles.linkedinLink}
+                        >
+                          LinkedIn
+                          <ExternalLink size={10} />
+                        </a>
+                      ) : null}
+                    </div>
+                  ))
+              ) : (
+                <div className={styles.noContacts}>
+                  Apollo contacts have not been enriched for this firm yet.
+                </div>
+              )}
             </div>
 
             <div className={styles.cardFooter}>

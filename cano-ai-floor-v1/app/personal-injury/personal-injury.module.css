@@ -1475,3 +1475,225 @@
     padding-right: 20px;
   }
 }
+
+
+/* =========================================================
+   PI REFERRAL ENGINE — APOLLO MULTI-CONTACT V1
+   ========================================================= */
+
+.apolloBudget {
+  min-width: 118px;
+  padding: 7px 9px;
+  border: 1px solid rgba(107, 184, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(107, 184, 255, 0.025);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 7px;
+  align-items: baseline;
+}
+
+.apolloBudget > span {
+  color: #72a8c9;
+  font-size: 6px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.apolloBudget > strong {
+  color: #a8d8f4;
+  font-size: 12px;
+}
+
+.apolloBudget > small {
+  grid-column: 1 / -1;
+  color: #587783;
+  font-size: 6px;
+}
+
+.firmLinkRow {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.firmLinkRow > div {
+  flex: 1;
+}
+
+.sourceLink,
+.linkedinLink {
+  flex: 0 0 auto;
+  min-height: 29px;
+  padding: 6px 8px;
+  border: 1px solid rgba(107, 184, 255, 0.11);
+  border-radius: 7px;
+  color: #7fb8d9;
+  background: rgba(107, 184, 255, 0.018);
+  text-decoration: none;
+  font-size: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sourceLink:hover,
+.linkedinLink:hover {
+  border-color: rgba(107, 184, 255, 0.26);
+  background: rgba(107, 184, 255, 0.045);
+  color: #acd9f1;
+}
+
+.contactStack {
+  margin-top: 10px;
+  border: 1px solid rgba(173, 194, 206, 0.07);
+  border-radius: 9px;
+  overflow: hidden;
+  background: rgba(3, 12, 18, 0.19);
+}
+
+.contactStackHead {
+  min-height: 31px;
+  padding: 7px 9px;
+  border-bottom: 1px solid rgba(173, 194, 206, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+}
+
+.contactStackHead > span {
+  color: #d8b97f;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.contactStackHead > small {
+  color: #5f7885;
+  font-size: 6px;
+}
+
+.personContact {
+  min-height: 59px;
+  padding: 8px 9px;
+  border-bottom: 1px solid rgba(173, 194, 206, 0.055);
+  display: grid;
+  grid-template-columns: 28px minmax(130px, 1fr) minmax(160px, 1.35fr) auto;
+  gap: 8px;
+  align-items: center;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.personContact:last-child {
+  border-bottom: 0;
+}
+
+.personContactSelected {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(100, 215, 160, 0.035),
+      transparent 72%
+    );
+}
+
+.contactSelect {
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  border: 1px solid rgba(173, 194, 206, 0.11);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.012);
+  color: #718895;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 7px;
+  font-weight: 800;
+}
+
+.personContactSelected .contactSelect {
+  border-color: rgba(100, 215, 160, 0.22);
+  background: rgba(100, 215, 160, 0.045);
+  color: #77d7a8;
+}
+
+.personIdentity {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.personIdentity strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #dce6eb;
+  font-size: 8px;
+}
+
+.personIdentity span {
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #67808c;
+  font-size: 7px;
+}
+
+.personMethods {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.personMethods > span {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #7f96a1;
+  font-size: 7px;
+}
+
+.personMethods svg {
+  flex: 0 0 auto;
+  color: #567785;
+}
+
+.linkedinLink {
+  min-height: 25px;
+  padding: 4px 6px;
+  font-size: 6px;
+}
+
+.noContacts {
+  padding: 12px;
+  color: #607985;
+  font-size: 7px;
+}
+
+@media (max-width: 840px) {
+  .panelActions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .apolloBudget {
+    width: 100%;
+  }
+
+  .personContact {
+    grid-template-columns: 28px 1fr;
+  }
+
+  .personMethods,
+  .personContact .linkedinLink {
+    grid-column: 2;
+  }
+}

@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 type TableName =
   | "pi_referral_prospects"
+  | "pi_referral_contacts"
   | "pi_leads"
   | "pi_campaigns";
+
+const APOLLO_TEST_LIMIT_PER_HOUR = 10;
 
 function config() {
   const url = process.env.SUPABASE_URL?.replace(/\/$/, "");
@@ -54,7 +57,10 @@ async function supabaseRequest(
   }
 }
 
-async function readTable(table: TableName, order: string) {
+async function readTable(
+  table: TableName,
+  order: string
+) {
   return (
     (await supabaseRequest(
       `${table}?select=*&order=${encodeURIComponent(order)}`
@@ -62,19 +68,99 @@ async function readTable(table: TableName, order: string) {
   );
 }
 
+async function getApolloBudget() {
+  const result = await supabaseRequest(
+    "rpc/get_pi_apollo_budget",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        p_limit: APOLLO_TEST_LIMIT_PER_HOUR,
+      }),
+    }
+  );
+
+  const row = Array.isArray(result)
+    ? result[0]
+    : result;
+
+  return {
+    limit: Number(
+      row?.limit_value ||
+      APOLLO_TEST_LIMIT_PER_HOUR
+    ),
+    used: Number(row?.used_value || 0),
+    remaining: Number(
+      row?.remaining_value ??
+      APOLLO_TEST_LIMIT_PER_HOUR
+    ),
+    window_minutes: 60,
+  };
+}
+
 export async function GET() {
   try {
-    const [referrals, leads, campaigns] = await Promise.all([
-      readTable("pi_referral_prospects", "score.desc,created_at.desc"),
-      readTable("pi_leads", "created_at.desc"),
-      readTable("pi_campaigns", "created_at.desc"),
+    const [
+      referrals,
+      contacts,
+      leads,
+      campaigns,
+      apolloBudget,
+    ] = await Promise.all([
+      readTable(
+        "pi_referral_prospects",
+        "score.desc,created_at.desc"
+      ),
+      readTable(
+        "pi_referral_contacts",
+        "priority.asc,created_at.asc"
+      ),
+      readTable(
+        "pi_leads",
+        "created_at.desc"
+      ),
+      readTable(
+        "pi_campaigns",
+        "created_at.desc"
+      ),
+      getApolloBudget(),
     ]);
+
+    const contactsByProspect =
+      new Map<string, any[]>();
+
+    for (const contact of contacts) {
+      const prospectId =
+        String(contact.prospect_id || "");
+
+      if (!contactsByProspect.has(prospectId)) {
+        contactsByProspect.set(
+          prospectId,
+          []
+        );
+      }
+
+      contactsByProspect
+        .get(prospectId)!
+        .push(contact);
+    }
+
+    const hydratedReferrals =
+      referrals.map(
+        (referral: any) => ({
+          ...referral,
+          contacts:
+            contactsByProspect.get(
+              String(referral.id)
+            ) || [],
+        })
+      );
 
     return NextResponse.json({
       ok: true,
-      referrals,
+      referrals: hydratedReferrals,
       leads,
       campaigns,
+      apolloBudget,
     });
   } catch (error) {
     return NextResponse.json(
@@ -90,18 +176,113 @@ export async function GET() {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest
+) {
   try {
-    const body = await request.json();
-    const action = String(body?.action || "");
+    const body =
+      await request.json();
 
-    if (action === "update_referral_status") {
-      const id = String(body?.id || "");
-      const status = String(body?.status || "");
+    const action =
+      String(body?.action || "");
+
+    if (
+      action ===
+      "reserve_apollo_call"
+    ) {
+      const agentId =
+        String(
+          body?.agent_id ||
+          body?.agentId ||
+          "scout"
+        );
+
+      const operation =
+        String(
+          body?.operation ||
+          "apollo_request"
+        );
+
+      const requestedLimit =
+        Number(
+          body?.limit ||
+          APOLLO_TEST_LIMIT_PER_HOUR
+        );
+
+      const limit =
+        Math.max(
+          1,
+          Math.min(
+            APOLLO_TEST_LIMIT_PER_HOUR,
+            Number.isFinite(
+              requestedLimit
+            )
+              ? requestedLimit
+              : APOLLO_TEST_LIMIT_PER_HOUR
+          )
+        );
+
+      const result =
+        await supabaseRequest(
+          "rpc/reserve_pi_apollo_call",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              p_agent_id:
+                agentId,
+              p_operation:
+                operation,
+              p_limit:
+                limit,
+            }),
+          }
+        );
+
+      const row =
+        Array.isArray(result)
+          ? result[0]
+          : result;
+
+      return NextResponse.json({
+        ok: true,
+        allowed:
+          Boolean(row?.allowed),
+        used:
+          Number(
+            row?.used_value || 0
+          ),
+        remaining:
+          Number(
+            row?.remaining_value || 0
+          ),
+        limit:
+          Number(
+            row?.limit_value ||
+            limit
+          ),
+        window_minutes: 60,
+      });
+    }
+
+    if (
+      action ===
+      "update_referral_status"
+    ) {
+      const id =
+        String(body?.id || "");
+
+      const status =
+        String(
+          body?.status || ""
+        );
 
       if (!id || !status) {
         return NextResponse.json(
-          { ok: false, error: "id and status are required." },
+          {
+            ok: false,
+            error:
+              "id and status are required.",
+          },
           { status: 400 }
         );
       }
@@ -110,24 +291,87 @@ export async function POST(request: NextRequest) {
         `pi_referral_prospects?id=eq.${encodeURIComponent(id)}`,
         {
           method: "PATCH",
-          headers: { Prefer: "return=representation" },
+          headers: {
+            Prefer:
+              "return=representation",
+          },
           body: JSON.stringify({
-            relationship_status: status,
-            updated_at: new Date().toISOString(),
+            relationship_status:
+              status,
+            updated_at:
+              new Date()
+                .toISOString(),
           }),
         }
       );
 
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({
+        ok: true,
+      });
     }
 
-    if (action === "update_lead_status") {
-      const id = String(body?.id || "");
-      const status = String(body?.status || "");
+    if (
+      action ===
+      "update_referral_contact"
+    ) {
+      const id =
+        String(body?.id || "");
+
+      if (!id) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "contact id is required.",
+          },
+          { status: 400 }
+        );
+      }
+
+      await supabaseRequest(
+        `pi_referral_contacts?id=eq.${encodeURIComponent(id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            Prefer:
+              "return=representation",
+          },
+          body: JSON.stringify({
+            selected_for_outreach:
+              Boolean(
+                body?.selected_for_outreach
+              ),
+            updated_at:
+              new Date()
+                .toISOString(),
+          }),
+        }
+      );
+
+      return NextResponse.json({
+        ok: true,
+      });
+    }
+
+    if (
+      action ===
+      "update_lead_status"
+    ) {
+      const id =
+        String(body?.id || "");
+
+      const status =
+        String(
+          body?.status || ""
+        );
 
       if (!id || !status) {
         return NextResponse.json(
-          { ok: false, error: "id and status are required." },
+          {
+            ok: false,
+            error:
+              "id and status are required.",
+          },
           { status: 400 }
         );
       }
@@ -136,217 +380,770 @@ export async function POST(request: NextRequest) {
         `pi_leads?id=eq.${encodeURIComponent(id)}`,
         {
           method: "PATCH",
-          headers: { Prefer: "return=representation" },
+          headers: {
+            Prefer:
+              "return=representation",
+          },
           body: JSON.stringify({
             status,
-            updated_at: new Date().toISOString(),
+            updated_at:
+              new Date()
+                .toISOString(),
           }),
         }
       );
 
-      return NextResponse.json({ ok: true });
-    }
-
-    if (action === "create_referral") {
-      const payload = body?.payload || {};
-
-      const row = await supabaseRequest("pi_referral_prospects", {
-        method: "POST",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify({
-          organization_name: String(payload.organization_name || ""),
-          contact_name: String(payload.contact_name || ""),
-          category: String(payload.category || ""),
-          city: String(payload.city || ""),
-          state: String(payload.state || "FL"),
-          website: String(payload.website || ""),
-          email: String(payload.email || ""),
-          phone: String(payload.phone || ""),
-          why_fit: String(payload.why_fit || ""),
-          source_url: String(payload.source_url || ""),
-          relationship_status: String(
-            payload.relationship_status || "new"
-          ),
-          score: Number(payload.score || 0),
-          metadata:
-            payload.metadata && typeof payload.metadata === "object"
-              ? payload.metadata
-              : {},
-        }),
+      return NextResponse.json({
+        ok: true,
       });
-
-      return NextResponse.json({ ok: true, row });
     }
 
-    if (action === "bulk_upsert_referrals") {
-      const rows = Array.isArray(body?.rows) ? body.rows : [];
+    if (
+      action ===
+      "bulk_upsert_referrals"
+    ) {
+      const rows =
+        Array.isArray(body?.rows)
+          ? body.rows
+          : [];
 
       if (!rows.length) {
         return NextResponse.json(
-          { ok: false, error: "rows are required." },
+          {
+            ok: false,
+            error:
+              "rows are required.",
+          },
           { status: 400 }
         );
       }
 
-      const normalized = rows.map((payload: any) => ({
-        organization_name: String(payload.organization_name || ""),
-        contact_name: String(payload.contact_name || ""),
-        category: String(payload.category || ""),
-        city: String(payload.city || ""),
-        state: String(payload.state || "FL"),
-        website: String(payload.website || ""),
-        email: String(payload.email || ""),
-        phone: String(payload.phone || ""),
-        why_fit: String(payload.why_fit || ""),
-        source_url: String(payload.source_url || ""),
-        relationship_status: String(
-          payload.relationship_status || "new"
-        ),
-        score: Number(payload.score || 0),
-        metadata:
-          payload.metadata && typeof payload.metadata === "object"
-            ? payload.metadata
-            : {},
-        updated_at: new Date().toISOString(),
-      }));
+      const normalized =
+        rows.map(
+          (payload: any) => ({
+            organization_name:
+              String(
+                payload.organization_name ||
+                ""
+              ),
 
-      const result = await supabaseRequest(
-        "pi_referral_prospects?on_conflict=organization_name,city,state",
-        {
-          method: "POST",
-          headers: {
-            Prefer: "resolution=merge-duplicates,return=representation",
-          },
-          body: JSON.stringify(normalized),
+            contact_name:
+              String(
+                payload.contact_name ||
+                ""
+              ),
+
+            category:
+              String(
+                payload.category ||
+                ""
+              ),
+
+            city:
+              String(
+                payload.city || ""
+              ),
+
+            state:
+              String(
+                payload.state || "FL"
+              ),
+
+            website:
+              String(
+                payload.website || ""
+              ),
+
+            email:
+              String(
+                payload.email || ""
+              ),
+
+            phone:
+              String(
+                payload.phone || ""
+              ),
+
+            why_fit:
+              String(
+                payload.why_fit || ""
+              ),
+
+            source_url:
+              String(
+                payload.source_url ||
+                ""
+              ),
+
+            apollo_organization_id:
+              String(
+                payload.apollo_organization_id ||
+                ""
+              ),
+
+            organization_domain:
+              String(
+                payload.organization_domain ||
+                ""
+              ),
+
+            relationship_status:
+              String(
+                payload.relationship_status ||
+                "new"
+              ),
+
+            score:
+              Math.max(
+                0,
+                Math.min(
+                  100,
+                  Number(
+                    payload.score || 0
+                  )
+                )
+              ),
+
+            metadata:
+              payload.metadata &&
+              typeof payload.metadata ===
+                "object"
+                ? payload.metadata
+                : {},
+
+            updated_at:
+              new Date()
+                .toISOString(),
+          })
+        );
+
+      const prospects =
+        await supabaseRequest(
+          "pi_referral_prospects?on_conflict=organization_name,city,state",
+          {
+            method: "POST",
+            headers: {
+              Prefer:
+                "resolution=merge-duplicates,return=representation",
+            },
+            body:
+              JSON.stringify(
+                normalized
+              ),
+          }
+        );
+
+      const returnedProspects =
+        Array.isArray(prospects)
+          ? prospects
+          : [];
+
+      const contactRows: any[] =
+        [];
+
+      for (
+        let i = 0;
+        i < rows.length;
+        i++
+      ) {
+        const source =
+          rows[i] || {};
+
+        const prospect =
+          returnedProspects.find(
+            (candidate: any) =>
+              String(
+                candidate.organization_name ||
+                ""
+              )
+                .trim()
+                .toLowerCase() ===
+                String(
+                  source.organization_name ||
+                  ""
+                )
+                  .trim()
+                  .toLowerCase() &&
+              String(
+                candidate.city ||
+                ""
+              )
+                .trim()
+                .toLowerCase() ===
+                String(
+                  source.city || ""
+                )
+                  .trim()
+                  .toLowerCase() &&
+              String(
+                candidate.state ||
+                ""
+              )
+                .trim()
+                .toLowerCase() ===
+                String(
+                  source.state || "FL"
+                )
+                  .trim()
+                  .toLowerCase()
+          );
+
+        if (
+          !prospect ||
+          !Array.isArray(
+            source.contacts
+          )
+        ) {
+          continue;
         }
-      );
 
-      return NextResponse.json({ ok: true, rows: result });
-    }
+        for (
+          let c = 0;
+          c <
+          source.contacts.length;
+          c++
+        ) {
+          const contact =
+            source.contacts[c] ||
+            {};
 
-    if (action === "create_outreach_event") {
-      const payload = body?.payload || {};
+          const apolloPersonId =
+            String(
+              contact.apollo_person_id ||
+              contact.id ||
+              ""
+            ).trim();
 
-      const row = await supabaseRequest("pi_outreach_events", {
-        method: "POST",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify({
-          referral_prospect_id:
-            payload.referral_prospect_id || null,
-          channel: String(payload.channel || ""),
-          direction: String(payload.direction || "outbound"),
-          status: String(payload.status || "draft"),
-          subject: String(payload.subject || ""),
-          message_summary: String(payload.message_summary || ""),
-          approved_by: String(payload.approved_by || ""),
-          approved_at: payload.approved_at || null,
-          occurred_at: payload.occurred_at || null,
-          next_follow_up_at: payload.next_follow_up_at || null,
-          metadata:
-            payload.metadata && typeof payload.metadata === "object"
-              ? payload.metadata
-              : {},
-        }),
+          if (!apolloPersonId) {
+            continue;
+          }
+
+          contactRows.push({
+            prospect_id:
+              prospect.id,
+
+            apollo_person_id:
+              apolloPersonId,
+
+            first_name:
+              String(
+                contact.first_name ||
+                ""
+              ),
+
+            last_name:
+              String(
+                contact.last_name ||
+                ""
+              ),
+
+            full_name:
+              String(
+                contact.full_name ||
+                [
+                  contact.first_name,
+                  contact.last_name,
+                ]
+                  .filter(Boolean)
+                  .join(" ")
+              ),
+
+            title:
+              String(
+                contact.title || ""
+              ),
+
+            seniority:
+              String(
+                contact.seniority ||
+                ""
+              ),
+
+            email:
+              String(
+                contact.email || ""
+              ),
+
+            phone:
+              String(
+                contact.phone || ""
+              ),
+
+            linkedin_url:
+              String(
+                contact.linkedin_url ||
+                ""
+              ),
+
+            priority:
+              Math.max(
+                1,
+                Math.min(
+                  99,
+                  Number(
+                    contact.priority ||
+                    c + 1
+                  )
+                )
+              ),
+
+            selected_for_outreach:
+              Boolean(
+                contact.selected_for_outreach
+              ),
+
+            enrichment_status:
+              String(
+                contact.enrichment_status ||
+                "search_only"
+              ),
+
+            email_status:
+              String(
+                contact.email_status ||
+                ""
+              ),
+
+            metadata:
+              contact.metadata &&
+              typeof contact.metadata ===
+                "object"
+                ? contact.metadata
+                : {},
+
+            updated_at:
+              new Date()
+                .toISOString(),
+          });
+        }
+      }
+
+      let contacts: any[] =
+        [];
+
+      if (
+        contactRows.length
+      ) {
+        const saved =
+          await supabaseRequest(
+            "pi_referral_contacts?on_conflict=prospect_id,apollo_person_id",
+            {
+              method: "POST",
+              headers: {
+                Prefer:
+                  "resolution=merge-duplicates,return=representation",
+              },
+              body:
+                JSON.stringify(
+                  contactRows
+                ),
+            }
+          );
+
+        contacts =
+          Array.isArray(saved)
+            ? saved
+            : [];
+      }
+
+      return NextResponse.json({
+        ok: true,
+        rows:
+          returnedProspects,
+        contacts,
       });
-
-      return NextResponse.json({ ok: true, row });
     }
 
-    if (action === "create_compliance_review") {
-      const payload = body?.payload || {};
-
-      const row = await supabaseRequest("pi_compliance_reviews", {
-        method: "POST",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify({
-          review_type: String(payload.review_type || ""),
-          subject_type: String(payload.subject_type || ""),
-          subject_id: String(payload.subject_id || ""),
-          status: String(payload.status || "needs_review"),
-          notes: String(payload.notes || ""),
-          reviewed_by: String(payload.reviewed_by || ""),
-          reviewed_at: payload.reviewed_at || null,
-          metadata:
-            payload.metadata && typeof payload.metadata === "object"
-              ? payload.metadata
-              : {},
-        }),
-      });
-
-      return NextResponse.json({ ok: true, row });
-    }
-
-    if (action === "upsert_campaigns") {
-      const rows = Array.isArray(body?.rows) ? body.rows : [];
+    if (
+      action ===
+      "bulk_upsert_referral_contacts"
+    ) {
+      const rows =
+        Array.isArray(body?.rows)
+          ? body.rows
+          : [];
 
       if (!rows.length) {
         return NextResponse.json(
-          { ok: false, error: "rows are required." },
+          {
+            ok: false,
+            error:
+              "rows are required.",
+          },
           { status: 400 }
         );
       }
 
-      const normalized = rows.map((payload: any) => ({
-        name: String(payload.name || ""),
-        channel: String(payload.channel || ""),
-        status: String(payload.status || "draft"),
-        leads: Number(payload.leads || 0),
-        consults: Number(payload.consults || 0),
-        signed: Number(payload.signed || 0),
-        spend: Number(payload.spend || 0),
-        notes: String(payload.notes || ""),
-        metadata:
-          payload.metadata && typeof payload.metadata === "object"
-            ? payload.metadata
-            : {},
-        updated_at: new Date().toISOString(),
-      }));
+      const saved =
+        await supabaseRequest(
+          "pi_referral_contacts?on_conflict=prospect_id,apollo_person_id",
+          {
+            method: "POST",
+            headers: {
+              Prefer:
+                "resolution=merge-duplicates,return=representation",
+            },
+            body:
+              JSON.stringify(rows),
+          }
+        );
 
-      const result = await supabaseRequest(
-        "pi_campaigns?on_conflict=name,channel",
-        {
-          method: "POST",
-          headers: {
-            Prefer: "resolution=merge-duplicates,return=representation",
-          },
-          body: JSON.stringify(normalized),
-        }
-      );
-
-      return NextResponse.json({ ok: true, rows: result });
+      return NextResponse.json({
+        ok: true,
+        rows:
+          Array.isArray(saved)
+            ? saved
+            : [],
+      });
     }
 
-    if (action === "create_lead") {
-      const payload = body?.payload || {};
+    if (
+      action ===
+      "create_outreach_event"
+    ) {
+      const payload =
+        body?.payload || {};
 
-      const row = await supabaseRequest("pi_leads", {
-        method: "POST",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify({
-          name: String(payload.name || ""),
-          source: String(payload.source || ""),
-          accident_type: String(payload.accident_type || ""),
-          city: String(payload.city || ""),
-          state: String(payload.state || "FL"),
-          phone: String(payload.phone || ""),
-          email: String(payload.email || ""),
-          summary: String(payload.summary || ""),
-          urgency: String(payload.urgency || "medium"),
-          status: String(payload.status || "new"),
-          metadata:
-            payload.metadata && typeof payload.metadata === "object"
-              ? payload.metadata
-              : {},
-        }),
+      const row =
+        await supabaseRequest(
+          "pi_outreach_events",
+          {
+            method: "POST",
+            headers: {
+              Prefer:
+                "return=representation",
+            },
+            body: JSON.stringify({
+              referral_prospect_id:
+                payload.referral_prospect_id ||
+                null,
+
+              channel:
+                String(
+                  payload.channel || ""
+                ),
+
+              direction:
+                String(
+                  payload.direction ||
+                  "outbound"
+                ),
+
+              status:
+                String(
+                  payload.status ||
+                  "draft"
+                ),
+
+              subject:
+                String(
+                  payload.subject || ""
+                ),
+
+              message_summary:
+                String(
+                  payload.message_summary ||
+                  ""
+                ),
+
+              approved_by:
+                String(
+                  payload.approved_by ||
+                  ""
+                ),
+
+              approved_at:
+                payload.approved_at ||
+                null,
+
+              occurred_at:
+                payload.occurred_at ||
+                null,
+
+              next_follow_up_at:
+                payload.next_follow_up_at ||
+                null,
+
+              metadata:
+                payload.metadata &&
+                typeof payload.metadata ===
+                  "object"
+                  ? payload.metadata
+                  : {},
+            }),
+          }
+        );
+
+      return NextResponse.json({
+        ok: true,
+        row,
       });
+    }
 
-      return NextResponse.json({ ok: true, row });
+    if (
+      action ===
+      "create_compliance_review"
+    ) {
+      const payload =
+        body?.payload || {};
+
+      const row =
+        await supabaseRequest(
+          "pi_compliance_reviews",
+          {
+            method: "POST",
+            headers: {
+              Prefer:
+                "return=representation",
+            },
+            body: JSON.stringify({
+              review_type:
+                String(
+                  payload.review_type ||
+                  ""
+                ),
+
+              subject_type:
+                String(
+                  payload.subject_type ||
+                  ""
+                ),
+
+              subject_id:
+                String(
+                  payload.subject_id ||
+                  ""
+                ),
+
+              status:
+                String(
+                  payload.status ||
+                  "needs_review"
+                ),
+
+              notes:
+                String(
+                  payload.notes || ""
+                ),
+
+              reviewed_by:
+                String(
+                  payload.reviewed_by ||
+                  ""
+                ),
+
+              reviewed_at:
+                payload.reviewed_at ||
+                null,
+
+              metadata:
+                payload.metadata &&
+                typeof payload.metadata ===
+                  "object"
+                  ? payload.metadata
+                  : {},
+            }),
+          }
+        );
+
+      return NextResponse.json({
+        ok: true,
+        row,
+      });
+    }
+
+    if (
+      action ===
+      "upsert_campaigns"
+    ) {
+      const rows =
+        Array.isArray(body?.rows)
+          ? body.rows
+          : [];
+
+      if (!rows.length) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "rows are required.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const normalized =
+        rows.map(
+          (payload: any) => ({
+            name:
+              String(
+                payload.name || ""
+              ),
+
+            channel:
+              String(
+                payload.channel || ""
+              ),
+
+            status:
+              String(
+                payload.status ||
+                "draft"
+              ),
+
+            leads:
+              Number(
+                payload.leads || 0
+              ),
+
+            consults:
+              Number(
+                payload.consults || 0
+              ),
+
+            signed:
+              Number(
+                payload.signed || 0
+              ),
+
+            spend:
+              Number(
+                payload.spend || 0
+              ),
+
+            notes:
+              String(
+                payload.notes || ""
+              ),
+
+            metadata:
+              payload.metadata &&
+              typeof payload.metadata ===
+                "object"
+                ? payload.metadata
+                : {},
+
+            updated_at:
+              new Date()
+                .toISOString(),
+          })
+        );
+
+      const result =
+        await supabaseRequest(
+          "pi_campaigns?on_conflict=name,channel",
+          {
+            method: "POST",
+            headers: {
+              Prefer:
+                "resolution=merge-duplicates,return=representation",
+            },
+            body:
+              JSON.stringify(
+                normalized
+              ),
+          }
+        );
+
+      return NextResponse.json({
+        ok: true,
+        rows:
+          Array.isArray(result)
+            ? result
+            : [],
+      });
+    }
+
+    if (
+      action ===
+      "create_lead"
+    ) {
+      const payload =
+        body?.payload || {};
+
+      const row =
+        await supabaseRequest(
+          "pi_leads",
+          {
+            method: "POST",
+            headers: {
+              Prefer:
+                "return=representation",
+            },
+            body: JSON.stringify({
+              name:
+                String(
+                  payload.name || ""
+                ),
+
+              source:
+                String(
+                  payload.source || ""
+                ),
+
+              accident_type:
+                String(
+                  payload.accident_type ||
+                  ""
+                ),
+
+              city:
+                String(
+                  payload.city || ""
+                ),
+
+              state:
+                String(
+                  payload.state || "FL"
+                ),
+
+              phone:
+                String(
+                  payload.phone || ""
+                ),
+
+              email:
+                String(
+                  payload.email || ""
+                ),
+
+              summary:
+                String(
+                  payload.summary || ""
+                ),
+
+              urgency:
+                String(
+                  payload.urgency ||
+                  "medium"
+                ),
+
+              status:
+                String(
+                  payload.status || "new"
+                ),
+
+              metadata:
+                payload.metadata &&
+                typeof payload.metadata ===
+                  "object"
+                  ? payload.metadata
+                  : {},
+            }),
+          }
+        );
+
+      return NextResponse.json({
+        ok: true,
+        row,
+      });
     }
 
     return NextResponse.json(
       {
         ok: false,
-        error: `Unsupported PI workspace action: ${action}`,
+        error:
+          `Unsupported PI workspace action: ${action}`,
       },
       { status: 400 }
     );
