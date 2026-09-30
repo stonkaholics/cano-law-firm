@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import FloorSwitcher from "./components/FloorSwitcher";
 
 export const metadata: Metadata = {
   title: "Cano Law Firm | AI Legal Operations Floor",
@@ -13,7 +14,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <FloorSwitcher />
+        {children}
+      </body>
     </html>
   );
 }
