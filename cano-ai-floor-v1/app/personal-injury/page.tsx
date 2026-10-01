@@ -1496,8 +1496,9 @@ export default function PersonalInjuryFloor() {
             runningAgent={runningAgent}
             onRunPulse={() =>
               runPiAgent("pulse", {
-                mode: "sync_and_qualify",
-                includeIncidentWatch: true,
+                mode: "manual_pulse_run",
+                geography: "Florida",
+                requestedFrom: "lead_engine",
               })
             }
             onSyncMiamiDade={() =>
@@ -1505,28 +1506,37 @@ export default function PersonalInjuryFloor() {
                 mode: "sync_public_incidents",
                 geography: "Miami-Dade County, Florida",
                 sources: ["miami_dade_mdfr"],
+                requestedFrom: "lead_engine",
               })
             }
-            onSyncBroward={() =>
+            onSyncFhp={() =>
+              runPiAgent("pulse", {
+                mode: "sync_public_incidents",
+                geography: "Miami-Dade and Broward Counties, Florida",
+                sources: ["fhp_south_florida"],
+                requestedFrom: "lead_engine",
+              })
+            }
+            onSyncFl511={() =>
               runPiAgent("pulse", {
                 mode: "sync_public_incidents",
                 geography: "Broward County, Florida",
-                sources: [
-                  "fort_lauderdale_fire_active_calls",
-                  "broward_bso_public_alerts",
-                  "fl511_broward",
-                  "fhp_broward",
-                ],
+                sources: ["fl511_broward"],
+                requestedFrom: "lead_engine",
               })
             }
-            onHistoricalBootstrap={() =>
+            onSyncFortLauderdale={() =>
               runPiAgent("pulse", {
-                mode: "historical_bootstrap",
-                geography: "South Florida",
-                counties: ["Miami-Dade", "Broward"],
-                lookbackDays: 75,
-                cutoffDays: 29,
-                maxResultsPerCounty: 250,
+                mode: "sync_public_incidents",
+                geography: "Broward County, Florida",
+                sources: ["fort_lauderdale_fire"],
+                requestedFrom: "lead_engine",
+              })
+            }
+            onEligibilityScan={() =>
+              runPiAgent("pulse", {
+                mode: "eligibility_scan",
+                geography: "Florida",
                 requestedFrom: "lead_engine",
               })
             }
@@ -1719,8 +1729,9 @@ export default function PersonalInjuryFloor() {
                   runningAgent={runningAgent}
                   onRunPulse={() =>
                     runPiAgent("pulse", {
-                      mode: "sync_and_qualify",
-                      includeIncidentWatch: true,
+                      mode: "manual_pulse_run",
+                      geography: "Florida",
+                      requestedFrom: "pulse_workstation",
                     })
                   }
                   onSyncMiamiDade={() =>
@@ -1728,28 +1739,37 @@ export default function PersonalInjuryFloor() {
                       mode: "sync_public_incidents",
                       geography: "Miami-Dade County, Florida",
                       sources: ["miami_dade_mdfr"],
+                      requestedFrom: "pulse_workstation",
                     })
                   }
-                  onSyncBroward={() =>
+                  onSyncFhp={() =>
+                    runPiAgent("pulse", {
+                      mode: "sync_public_incidents",
+                      geography: "Miami-Dade and Broward Counties, Florida",
+                      sources: ["fhp_south_florida"],
+                      requestedFrom: "pulse_workstation",
+                    })
+                  }
+                  onSyncFl511={() =>
                     runPiAgent("pulse", {
                       mode: "sync_public_incidents",
                       geography: "Broward County, Florida",
-                      sources: [
-                        "fort_lauderdale_fire_active_calls",
-                        "broward_bso_public_alerts",
-                        "fl511_broward",
-                        "fhp_broward"
-                      ],
+                      sources: ["fl511_broward"],
+                      requestedFrom: "pulse_workstation",
                     })
                   }
-                  onHistoricalBootstrap={() =>
+                  onSyncFortLauderdale={() =>
                     runPiAgent("pulse", {
-                      mode: "historical_bootstrap",
-                      geography: "South Florida",
-                      counties: ["Miami-Dade", "Broward"],
-                      lookbackDays: 75,
-                      cutoffDays: 29,
-                      maxResultsPerCounty: 250,
+                      mode: "sync_public_incidents",
+                      geography: "Broward County, Florida",
+                      sources: ["fort_lauderdale_fire"],
+                      requestedFrom: "pulse_workstation",
+                    })
+                  }
+                  onEligibilityScan={() =>
+                    runPiAgent("pulse", {
+                      mode: "eligibility_scan",
+                      geography: "Florida",
                       requestedFrom: "pulse_workstation",
                     })
                   }
@@ -2225,8 +2245,10 @@ function LeadEngine({
   runningAgent,
   onRunPulse,
   onSyncMiamiDade,
-  onSyncBroward,
-  onHistoricalBootstrap,
+  onSyncFhp,
+  onSyncFl511,
+  onSyncFortLauderdale,
+  onEligibilityScan,
 }: {
   leads: PiLead[];
   incidents: IncidentWatch[];
@@ -2241,8 +2263,10 @@ function LeadEngine({
   runningAgent: string | null;
   onRunPulse: () => void;
   onSyncMiamiDade: () => void;
-  onSyncBroward: () => void;
-  onHistoricalBootstrap: () => void;
+  onSyncFhp: () => void;
+  onSyncFl511: () => void;
+  onSyncFortLauderdale: () => void;
+  onEligibilityScan: () => void;
 }) {
   const nowMs = Date.now();
   const dayMs = 24 * 60 * 60 * 1000;
@@ -2418,12 +2442,12 @@ function LeadEngine({
 
           <button
             className={styles.secondaryPanelAction}
-            onClick={onHistoricalBootstrap}
+            onClick={onEligibilityScan}
             disabled={Boolean(runningAgent)}
-            title="Backfill South Florida crash events approximately 31–75 days old"
+            title="Recheck incident aging windows and refresh the Guard review queue"
           >
-            <Clock3 size={14} />
-            Bootstrap 31–75 Days
+            <ShieldCheck size={14} />
+            Check Review Queue
           </button>
         </div>
       </div>
@@ -2511,6 +2535,23 @@ function LeadEngine({
           </div>
         </div>
 
+        <div className={styles.liveSourceTestStrip}>
+          <div>
+            <span>LIVE SOURCE TESTING</span>
+            <strong>Fire each n8n branch independently</strong>
+            <p>
+              Each button sends one exact source key so the n8n Switch can route
+              directly to the matching fetch → parse → save chain.
+            </p>
+          </div>
+          <div className={styles.liveSourceKeyLegend}>
+            <em>miami_dade_mdfr</em>
+            <em>fhp_south_florida</em>
+            <em>fl511_broward</em>
+            <em>fort_lauderdale_fire</em>
+          </div>
+        </div>
+
         <div className={styles.sourceMonitorGrid}>
           {incidentSources.length ? (
             incidentSources.map((source) => (
@@ -2565,35 +2606,65 @@ function LeadEngine({
           <button
             onClick={onSyncMiamiDade}
             disabled={Boolean(runningAgent)}
+            title="Run only the Miami-Dade Fire Rescue CAD branch"
           >
             <RefreshCw
               size={13}
               className={runningAgent === "pulse" ? styles.spin : undefined}
             />
-            Sync Miami-Dade
+            Sync MDFR
           </button>
 
           <button
-            onClick={onSyncBroward}
+            onClick={onSyncFhp}
             disabled={Boolean(runningAgent)}
+            className={styles.liveSourceButton}
+            title="Run only the Florida Highway Patrol South Florida branch"
           >
             <RefreshCw
               size={13}
               className={runningAgent === "pulse" ? styles.spin : undefined}
             />
-            Sync Broward
+            Sync FHP
           </button>
 
           <button
-            onClick={onHistoricalBootstrap}
+            onClick={onSyncFl511}
             disabled={Boolean(runningAgent)}
-            className={styles.bootstrapButton}
+            className={styles.liveSourceButton}
+            title="Run only the FL511 Broward branch"
           >
-            <Clock3
+            <RefreshCw
               size={13}
               className={runningAgent === "pulse" ? styles.spin : undefined}
             />
-            Bootstrap Historical
+            Sync FL511
+          </button>
+
+          <button
+            onClick={onSyncFortLauderdale}
+            disabled={Boolean(runningAgent)}
+            className={styles.liveSourceButton}
+            title="Run only the Fort Lauderdale Fire Rescue branch"
+          >
+            <RefreshCw
+              size={13}
+              className={runningAgent === "pulse" ? styles.spin : undefined}
+            />
+            Sync Fort Lauderdale
+          </button>
+
+          <button
+            onClick={onEligibilityScan}
+            disabled={Boolean(runningAgent)}
+            className={styles.reviewQueueButton}
+            title="Recalculate which stored incidents are due now or within 24 hours"
+          >
+            <ShieldCheck
+              size={13}
+              className={runningAgent === "pulse" ? styles.spin : undefined}
+            />
+            Check Review Queue
           </button>
         </div>
 
@@ -2691,13 +2762,9 @@ function LeadEngine({
                   30 days for today&apos;s live incidents to mature.
                 </p>
               </div>
-              <button
-                onClick={onHistoricalBootstrap}
-                disabled={Boolean(runningAgent)}
-              >
-                <Clock3 size={13} />
-                Run Historical Bootstrap
-              </button>
+              <div className={styles.historicalPausedBadge}>
+                HISTORICAL IMPORT PAUSED
+              </div>
             </div>
           )}
         </div>

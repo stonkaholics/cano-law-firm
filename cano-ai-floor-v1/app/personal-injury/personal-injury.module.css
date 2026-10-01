@@ -2792,3 +2792,103 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =========================================================
+   V10 · LIVE PULSE SOURCE CONTROLS
+   ========================================================= */
+
+.liveSourceTestStrip {
+  margin: 10px 10px 0;
+  padding: 10px 11px;
+  border: 1px solid rgba(107,184,255,.09);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(107,184,255,.025), transparent 62%),
+    rgba(255,255,255,.005);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.liveSourceTestStrip > div:first-child {
+  min-width: 0;
+}
+
+.liveSourceTestStrip span {
+  color: #70a8c0;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.liveSourceTestStrip strong {
+  display: block;
+  margin-top: 3px;
+  color: #dce6ea;
+  font-family: Georgia, serif;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.liveSourceTestStrip p {
+  max-width: 700px;
+  margin: 4px 0 0;
+  color: #607b88;
+  font-size: 7px;
+  line-height: 1.45;
+}
+
+.liveSourceKeyLegend {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.liveSourceKeyLegend em {
+  padding: 4px 6px;
+  border: 1px solid rgba(107,184,255,.09);
+  border-radius: 999px;
+  color: #7397a8;
+  background: rgba(107,184,255,.02);
+  font-size: 6px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.liveSourceButton {
+  border-color: rgba(100,215,160,.14) !important;
+  background: rgba(100,215,160,.025) !important;
+  color: #80c8a3 !important;
+}
+
+.reviewQueueButton {
+  border-color: rgba(224,191,133,.18) !important;
+  background: rgba(224,191,133,.035) !important;
+  color: #d7b879 !important;
+}
+
+.historicalPausedBadge {
+  flex: 0 0 auto;
+  padding: 7px 9px;
+  border: 1px solid rgba(173,194,206,.08);
+  border-radius: 7px;
+  color: #6f8894;
+  background: rgba(255,255,255,.01);
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .075em;
+}
+
+@media (max-width: 900px) {
+  .liveSourceTestStrip {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .liveSourceKeyLegend {
+    justify-content: flex-start;
+  }
+}
