@@ -10,7 +10,8 @@ type TableName =
   | "pi_outreach_events"
   | "pi_incident_sources"
   | "pi_incident_intelligence"
-  | "pi_incident_people";
+  | "pi_incident_people"
+  | "pi_report_research_tasks";
 
 const APOLLO_TEST_LIMIT_PER_HOUR = 10;
 
@@ -1491,6 +1492,162 @@ export async function POST(
       return NextResponse.json({
         ok: true,
         rows: Array.isArray(result) ? result : [],
+      });
+    }
+
+
+    if (
+      action ===
+      "create_report_research_task"
+    ) {
+      const incidentId = String(
+        body?.incident_id ||
+        body?.incidentId ||
+        ""
+      ).trim();
+
+      if (!incidentId) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "incident_id is required.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const intelligenceId =
+        String(
+          body?.intelligence_id ||
+          body?.intelligenceId ||
+          ""
+        ).trim() || null;
+
+      const agentId =
+        String(
+          body?.agent_id ||
+          body?.agentId ||
+          "pulse"
+        ).trim() || "pulse";
+
+      const taskType =
+        String(
+          body?.task_type ||
+          body?.taskType ||
+          "official_crash_report_lookup"
+        ).trim() ||
+        "official_crash_report_lookup";
+
+      const identifiers =
+        body?.identifiers &&
+        typeof body.identifiers ===
+          "object" &&
+        !Array.isArray(body.identifiers)
+          ? body.identifiers
+          : {};
+
+      const fingerprint =
+        body?.fingerprint &&
+        typeof body.fingerprint ===
+          "object" &&
+        !Array.isArray(body.fingerprint)
+          ? body.fingerprint
+          : {};
+
+      const portal =
+        body?.portal &&
+        typeof body.portal ===
+          "object" &&
+        !Array.isArray(body.portal)
+          ? body.portal
+          : {};
+
+      const verificationRules =
+        body?.verification_rules &&
+        typeof body.verification_rules ===
+          "object" &&
+        !Array.isArray(
+          body.verification_rules
+        )
+          ? body.verification_rules
+          : {};
+
+      const researchContext =
+        body?.research_context &&
+        typeof body.research_context ===
+          "object" &&
+        !Array.isArray(
+          body.research_context
+        )
+          ? body.research_context
+          : {};
+
+      const requestedFields =
+        Array.isArray(
+          body?.requested_fields
+        )
+          ? body.requested_fields
+          : [];
+
+      const normalized = {
+        incident_id: incidentId,
+        intelligence_id:
+          intelligenceId,
+        agent_id: agentId,
+        task_type: taskType,
+        provider: String(
+          body?.provider || ""
+        ),
+        status:
+          String(
+            body?.status ||
+            "ready_for_official_lookup"
+          ) ||
+          "ready_for_official_lookup",
+        priority:
+          String(
+            body?.priority ||
+            "normal"
+          ) || "normal",
+        identifiers,
+        fingerprint,
+        portal,
+        requested_fields:
+          requestedFields,
+        verification_rules:
+          verificationRules,
+        research_context:
+          researchContext,
+        next_action: String(
+          body?.next_action || ""
+        ),
+        updated_at:
+          new Date().toISOString(),
+      };
+
+      const result =
+        await supabaseRequest(
+          "pi_report_research_tasks?on_conflict=incident_id,task_type",
+          {
+            method: "POST",
+            headers: {
+              Prefer:
+                "resolution=merge-duplicates,return=representation",
+            },
+            body: JSON.stringify([
+              normalized,
+            ]),
+          }
+        );
+
+      return NextResponse.json({
+        ok: true,
+        action:
+          "create_report_research_task",
+        rows: Array.isArray(result)
+          ? result
+          : [],
       });
     }
 
