@@ -1517,6 +1517,17 @@ export default function PersonalInjuryFloor() {
                 ],
               })
             }
+            onHistoricalBootstrap={() =>
+              runPiAgent("pulse", {
+                mode: "historical_bootstrap",
+                geography: "South Florida",
+                counties: ["Miami-Dade", "Broward"],
+                lookbackDays: 75,
+                cutoffDays: 29,
+                maxResultsPerCounty: 250,
+                requestedFrom: "lead_engine",
+              })
+            }
           />
         )}
 
@@ -1729,6 +1740,17 @@ export default function PersonalInjuryFloor() {
                       ],
                     })
                   }
+                  onHistoricalBootstrap={() =>
+                    runPiAgent("pulse", {
+                      mode: "historical_bootstrap",
+                      geography: "South Florida",
+                      counties: ["Miami-Dade", "Broward"],
+                      lookbackDays: 75,
+                      cutoffDays: 29,
+                      maxResultsPerCounty: 250,
+                      requestedFrom: "pulse_workstation",
+                    })
+                  }
                 />
               ) : ["beacon", "radar", "launch", "ledger", "catalyst"].includes(
                   selectedAgent.id
@@ -1937,6 +1959,41 @@ function ReferralEngine({
               Test 10 Firms
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className={styles.pulseSnapshot}>
+        <div className={styles.pulseSnapshotCard}>
+          <span>LIVE · LAST 24H</span>
+          <strong>{liveIncidents.length}</strong>
+          <small>public incident signals</small>
+        </div>
+        <div className={styles.pulseSnapshotCard}>
+          <span>REVIEW WITHIN 24H</span>
+          <strong>{reviewWithin24h.length}</strong>
+          <small>prepare Guard review</small>
+        </div>
+        <div className={`${styles.pulseSnapshotCard} ${styles.snapshotEligible}`}>
+          <span>ELIGIBLE NOW</span>
+          <strong>{eligibleNow.length}</strong>
+          <small>human review required</small>
+        </div>
+        <div className={styles.pulseSnapshotCard}>
+          <span>HISTORICAL BACKFILL</span>
+          <strong>{historicalIncidents.length}</strong>
+          <small>older event records</small>
+        </div>
+        <div className={styles.pulseSnapshotCard}>
+          <span>HIGH SEVERITY</span>
+          <strong>{highSeverity.length}</strong>
+          <small>research priority</small>
+        </div>
+        <div className={styles.pulseSnapshotCard}>
+          <span>SOURCES READY</span>
+          <strong>
+            {readySources}/{incidentSources.length || 0}
+          </strong>
+          <small>public feeds online</small>
         </div>
       </div>
 
@@ -2203,6 +2260,7 @@ function LeadEngine({
   onRunPulse,
   onSyncMiamiDade,
   onSyncBroward,
+  onHistoricalBootstrap,
 }: {
   leads: PiLead[];
   incidents: IncidentWatch[];
@@ -2218,7 +2276,154 @@ function LeadEngine({
   onRunPulse: () => void;
   onSyncMiamiDade: () => void;
   onSyncBroward: () => void;
+  onHistoricalBootstrap: () => void;
 }) {
+  const nowMs = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  const incidentTime = (value?: string | null) => {
+    if (!value) return Number.NaN;
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : Number.NaN;
+  };
+
+  const sortedIncidents = [...incidents].sort(
+    (a, b) =>
+      (incidentTime(b.occurred_at) || 0) -
+      (incidentTime(a.occurred_at) || 0)
+  );
+
+  const historicalIncidents = sortedIncidents.filter(
+    (incident) =>
+      Boolean(incident.metadata?.historical_bootstrap) ||
+      /historical/i.test(incident.source || "")
+  );
+
+  const liveIncidents = sortedIncidents.filter((incident) => {
+    if (
+      Boolean(incident.metadata?.historical_bootstrap) ||
+      /historical/i.test(incident.source || "")
+    ) {
+      return false;
+    }
+
+    const occurred = incidentTime(incident.occurred_at);
+    return Number.isFinite(occurred) && occurred >= nowMs - dayMs;
+  });
+
+  const eligibleNow = sortedIncidents.filter((incident) => {
+    const reviewAt = incidentTime(incident.earliest_contact_review_at);
+    return (
+      Number.isFinite(reviewAt) &&
+      reviewAt <= nowMs &&
+      incident.status !== "blocked" &&
+      incident.status !== "archived"
+    );
+  });
+
+  const reviewWithin24h = sortedIncidents.filter((incident) => {
+    const reviewAt = incidentTime(incident.earliest_contact_review_at);
+    return (
+      Number.isFinite(reviewAt) &&
+      reviewAt > nowMs &&
+      reviewAt <= nowMs + dayMs &&
+      incident.status !== "blocked" &&
+      incident.status !== "archived"
+    );
+  });
+
+  const waitingIncidents = sortedIncidents.filter((incident) => {
+    const reviewAt = incidentTime(incident.earliest_contact_review_at);
+    return (
+      Number.isFinite(reviewAt) &&
+      reviewAt > nowMs + dayMs &&
+      incident.status !== "blocked" &&
+      incident.status !== "archived"
+    );
+  });
+
+  const highSeverity = sortedIncidents.filter(
+    (incident) => incident.severity === "high"
+  );
+
+  const readySources = incidentSources.filter(
+    (source) => source.status === "ready"
+  ).length;
+
+  const renderIncidentCard = (
+    incident: IncidentWatch,
+    compact = false
+  ) => (
+    <article
+      className={`${styles.incidentCard} ${
+        compact ? styles.incidentCardCompact : ""
+      }`}
+      key={incident.id}
+    >
+      <div className={styles.incidentTop}>
+        <div>
+          <span>{incident.source || "PUBLIC INCIDENT SOURCE"}</span>
+          <strong>{incident.incident_type || "Traffic incident"}</strong>
+        </div>
+        <em className={incidentGateTone(incident)}>
+          {incidentGateLabel(incident)}
+        </em>
+      </div>
+
+      <div className={styles.incidentLocation}>
+        <MapPin size={13} />
+        <strong>
+          {[incident.county, incident.location]
+            .filter(Boolean)
+            .join(" · ") || "Location pending"}
+        </strong>
+      </div>
+
+      <div className={styles.incidentDates}>
+        <div>
+          <span>OCCURRED</span>
+          <strong>{formatDateTime(incident.occurred_at)}</strong>
+        </div>
+        <div>
+          <span>30-DAY BAR GATE</span>
+          <strong>{formatDateTime(incident.solicitation_eligible_at)}</strong>
+        </div>
+        {!compact ? (
+          <>
+            <div>
+              <span>CRASH REPORT PUBLIC</span>
+              <strong>{formatDateTime(incident.crash_report_public_at)}</strong>
+            </div>
+            <div>
+              <span>EARLIEST REVIEW</span>
+              <strong>{formatDateTime(incident.earliest_contact_review_at)}</strong>
+            </div>
+          </>
+        ) : (
+          <div className={styles.compactReviewDate}>
+            <span>EARLIEST REVIEW</span>
+            <strong>{formatDateTime(incident.earliest_contact_review_at)}</strong>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.incidentFooter}>
+        <span>
+          {incident.identity_available
+            ? `Identity source: ${
+                incident.identity_source || "lawful public source"
+              }`
+            : "No consumer identity stored"}
+        </span>
+        {incident.source_url ? (
+          <a href={incident.source_url} target="_blank" rel="noreferrer">
+            Open source <ExternalLink size={10} />
+          </a>
+        ) : null}
+      </div>
+    </article>
+  );
+
   return (
     <div className={styles.tabContent}>
       <div className={styles.panelHero}>
@@ -2242,7 +2447,17 @@ function LeadEngine({
             ) : (
               <HeartPulse size={14} />
             )}
-            {runningAgent === "pulse" ? "Pulse Running…" : "Run Lead Sync"}
+            {runningAgent === "pulse" ? "Pulse Running…" : "Run Pulse"}
+          </button>
+
+          <button
+            className={styles.secondaryPanelAction}
+            onClick={onHistoricalBootstrap}
+            disabled={Boolean(runningAgent)}
+            title="Backfill South Florida crash events approximately 31–75 days old"
+          >
+            <Clock3 size={14} />
+            Bootstrap 31–75 Days
           </button>
         </div>
       </div>
@@ -2367,76 +2582,121 @@ function LeadEngine({
             />
             Sync Broward
           </button>
+
+          <button
+            onClick={onHistoricalBootstrap}
+            disabled={Boolean(runningAgent)}
+            className={styles.bootstrapButton}
+          >
+            <Clock3
+              size={13}
+              className={runningAgent === "pulse" ? styles.spin : undefined}
+            />
+            Bootstrap Historical
+          </button>
         </div>
 
-        <div className={styles.incidentGrid}>
-          {incidents.length ? (
-            incidents.slice(0, 8).map((incident) => (
-              <article className={styles.incidentCard} key={incident.id}>
-                <div className={styles.incidentTop}>
-                  <div>
-                    <span>{incident.source || "PUBLIC INCIDENT SOURCE"}</span>
-                    <strong>{incident.incident_type || "Traffic incident"}</strong>
-                  </div>
-                  <em className={incidentGateTone(incident)}>
-                    {incidentGateLabel(incident)}
-                  </em>
-                </div>
+        <div className={styles.pulseQueueSection}>
+          <div className={styles.pulseQueueHeader}>
+            <div>
+              <span>GUARD HANDOFF</span>
+              <h4>Review Queue</h4>
+            </div>
+            <div className={styles.queueCounts}>
+              <em>{eligibleNow.length} now</em>
+              <em>{reviewWithin24h.length} next 24h</em>
+            </div>
+          </div>
 
-                <div className={styles.incidentLocation}>
-                  <MapPin size={13} />
-                  <strong>
-                    {[incident.county, incident.location]
-                      .filter(Boolean)
-                      .join(" · ") || "Location pending"}
-                  </strong>
-                </div>
-
-                <div className={styles.incidentDates}>
-                  <div>
-                    <span>OCCURRED</span>
-                    <strong>{formatDateTime(incident.occurred_at)}</strong>
-                  </div>
-                  <div>
-                    <span>30-DAY BAR GATE</span>
-                    <strong>
-                      {formatDateTime(incident.solicitation_eligible_at)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span>CRASH REPORT PUBLIC</span>
-                    <strong>{formatDateTime(incident.crash_report_public_at)}</strong>
-                  </div>
-                  <div>
-                    <span>EARLIEST REVIEW</span>
-                    <strong>
-                      {formatDateTime(incident.earliest_contact_review_at)}
-                    </strong>
-                  </div>
-                </div>
-
-                <div className={styles.incidentFooter}>
-                  <span>
-                    {incident.identity_available
-                      ? `Identity source: ${incident.identity_source || "lawful public source"}`
-                      : "No consumer identity stored"}
-                  </span>
-                  {incident.source_url ? (
-                    <a
-                      href={incident.source_url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Open source <ExternalLink size={10} />
-                    </a>
-                  ) : null}
-                </div>
-              </article>
-            ))
+          {eligibleNow.length || reviewWithin24h.length ? (
+            <div className={styles.incidentGrid}>
+              {[...eligibleNow, ...reviewWithin24h]
+                .filter(
+                  (incident, index, all) =>
+                    all.findIndex((item) => item.id === incident.id) === index
+                )
+                .slice(0, 6)
+                .map((incident) => renderIncidentCard(incident, true))}
+            </div>
           ) : (
-            <div className={styles.emptyIncidentWatch}>
-              No incident-watch records yet. Run Pulse once its incident-source
-              branch is connected in n8n.
+            <div className={styles.queueEmptyState}>
+              <ShieldCheck size={16} />
+              <div>
+                <strong>No incidents are due for review yet.</strong>
+                <span>
+                  Historical bootstrap will populate older events so this queue
+                  can become useful immediately.
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={styles.pulseQueueSection}>
+          <div className={styles.pulseQueueHeader}>
+            <div>
+              <span>LIVE PUBLIC SIGNALS</span>
+              <h4>Recent Incidents</h4>
+            </div>
+            <div className={styles.queueCounts}>
+              <em>{liveIncidents.length} last 24h</em>
+              <em>{waitingIncidents.length} future review</em>
+            </div>
+          </div>
+
+          {liveIncidents.length ? (
+            <div className={styles.incidentGrid}>
+              {liveIncidents
+                .slice(0, 8)
+                .map((incident) => renderIncidentCard(incident))}
+            </div>
+          ) : (
+            <div className={styles.queueEmptyState}>
+              <HeartPulse size={16} />
+              <div>
+                <strong>No live incident records in the last 24 hours.</strong>
+                <span>Run Miami-Dade or Broward sync to refresh the feeds.</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={styles.pulseQueueSection}>
+          <div className={styles.pulseQueueHeader}>
+            <div>
+              <span>BACKFILL + AGING INVENTORY</span>
+              <h4>Historical Opportunity Watch</h4>
+            </div>
+            <div className={styles.queueCounts}>
+              <em>{historicalIncidents.length} historical</em>
+            </div>
+          </div>
+
+          {historicalIncidents.length ? (
+            <div className={styles.incidentGrid}>
+              {historicalIncidents
+                .slice(0, 8)
+                .map((incident) => renderIncidentCard(incident, true))}
+            </div>
+          ) : (
+            <div className={styles.historicalEmptyState}>
+              <div>
+                <span>NO BACKFILL YET</span>
+                <strong>
+                  Bootstrap Miami-Dade + Broward crash events from the 31–75 day window.
+                </strong>
+                <p>
+                  This gives Pulse older inventory immediately instead of waiting
+                  30 days for today&apos;s live incidents to mature.
+                </p>
+              </div>
+              <button
+                onClick={onHistoricalBootstrap}
+                disabled={Boolean(runningAgent)}
+              >
+                <Clock3 size={13} />
+                Run Historical Bootstrap
+              </button>
             </div>
           )}
         </div>

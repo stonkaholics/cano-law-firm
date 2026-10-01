@@ -2542,3 +2542,253 @@
     justify-content: center;
   }
 }
+
+
+/* =========================================================
+   V9 · PULSE REAL-DATA DASHBOARD
+   ========================================================= */
+
+.secondaryPanelAction {
+  border-color: rgba(107, 184, 255, 0.16) !important;
+  background: rgba(107, 184, 255, 0.025) !important;
+  color: #8fc3dc !important;
+}
+
+.pulseSnapshot {
+  padding: 10px 14px 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.pulseSnapshotCard {
+  min-width: 0;
+  min-height: 64px;
+  padding: 9px 10px;
+  border: 1px solid rgba(173,194,206,.07);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(107,184,255,.018), transparent),
+    rgba(255,255,255,.007);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.pulseSnapshotCard > span {
+  color: #587d8f;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .075em;
+}
+
+.pulseSnapshotCard > strong {
+  margin-top: 3px;
+  color: #e0e9ed;
+  font-family: Georgia, serif;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 500;
+}
+
+.pulseSnapshotCard > small {
+  margin-top: 4px;
+  color: #536e7b;
+  font-size: 6px;
+}
+
+.snapshotEligible {
+  border-color: rgba(100,215,160,.15);
+  background:
+    linear-gradient(180deg, rgba(100,215,160,.035), transparent),
+    rgba(255,255,255,.007);
+}
+
+.snapshotEligible > strong {
+  color: #79d7a7;
+}
+
+.bootstrapButton {
+  border-color: rgba(224,191,133,.18) !important;
+  color: #d7b879 !important;
+  background: rgba(224,191,133,.035) !important;
+}
+
+.pulseQueueSection {
+  margin: 10px;
+  border: 1px solid rgba(173,194,206,.065);
+  border-radius: 9px;
+  overflow: hidden;
+  background: rgba(255,255,255,.004);
+}
+
+.pulseQueueHeader {
+  min-height: 48px;
+  padding: 9px 11px;
+  border-bottom: 1px solid rgba(173,194,206,.055);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pulseQueueHeader > div:first-child {
+  min-width: 0;
+}
+
+.pulseQueueHeader span {
+  color: #d4b578;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.pulseQueueHeader h4 {
+  margin: 3px 0 0;
+  color: #dce6ea;
+  font-family: Georgia, serif;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.queueCounts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.queueCounts em {
+  padding: 4px 6px;
+  border: 1px solid rgba(107,184,255,.09);
+  border-radius: 999px;
+  color: #789baa;
+  background: rgba(107,184,255,.018);
+  font-size: 6px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.queueEmptyState {
+  min-height: 65px;
+  margin: 10px;
+  padding: 11px;
+  border: 1px dashed rgba(173,194,206,.09);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #637f8c;
+}
+
+.queueEmptyState > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.queueEmptyState strong {
+  color: #9eb2bc;
+  font-size: 8px;
+}
+
+.queueEmptyState span {
+  color: #5e7885;
+  font-size: 7px;
+  line-height: 1.4;
+}
+
+.historicalEmptyState {
+  margin: 10px;
+  min-height: 86px;
+  padding: 12px;
+  border: 1px dashed rgba(224,191,133,.12);
+  border-radius: 8px;
+  background: rgba(224,191,133,.012);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.historicalEmptyState > div {
+  min-width: 0;
+}
+
+.historicalEmptyState span {
+  color: #b79a65;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.historicalEmptyState strong {
+  margin-top: 4px;
+  display: block;
+  color: #d7e0e4;
+  font-family: Georgia, serif;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.historicalEmptyState p {
+  max-width: 760px;
+  margin: 5px 0 0;
+  color: #617b88;
+  font-size: 7px;
+  line-height: 1.45;
+}
+
+.historicalEmptyState button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(224,191,133,.18);
+  border-radius: 8px;
+  background: rgba(224,191,133,.035);
+  color: #d7b879;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 7px;
+  font-weight: 800;
+}
+
+.historicalEmptyState button:hover:not(:disabled) {
+  border-color: rgba(224,191,133,.34);
+  background: rgba(224,191,133,.07);
+}
+
+.incidentCardCompact .incidentDates {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.compactReviewDate {
+  grid-column: auto !important;
+}
+
+@media (max-width: 1100px) {
+  .pulseSnapshot {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .pulseSnapshot {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .historicalEmptyState {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .historicalEmptyState button {
+    justify-content: center;
+  }
+
+  .incidentCardCompact .incidentDates {
+    grid-template-columns: 1fr;
+  }
+}
