@@ -33,8 +33,8 @@ import {
   TrendingUp,
   UserRoundCheck,
   UsersRound,
-  X,,
-  Clock3
+  X,
+  Clock3,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import styles from "./personal-injury.module.css";
