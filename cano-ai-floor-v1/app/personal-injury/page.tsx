@@ -168,6 +168,49 @@ type IncidentWatch = {
   metadata?: Record<string, any>;
 };
 
+type IncidentIntelligence = {
+  id: string;
+  incident_id: string;
+  investigating_agency: string;
+  agency_case_number: string;
+  crash_report_number: string;
+  report_filed_at?: string | null;
+  report_public_at?: string | null;
+  vehicle_count?: number | null;
+  injury_count?: number | null;
+  serious_injury_count?: number | null;
+  fatality_count?: number | null;
+  commercial_vehicle?: boolean | null;
+  pedestrian_involved?: boolean | null;
+  motorcycle_involved?: boolean | null;
+  bicycle_involved?: boolean | null;
+  identity_status: string;
+  report_status: string;
+  research_status: string;
+  contact_count: number;
+  research_score: number;
+  source_urls?: string[];
+  metadata?: Record<string, any>;
+  researched_at?: string | null;
+  updated_at?: string;
+};
+
+type IncidentPerson = {
+  id: string;
+  incident_id: string;
+  role: string;
+  name: string;
+  phone: string;
+  email: string;
+  mailing_address: string;
+  identity_source: string;
+  contact_source: string;
+  source_available_at?: string | null;
+  represented_status: string;
+  outreach_status: string;
+  metadata?: Record<string, any>;
+};
+
 type MarketOpportunity = {
   id: string;
   agent_id: string;
@@ -234,6 +277,8 @@ type WorkspacePayload = {
   leads: PiLead[];
   campaigns: Campaign[];
   incidents: IncidentWatch[];
+  incidentIntelligence: IncidentIntelligence[];
+  incidentPeople: IncidentPerson[];
   opportunities: MarketOpportunity[];
   outreach: OutreachQueueItem[];
   incidentSources: IncidentSource[];
@@ -763,6 +808,8 @@ export default function PersonalInjuryFloor() {
     leads: [],
     campaigns: [],
     incidents: [],
+    incidentIntelligence: [],
+    incidentPeople: [],
     opportunities: [],
     outreach: [],
     incidentSources: [],
@@ -802,6 +849,10 @@ export default function PersonalInjuryFloor() {
         leads: Array.isArray(data.leads) ? data.leads : [],
         campaigns: Array.isArray(data.campaigns) ? data.campaigns : [],
         incidents: Array.isArray(data.incidents) ? data.incidents : [],
+        incidentIntelligence: Array.isArray(data.incidentIntelligence)
+          ? data.incidentIntelligence
+          : [],
+        incidentPeople: Array.isArray(data.incidentPeople) ? data.incidentPeople : [],
         opportunities: Array.isArray(data.opportunities) ? data.opportunities : [],
         outreach: Array.isArray(data.outreach) ? data.outreach : [],
         incidentSources: Array.isArray(data.incidentSources)
@@ -842,6 +893,8 @@ export default function PersonalInjuryFloor() {
       incidents: number;
       opportunities: number;
       outreach: number;
+      incidentIntelligence: number;
+      incidentPeople: number;
     }
   ) {
     const started = Date.now();
@@ -867,6 +920,10 @@ export default function PersonalInjuryFloor() {
           leads: Array.isArray(data.leads) ? data.leads : [],
           campaigns: Array.isArray(data.campaigns) ? data.campaigns : [],
           incidents: Array.isArray(data.incidents) ? data.incidents : [],
+          incidentIntelligence: Array.isArray(data.incidentIntelligence)
+            ? data.incidentIntelligence
+            : [],
+          incidentPeople: Array.isArray(data.incidentPeople) ? data.incidentPeople : [],
           opportunities: Array.isArray(data.opportunities)
             ? data.opportunities
             : [],
@@ -894,7 +951,9 @@ export default function PersonalInjuryFloor() {
           next.campaigns.length !== baseline.campaigns ||
           next.incidents.length !== baseline.incidents ||
           next.opportunities.length !== baseline.opportunities ||
-          next.outreach.length !== baseline.outreach;
+          next.outreach.length !== baseline.outreach ||
+          next.incidentIntelligence.length !== baseline.incidentIntelligence ||
+          next.incidentPeople.length !== baseline.incidentPeople;
 
         if (changed) {
           setAgentMessage(
@@ -919,7 +978,9 @@ export default function PersonalInjuryFloor() {
     workspace.campaigns.length > 0 ||
     workspace.incidents.length > 0 ||
     workspace.opportunities.length > 0 ||
-    workspace.outreach.length > 0;
+    workspace.outreach.length > 0 ||
+    workspace.incidentIntelligence.length > 0 ||
+    workspace.incidentPeople.length > 0;
 
   const referrals = realDataExists
     ? workspace.referrals
@@ -1062,6 +1123,8 @@ export default function PersonalInjuryFloor() {
         incidents: workspace.incidents.length,
         opportunities: workspace.opportunities.length,
         outreach: workspace.outreach.length,
+        incidentIntelligence: workspace.incidentIntelligence.length,
+        incidentPeople: workspace.incidentPeople.length,
       };
 
       void pollWorkspaceAfterAgent(baseline);
@@ -1485,6 +1548,8 @@ export default function PersonalInjuryFloor() {
           <LeadEngine
             leads={filteredLeads}
             incidents={workspace.incidents}
+            incidentIntelligence={workspace.incidentIntelligence}
+            incidentPeople={workspace.incidentPeople}
             incidentSources={workspace.incidentSources}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
@@ -1537,6 +1602,13 @@ export default function PersonalInjuryFloor() {
               runPiAgent("pulse", {
                 mode: "eligibility_scan",
                 geography: "Florida",
+                requestedFrom: "lead_engine",
+              })
+            }
+            onResearchIncident={(incidentId) =>
+              runPiAgent("pulse", {
+                mode: "research_incident",
+                incidentId,
                 requestedFrom: "lead_engine",
               })
             }
@@ -1718,6 +1790,8 @@ export default function PersonalInjuryFloor() {
                 <LeadEngine
                   leads={filteredLeads}
                   incidents={workspace.incidents}
+                  incidentIntelligence={workspace.incidentIntelligence}
+                  incidentPeople={workspace.incidentPeople}
                   incidentSources={workspace.incidentSources}
                   searchTerm={searchTerm}
                   setSearchTerm={setSearchTerm}
@@ -1770,6 +1844,13 @@ export default function PersonalInjuryFloor() {
                     runPiAgent("pulse", {
                       mode: "eligibility_scan",
                       geography: "Florida",
+                      requestedFrom: "pulse_workstation",
+                    })
+                  }
+                  onResearchIncident={(incidentId) =>
+                    runPiAgent("pulse", {
+                      mode: "research_incident",
+                      incidentId,
                       requestedFrom: "pulse_workstation",
                     })
                   }
@@ -2234,6 +2315,8 @@ function ReferralEngine({
 function LeadEngine({
   leads,
   incidents,
+  incidentIntelligence,
+  incidentPeople,
   incidentSources,
   searchTerm,
   setSearchTerm,
@@ -2249,9 +2332,12 @@ function LeadEngine({
   onSyncFl511,
   onSyncFortLauderdale,
   onEligibilityScan,
+  onResearchIncident,
 }: {
   leads: PiLead[];
   incidents: IncidentWatch[];
+  incidentIntelligence: IncidentIntelligence[];
+  incidentPeople: IncidentPerson[];
   incidentSources: IncidentSource[];
   searchTerm: string;
   setSearchTerm: (value: string) => void;
@@ -2267,9 +2353,42 @@ function LeadEngine({
   onSyncFl511: () => void;
   onSyncFortLauderdale: () => void;
   onEligibilityScan: () => void;
+  onResearchIncident: (incidentId: string) => void;
 }) {
   const nowMs = Date.now();
   const dayMs = 24 * 60 * 60 * 1000;
+
+  const isHistoricalIncident = (incident: IncidentWatch) =>
+    Boolean(incident.metadata?.historical_bootstrap) ||
+    /historical/i.test(incident.source || "");
+
+  const intelligenceByIncident = new Map(
+    incidentIntelligence.map((item) => [item.incident_id, item])
+  );
+
+  const peopleByIncident = incidentPeople.reduce((map, person) => {
+    const list = map.get(person.incident_id) || [];
+    list.push(person);
+    map.set(person.incident_id, list);
+    return map;
+  }, new Map<string, IncidentPerson[]>());
+
+  const boolFromMeta = (value: any) => value === true || value === "true" || value === 1;
+
+  const incidentResearchScore = (incident: IncidentWatch) => {
+    const intel = intelligenceByIncident.get(incident.id);
+    if (intel?.research_score) return intel.research_score;
+
+    let score = incident.severity === "high" ? 50 : incident.severity === "medium" ? 30 : 15;
+    const meta = incident.metadata || {};
+    if (boolFromMeta(meta.injuries_reported)) score += 30;
+    if (boolFromMeta(meta.fatality)) score += 35;
+    if (boolFromMeta(meta.hit_and_run)) score += 15;
+    if (boolFromMeta(meta.roadblock)) score += 8;
+    if (boolFromMeta(meta.commercial_vehicle)) score += 15;
+    if (/I-95|I-75|I-595|TURNPIKE|TPKE|EXPY/i.test(incident.location || "")) score += 7;
+    return Math.min(100, score);
+  };
 
   const incidentTime = (value?: string | null) => {
     if (!value) return Number.NaN;
@@ -2283,17 +2402,10 @@ function LeadEngine({
       (incidentTime(a.occurred_at) || 0)
   );
 
-  const historicalIncidents = sortedIncidents.filter(
-    (incident) =>
-      Boolean(incident.metadata?.historical_bootstrap) ||
-      /historical/i.test(incident.source || "")
-  );
+  const historicalIncidents = sortedIncidents.filter(isHistoricalIncident);
 
   const liveIncidents = sortedIncidents.filter((incident) => {
-    if (
-      Boolean(incident.metadata?.historical_bootstrap) ||
-      /historical/i.test(incident.source || "")
-    ) {
+    if (isHistoricalIncident(incident)) {
       return false;
     }
 
@@ -2304,6 +2416,7 @@ function LeadEngine({
   const eligibleNow = sortedIncidents.filter((incident) => {
     const reviewAt = incidentTime(incident.earliest_contact_review_at);
     return (
+      !isHistoricalIncident(incident) &&
       Number.isFinite(reviewAt) &&
       reviewAt <= nowMs &&
       incident.status !== "blocked" &&
@@ -2314,6 +2427,7 @@ function LeadEngine({
   const reviewWithin24h = sortedIncidents.filter((incident) => {
     const reviewAt = incidentTime(incident.earliest_contact_review_at);
     return (
+      !isHistoricalIncident(incident) &&
       Number.isFinite(reviewAt) &&
       reviewAt > nowMs &&
       reviewAt <= nowMs + dayMs &&
@@ -2325,6 +2439,7 @@ function LeadEngine({
   const waitingIncidents = sortedIncidents.filter((incident) => {
     const reviewAt = incidentTime(incident.earliest_contact_review_at);
     return (
+      !isHistoricalIncident(incident) &&
       Number.isFinite(reviewAt) &&
       reviewAt > nowMs + dayMs &&
       incident.status !== "blocked" &&
@@ -2343,76 +2458,138 @@ function LeadEngine({
   const renderIncidentCard = (
     incident: IncidentWatch,
     compact = false
-  ) => (
-    <article
-      className={`${styles.incidentCard} ${
-        compact ? styles.incidentCardCompact : ""
-      }`}
-      key={incident.id}
-    >
-      <div className={styles.incidentTop}>
-        <div>
-          <span>{incident.source || "PUBLIC INCIDENT SOURCE"}</span>
-          <strong>{incident.incident_type || "Traffic incident"}</strong>
-        </div>
-        <em className={incidentGateTone(incident)}>
-          {incidentGateLabel(incident)}
-        </em>
-      </div>
+  ) => {
+    const intel = intelligenceByIncident.get(incident.id);
+    const people = peopleByIncident.get(incident.id) || [];
+    const meta = incident.metadata || {};
+    const score = incidentResearchScore(incident);
+    const injuriesKnown =
+      (intel?.injury_count ?? 0) > 0 || boolFromMeta(meta.injuries_reported);
+    const reportNumber = intel?.crash_report_number || "";
+    const caseNumber = intel?.agency_case_number || "";
+    const agency =
+      intel?.investigating_agency ||
+      String(meta.provider || incident.source || "");
+    const identityKnown = incident.identity_available || people.length > 0;
+    const contactKnown = people.some((person) => Boolean(person.phone || person.email));
+    const reportAccessible = intel?.report_status === "public" || intel?.report_status === "available";
 
-      <div className={styles.incidentLocation}>
-        <MapPin size={13} />
-        <strong>
-          {[incident.county, incident.location]
-            .filter(Boolean)
-            .join(" · ") || "Location pending"}
-        </strong>
-      </div>
+    return (
+      <article
+        className={`${styles.incidentCard} ${
+          compact ? styles.incidentCardCompact : ""
+        }`}
+        key={incident.id}
+      >
+        <div className={styles.incidentTop}>
+          <div>
+            <span>{incident.source || "PUBLIC INCIDENT SOURCE"}</span>
+            <strong>{incident.incident_type || "Traffic incident"}</strong>
+          </div>
+          <div className={styles.incidentTopBadges}>
+            <span className={styles.researchScore}>{score} RESEARCH</span>
+            <em className={incidentGateTone(incident)}>
+              {incidentGateLabel(incident)}
+            </em>
+          </div>
+        </div>
 
-      <div className={styles.incidentDates}>
-        <div>
-          <span>OCCURRED</span>
-          <strong>{formatDateTime(incident.occurred_at)}</strong>
+        <div className={styles.incidentLocation}>
+          <MapPin size={13} />
+          <strong>
+            {[incident.county, incident.location]
+              .filter(Boolean)
+              .join(" · ") || "Location pending"}
+          </strong>
         </div>
-        <div>
-          <span>30-DAY BAR GATE</span>
-          <strong>{formatDateTime(incident.solicitation_eligible_at)}</strong>
+
+        <div className={styles.incidentIntelGrid}>
+          <div><span>AGENCY</span><strong>{agency || "Research pending"}</strong></div>
+          <div><span>CASE #</span><strong>{caseNumber || "Research pending"}</strong></div>
+          <div><span>CRASH REPORT #</span><strong>{reportNumber || "Research pending"}</strong></div>
+          <div><span>INJURIES</span><strong>{injuriesKnown ? "Reported" : "Not established"}</strong></div>
+          <div><span>VEHICLES</span><strong>{intel?.vehicle_count ?? "Research pending"}</strong></div>
+          <div><span>PEOPLE / CONTACTS</span><strong>{people.length ? `${people.length} identified` : "Not available"}</strong></div>
         </div>
-        {!compact ? (
-          <>
-            <div>
-              <span>CRASH REPORT PUBLIC</span>
-              <strong>{formatDateTime(incident.crash_report_public_at)}</strong>
+
+        {!compact && (
+          <div className={styles.actionabilityPanel}>
+            <div className={styles.actionabilityHead}>
+              <span>ACTIONABILITY</span>
+              <strong>{intel?.research_status || "Incident captured · research pending"}</strong>
             </div>
-            <div>
+            <div className={styles.actionabilityChecks}>
+              <span className={styles.actionDone}>✓ Event</span>
+              <span className={agency ? styles.actionDone : styles.actionPending}>{agency ? "✓" : "○"} Agency</span>
+              <span className={caseNumber || reportNumber ? styles.actionDone : styles.actionPending}>{caseNumber || reportNumber ? "✓" : "○"} Report ID</span>
+              <span className={reportAccessible ? styles.actionDone : styles.actionPending}>{reportAccessible ? "✓" : "○"} Report access</span>
+              <span className={identityKnown ? styles.actionDone : styles.actionBlocked}>{identityKnown ? "✓" : "—"} Identity</span>
+              <span className={contactKnown ? styles.actionDone : styles.actionBlocked}>{contactKnown ? "✓" : "—"} Contact</span>
+            </div>
+          </div>
+        )}
+
+        <div className={styles.incidentDates}>
+          <div>
+            <span>OCCURRED</span>
+            <strong>{formatDateTime(incident.occurred_at)}</strong>
+          </div>
+          <div>
+            <span>30-DAY SOLICITATION GATE</span>
+            <strong>{formatDateTime(incident.solicitation_eligible_at)}</strong>
+          </div>
+          {!compact ? (
+            <>
+              <div>
+                <span>REPORT FILED</span>
+                <strong>{formatDateTime(intel?.report_filed_at || incident.report_filed_at)}</strong>
+              </div>
+              <div>
+                <span>REPORT PUBLIC / ACCESS DATE</span>
+                <strong>{formatDateTime(intel?.report_public_at || incident.crash_report_public_at)}</strong>
+              </div>
+            </>
+          ) : (
+            <div className={styles.compactReviewDate}>
               <span>EARLIEST REVIEW</span>
               <strong>{formatDateTime(incident.earliest_contact_review_at)}</strong>
             </div>
-          </>
-        ) : (
-          <div className={styles.compactReviewDate}>
-            <span>EARLIEST REVIEW</span>
-            <strong>{formatDateTime(incident.earliest_contact_review_at)}</strong>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      <div className={styles.incidentFooter}>
-        <span>
-          {incident.identity_available
-            ? `Identity source: ${
-                incident.identity_source || "lawful public source"
-              }`
-            : "No consumer identity stored"}
-        </span>
-        {incident.source_url ? (
-          <a href={incident.source_url} target="_blank" rel="noreferrer">
-            Open source <ExternalLink size={10} />
-          </a>
-        ) : null}
-      </div>
-    </article>
-  );
+        <div className={styles.incidentResearchActions}>
+          <button
+            onClick={() => onResearchIncident(incident.id)}
+            disabled={Boolean(runningAgent) || isHistoricalIncident(incident)}
+            title={isHistoricalIncident(incident) ? "Historical test records are not sent into live research" : "Build or refresh case intelligence for this incident"}
+          >
+            <FileSearch size={12} />
+            {intel ? "Refresh Intelligence" : "Research Incident"}
+          </button>
+          {incident.source_url ? (
+            <a href={incident.source_url} target="_blank" rel="noreferrer">
+              Open source <ExternalLink size={10} />
+            </a>
+          ) : null}
+        </div>
+
+        <div className={styles.incidentFooter}>
+          <span>
+            {identityKnown
+              ? `${people.length || 1} identity record${people.length === 1 ? "" : "s"} stored · outreach still requires Guard review`
+              : "No consumer identity stored · event-level intelligence only"}
+          </span>
+          <span>
+            {meta.hit_and_run ? "Hit & run · " : ""}
+            {meta.roadblock ? "Roadblock · " : ""}
+            {meta.latitude && meta.longitude
+              ? `${Number(meta.latitude).toFixed(5)}, ${Number(meta.longitude).toFixed(5)}`
+              : ""}
+          </span>
+        </div>
+      </article>
+    );
+  };
 
   return (
     <div className={styles.tabContent}>
@@ -2696,8 +2873,8 @@ function LeadEngine({
               <div>
                 <strong>No incidents are due for review yet.</strong>
                 <span>
-                  Historical bootstrap will populate older events so this queue
-                  can become useful immediately.
+                  Live incidents will enter this queue only when their review timing
+                  is reached. Historical test records are excluded from operational review.
                 </span>
               </div>
             </div>

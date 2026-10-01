@@ -8,7 +8,9 @@ type TableName =
   | "pi_incident_watch"
   | "pi_market_opportunities"
   | "pi_outreach_events"
-  | "pi_incident_sources";
+  | "pi_incident_sources"
+  | "pi_incident_intelligence"
+  | "pi_incident_people";
 
 const APOLLO_TEST_LIMIT_PER_HOUR = 10;
 
@@ -112,6 +114,8 @@ export async function GET() {
       opportunities,
       outreach,
       incidentSources,
+      incidentIntelligence,
+      incidentPeople,
       apolloBudget,
     ] = await Promise.all([
       readTable(
@@ -145,6 +149,14 @@ export async function GET() {
       readTable(
         "pi_incident_sources",
         "region.asc,name.asc"
+      ),
+      readTable(
+        "pi_incident_intelligence",
+        "research_score.desc,updated_at.desc"
+      ),
+      readTable(
+        "pi_incident_people",
+        "created_at.desc"
       ),
       getApolloBudget(),
     ]);
@@ -188,6 +200,8 @@ export async function GET() {
       opportunities,
       outreach,
       incidentSources,
+      incidentIntelligence,
+      incidentPeople,
       apolloBudget,
     });
   } catch (error) {
@@ -1171,6 +1185,123 @@ export async function POST(
         ok: true,
         row,
       });
+    }
+
+    if (
+      action ===
+      "get_incident_for_research"
+    ) {
+      const incidentId = String(body?.incident_id || body?.incidentId || "").trim();
+      if (!incidentId) {
+        return NextResponse.json({ ok: false, error: "incident_id is required." }, { status: 400 });
+      }
+
+      const [incidents, intelligence, people] = await Promise.all([
+        supabaseRequest(`pi_incident_watch?id=eq.${encodeURIComponent(incidentId)}&select=*&limit=1`),
+        supabaseRequest(`pi_incident_intelligence?incident_id=eq.${encodeURIComponent(incidentId)}&select=*&limit=1`),
+        supabaseRequest(`pi_incident_people?incident_id=eq.${encodeURIComponent(incidentId)}&select=*&order=created_at.asc`),
+      ]);
+
+      const incident = Array.isArray(incidents) ? incidents[0] : null;
+      if (!incident) {
+        return NextResponse.json({ ok: false, error: "Incident not found." }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        incident,
+        intelligence: Array.isArray(intelligence) ? intelligence[0] || null : null,
+        people: Array.isArray(people) ? people : [],
+      });
+    }
+
+    if (
+      action ===
+      "upsert_incident_intelligence"
+    ) {
+      const payload = body?.row && typeof body.row === "object" ? body.row : body;
+      const incidentId = String(payload?.incident_id || "").trim();
+      if (!incidentId) {
+        return NextResponse.json({ ok: false, error: "incident_id is required." }, { status: 400 });
+      }
+
+      const normalized = {
+        incident_id: incidentId,
+        investigating_agency: String(payload.investigating_agency || ""),
+        agency_case_number: String(payload.agency_case_number || ""),
+        crash_report_number: String(payload.crash_report_number || ""),
+        report_filed_at: payload.report_filed_at || null,
+        report_public_at: payload.report_public_at || null,
+        vehicle_count: payload.vehicle_count ?? null,
+        injury_count: payload.injury_count ?? null,
+        serious_injury_count: payload.serious_injury_count ?? null,
+        fatality_count: payload.fatality_count ?? null,
+        commercial_vehicle: payload.commercial_vehicle ?? null,
+        pedestrian_involved: payload.pedestrian_involved ?? null,
+        motorcycle_involved: payload.motorcycle_involved ?? null,
+        bicycle_involved: payload.bicycle_involved ?? null,
+        identity_status: String(payload.identity_status || "not_researched"),
+        report_status: String(payload.report_status || "unknown"),
+        research_status: String(payload.research_status || "pending"),
+        contact_count: Math.max(0, Number(payload.contact_count || 0)),
+        research_score: Math.max(0, Math.min(100, Number(payload.research_score || 0))),
+        source_urls: Array.isArray(payload.source_urls) ? payload.source_urls : [],
+        metadata: payload.metadata && typeof payload.metadata === "object" ? payload.metadata : {},
+        researched_at: payload.researched_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const result = await supabaseRequest(
+        "pi_incident_intelligence?on_conflict=incident_id",
+        {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+          body: JSON.stringify([normalized]),
+        }
+      );
+
+      return NextResponse.json({ ok: true, rows: Array.isArray(result) ? result : [] });
+    }
+
+    if (
+      action ===
+      "bulk_upsert_incident_people"
+    ) {
+      const rows = Array.isArray(body?.rows) ? body.rows : [];
+      if (!rows.length) {
+        return NextResponse.json({ ok: true, rows: [] });
+      }
+
+      const normalized = rows
+        .filter((payload: any) => payload?.incident_id && payload?.name)
+        .map((payload: any) => ({
+          incident_id: String(payload.incident_id),
+          role: String(payload.role || "unknown"),
+          name: String(payload.name || ""),
+          phone: String(payload.phone || ""),
+          email: String(payload.email || ""),
+          mailing_address: String(payload.mailing_address || ""),
+          identity_source: String(payload.identity_source || ""),
+          contact_source: String(payload.contact_source || ""),
+          source_available_at: payload.source_available_at || null,
+          represented_status: String(payload.represented_status || "unknown"),
+          outreach_status: String(payload.outreach_status || "blocked"),
+          metadata: payload.metadata && typeof payload.metadata === "object" ? payload.metadata : {},
+          updated_at: new Date().toISOString(),
+        }));
+
+      if (!normalized.length) return NextResponse.json({ ok: true, rows: [] });
+
+      const result = await supabaseRequest(
+        "pi_incident_people?on_conflict=incident_id,role,name",
+        {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+          body: JSON.stringify(normalized),
+        }
+      );
+
+      return NextResponse.json({ ok: true, rows: Array.isArray(result) ? result : [] });
     }
 
     if (
