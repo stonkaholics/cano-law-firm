@@ -117,7 +117,6 @@ export async function GET() {
       incidentSources,
       incidentIntelligence,
       incidentPeople,
-      reportResearchTasks,
       apolloBudget,
     ] = await Promise.all([
       readTable(
@@ -159,10 +158,6 @@ export async function GET() {
       readTable(
         "pi_incident_people",
         "created_at.desc"
-      ),
-      readTable(
-        "pi_report_research_tasks",
-        "priority.asc,updated_at.desc"
       ),
       getApolloBudget(),
     ]);
@@ -208,7 +203,6 @@ export async function GET() {
       incidentSources,
       incidentIntelligence,
       incidentPeople,
-      reportResearchTasks,
       apolloBudget,
     });
   } catch (error) {
@@ -1836,6 +1830,265 @@ export async function POST(
         ok: true,
         action:
           "create_report_research_task",
+        rows: Array.isArray(result)
+          ? result
+          : [],
+      });
+    }
+
+
+    if (
+      action ===
+      "update_report_research_task"
+    ) {
+      const taskId = String(
+        body?.task_id ||
+        body?.taskId ||
+        ""
+      ).trim();
+
+      if (!taskId) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "task_id is required.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const existingRows =
+        await supabaseRequest(
+          `pi_report_research_tasks?id=eq.${encodeURIComponent(taskId)}&select=*`,
+          {
+            method: "GET",
+          }
+        );
+
+      const existing =
+        Array.isArray(existingRows)
+          ? existingRows[0]
+          : null;
+
+      if (!existing) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "Report research task not found.",
+          },
+          { status: 404 }
+        );
+      }
+
+      const patch: Record<string, any> = {
+        updated_at:
+          new Date().toISOString(),
+      };
+
+      if ("status" in body) {
+        patch.status =
+          String(body?.status || "").trim();
+      }
+
+      if ("priority" in body) {
+        patch.priority =
+          String(body?.priority || "").trim();
+      }
+
+      if ("provider" in body) {
+        patch.provider =
+          String(body?.provider || "").trim();
+      }
+
+      if (
+        "next_action" in body ||
+        "nextAction" in body
+      ) {
+        patch.next_action =
+          String(
+            body?.next_action ||
+            body?.nextAction ||
+            ""
+          ).trim();
+      }
+
+      if (
+        "identifiers" in body &&
+        body?.identifiers &&
+        typeof body.identifiers === "object" &&
+        !Array.isArray(body.identifiers)
+      ) {
+        patch.identifiers = {
+          ...(
+            existing?.identifiers &&
+            typeof existing.identifiers ===
+              "object" &&
+            !Array.isArray(
+              existing.identifiers
+            )
+              ? existing.identifiers
+              : {}
+          ),
+          ...body.identifiers,
+        };
+      }
+
+      if (
+        "fingerprint" in body &&
+        body?.fingerprint &&
+        typeof body.fingerprint === "object" &&
+        !Array.isArray(body.fingerprint)
+      ) {
+        patch.fingerprint = {
+          ...(
+            existing?.fingerprint &&
+            typeof existing.fingerprint ===
+              "object" &&
+            !Array.isArray(
+              existing.fingerprint
+            )
+              ? existing.fingerprint
+              : {}
+          ),
+          ...body.fingerprint,
+        };
+      }
+
+      if (
+        "portal" in body &&
+        body?.portal &&
+        typeof body.portal === "object" &&
+        !Array.isArray(body.portal)
+      ) {
+        patch.portal = {
+          ...(
+            existing?.portal &&
+            typeof existing.portal ===
+              "object" &&
+            !Array.isArray(
+              existing.portal
+            )
+              ? existing.portal
+              : {}
+          ),
+          ...body.portal,
+        };
+      }
+
+      if (
+        "research_context" in body &&
+        body?.research_context &&
+        typeof body.research_context ===
+          "object" &&
+        !Array.isArray(
+          body.research_context
+        )
+      ) {
+        patch.research_context = {
+          ...(
+            existing?.research_context &&
+            typeof existing.research_context ===
+              "object" &&
+            !Array.isArray(
+              existing.research_context
+            )
+              ? existing.research_context
+              : {}
+          ),
+          ...body.research_context,
+        };
+      }
+
+      if (
+        "verification_rules" in body &&
+        body?.verification_rules &&
+        typeof body.verification_rules ===
+          "object" &&
+        !Array.isArray(
+          body.verification_rules
+        )
+      ) {
+        patch.verification_rules = {
+          ...(
+            existing?.verification_rules &&
+            typeof existing.verification_rules ===
+              "object" &&
+            !Array.isArray(
+              existing.verification_rules
+            )
+              ? existing.verification_rules
+              : {}
+          ),
+          ...body.verification_rules,
+        };
+      }
+
+      if (
+        "requested_fields" in body &&
+        Array.isArray(
+          body?.requested_fields
+        )
+      ) {
+        patch.requested_fields =
+          body.requested_fields;
+      }
+
+      if (
+        "result_patch" in body &&
+        body?.result_patch &&
+        typeof body.result_patch ===
+          "object" &&
+        !Array.isArray(body.result_patch)
+      ) {
+        patch.result = {
+          ...(
+            existing?.result &&
+            typeof existing.result ===
+              "object" &&
+            !Array.isArray(existing.result)
+              ? existing.result
+              : {}
+          ),
+          ...body.result_patch,
+        };
+      } else if (
+        "result" in body &&
+        body?.result &&
+        typeof body.result === "object" &&
+        !Array.isArray(body.result)
+      ) {
+        patch.result = {
+          ...(
+            existing?.result &&
+            typeof existing.result ===
+              "object" &&
+            !Array.isArray(existing.result)
+              ? existing.result
+              : {}
+          ),
+          ...body.result,
+        };
+      }
+
+      const result =
+        await supabaseRequest(
+          `pi_report_research_tasks?id=eq.${encodeURIComponent(taskId)}`,
+          {
+            method: "PATCH",
+            headers: {
+              Prefer:
+                "return=representation",
+            },
+            body: JSON.stringify(patch),
+          }
+        );
+
+      return NextResponse.json({
+        ok: true,
+        action:
+          "update_report_research_task",
         rows: Array.isArray(result)
           ? result
           : [],
