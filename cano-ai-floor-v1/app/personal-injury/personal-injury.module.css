@@ -2904,3 +2904,45 @@
    ========================================================= */
 .priorityQueueSection{border:1px solid rgba(100,215,160,.15)!important;background:linear-gradient(180deg,rgba(100,215,160,.018),rgba(255,255,255,.003));box-shadow:0 0 0 1px rgba(100,215,160,.02) inset}.priorityQueueSection .pulseQueueHeader h4{font-size:17px}.priorityQueueSection .pulseQueueHeader p,.historicalPrioritySection .pulseQueueHeader p,.pulseQueueSection .pulseQueueHeader p{margin:4px 0 0;color:#688491;font-size:7px;line-height:1.45}.priorityIncidentGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.priorityIncidentCard{border-color:rgba(100,215,160,.12)!important;background:linear-gradient(135deg,rgba(100,215,160,.012),rgba(255,255,255,.005))!important}.priorityRibbon{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:-2px -2px 9px;padding:7px 9px;border-radius:6px;border:1px solid rgba(124,166,189,.08);font-size:6px;font-weight:900;letter-spacing:.07em}.priorityRibbon strong{font-family:Georgia,serif;font-size:9px;font-weight:500;letter-spacing:0}.priorityNow{color:#7de1ad;border-color:rgba(100,215,160,.18);background:rgba(100,215,160,.035)}.prioritySoon{color:#ebc977;border-color:rgba(224,191,133,.2);background:rgba(224,191,133,.04)}.priorityHistorical{color:#8fb7d0;border-color:rgba(107,184,255,.15);background:rgba(107,184,255,.025)}.historicalPrioritySection{border:1px solid rgba(107,184,255,.09)!important;background:linear-gradient(180deg,rgba(107,184,255,.012),transparent)}.historicalResearchNotice{display:flex;align-items:flex-start;gap:6px;margin:7px 0;padding:7px 8px;border:1px solid rgba(107,184,255,.11);border-radius:6px;background:rgba(107,184,255,.02);color:#7897a8;font-size:6.5px;line-height:1.45}.historicalResearchNotice svg{flex:0 0 auto;margin-top:1px;color:#7eb3cf}.sourceHealthSection{margin-top:12px;padding-top:10px;border-top:1px solid rgba(124,166,189,.08)}.sourceHealthHeader{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:0 0 7px;padding:0 3px}.sourceHealthHeader span{display:block;color:#6da5bd;font-size:6px;font-weight:900;letter-spacing:.09em}.sourceHealthHeader h4{margin:3px 0 0;color:#dce5e8;font-family:Georgia,serif;font-size:14px;font-weight:500}.sourceHealthHeader small{color:#577582;font-size:6px}.incidentResearchActions button{padding:8px 11px!important;font-size:7px!important}.incidentIntelGrid strong{font-size:8.5px!important}.incidentTop strong{font-size:12px!important}.incidentLocation strong{font-size:8.5px}.pulseQueueHeader h4{font-size:15px!important}.queueCounts em{font-size:6.5px!important}.sourceMonitorGrid{margin-top:8px}.liveSourceTestStrip{margin-top:8px}
 @media(max-width:900px){.priorityIncidentGrid{grid-template-columns:1fr}.sourceHealthHeader{align-items:flex-start;flex-direction:column}}
+
+
+/* V13 · OFFICIAL REPORT WORKFLOW STATUS */
+.reportWorkflowPanel {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid rgba(86, 193, 255, 0.15);
+  border-radius: 9px;
+  background: rgba(21, 80, 111, 0.09);
+}
+
+.reportWorkflowPanel > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reportWorkflowPanel span {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  color: #5f91aa;
+}
+
+.reportWorkflowPanel strong {
+  overflow: hidden;
+  color: #b9d9e8;
+  font-size: 9px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .reportWorkflowPanel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

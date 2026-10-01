@@ -259,6 +259,29 @@ type IncidentSource = {
   metadata?: Record<string, any>;
 };
 
+
+
+type ReportResearchTask = {
+  id: string;
+  incident_id: string;
+  intelligence_id?: string | null;
+  agent_id: string;
+  task_type: string;
+  provider: string;
+  status: string;
+  priority: string;
+  identifiers?: Record<string, any>;
+  fingerprint?: Record<string, any>;
+  portal?: Record<string, any>;
+  requested_fields?: string[];
+  verification_rules?: Record<string, any>;
+  research_context?: Record<string, any>;
+  next_action?: string;
+  result?: Record<string, any>;
+  created_at?: string;
+  updated_at?: string;
+};
+
 type Campaign = {
   id: string;
   name: string;
@@ -279,6 +302,7 @@ type WorkspacePayload = {
   incidents: IncidentWatch[];
   incidentIntelligence: IncidentIntelligence[];
   incidentPeople: IncidentPerson[];
+  reportResearchTasks: ReportResearchTask[];
   opportunities: MarketOpportunity[];
   outreach: OutreachQueueItem[];
   incidentSources: IncidentSource[];
@@ -810,6 +834,7 @@ export default function PersonalInjuryFloor() {
     incidents: [],
     incidentIntelligence: [],
     incidentPeople: [],
+    reportResearchTasks: [],
     opportunities: [],
     outreach: [],
     incidentSources: [],
@@ -853,6 +878,7 @@ export default function PersonalInjuryFloor() {
           ? data.incidentIntelligence
           : [],
         incidentPeople: Array.isArray(data.incidentPeople) ? data.incidentPeople : [],
+        reportResearchTasks: Array.isArray(data.reportResearchTasks) ? data.reportResearchTasks : [],
         opportunities: Array.isArray(data.opportunities) ? data.opportunities : [],
         outreach: Array.isArray(data.outreach) ? data.outreach : [],
         incidentSources: Array.isArray(data.incidentSources)
@@ -895,6 +921,7 @@ export default function PersonalInjuryFloor() {
       outreach: number;
       incidentIntelligence: number;
       incidentPeople: number;
+      reportResearchTasks: number;
     }
   ) {
     const started = Date.now();
@@ -924,6 +951,7 @@ export default function PersonalInjuryFloor() {
             ? data.incidentIntelligence
             : [],
           incidentPeople: Array.isArray(data.incidentPeople) ? data.incidentPeople : [],
+          reportResearchTasks: Array.isArray(data.reportResearchTasks) ? data.reportResearchTasks : [],
           opportunities: Array.isArray(data.opportunities)
             ? data.opportunities
             : [],
@@ -953,7 +981,8 @@ export default function PersonalInjuryFloor() {
           next.opportunities.length !== baseline.opportunities ||
           next.outreach.length !== baseline.outreach ||
           next.incidentIntelligence.length !== baseline.incidentIntelligence ||
-          next.incidentPeople.length !== baseline.incidentPeople;
+          next.incidentPeople.length !== baseline.incidentPeople ||
+          next.reportResearchTasks.length !== baseline.reportResearchTasks;
 
         if (changed) {
           setAgentMessage(
@@ -1125,6 +1154,7 @@ export default function PersonalInjuryFloor() {
         outreach: workspace.outreach.length,
         incidentIntelligence: workspace.incidentIntelligence.length,
         incidentPeople: workspace.incidentPeople.length,
+        reportResearchTasks: workspace.reportResearchTasks.length,
       };
 
       void pollWorkspaceAfterAgent(baseline);
@@ -1550,6 +1580,7 @@ export default function PersonalInjuryFloor() {
             incidents={workspace.incidents}
             incidentIntelligence={workspace.incidentIntelligence}
             incidentPeople={workspace.incidentPeople}
+            reportResearchTasks={workspace.reportResearchTasks}
             incidentSources={workspace.incidentSources}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
@@ -1792,6 +1823,7 @@ export default function PersonalInjuryFloor() {
                   incidents={workspace.incidents}
                   incidentIntelligence={workspace.incidentIntelligence}
                   incidentPeople={workspace.incidentPeople}
+                  reportResearchTasks={workspace.reportResearchTasks}
                   incidentSources={workspace.incidentSources}
                   searchTerm={searchTerm}
                   setSearchTerm={setSearchTerm}
@@ -2317,6 +2349,7 @@ function LeadEngine({
   incidents,
   incidentIntelligence,
   incidentPeople,
+  reportResearchTasks,
   incidentSources,
   searchTerm,
   setSearchTerm,
@@ -2338,6 +2371,7 @@ function LeadEngine({
   incidents: IncidentWatch[];
   incidentIntelligence: IncidentIntelligence[];
   incidentPeople: IncidentPerson[];
+  reportResearchTasks: ReportResearchTask[];
   incidentSources: IncidentSource[];
   searchTerm: string;
   setSearchTerm: (value: string) => void;
@@ -2364,6 +2398,10 @@ function LeadEngine({
 
   const intelligenceByIncident = new Map(
     incidentIntelligence.map((item) => [item.incident_id, item])
+  );
+
+  const reportTaskByIncident = new Map(
+    reportResearchTasks.map((task) => [task.incident_id, task])
   );
 
   const peopleByIncident = incidentPeople.reduce((map, person) => {
@@ -2492,6 +2530,7 @@ function LeadEngine({
     priorityBucket?: "eligible_now" | "within_24h" | "historical_verify"
   ) => {
     const intel = intelligenceByIncident.get(incident.id);
+    const reportTask = reportTaskByIncident.get(incident.id);
     const people = peopleByIncident.get(incident.id) || [];
     const meta = incident.metadata || {};
     const score = incidentResearchScore(incident);
@@ -2512,6 +2551,8 @@ function LeadEngine({
     const identityKnown = incident.identity_available || people.length > 0;
     const contactKnown = people.some((person) => Boolean(person.phone || person.email));
     const reportAccessible = intel?.report_status === "public" || intel?.report_status === "available";
+    const reportLookupQueued = Boolean(reportTask) || intel?.report_status === "official_report_lookup_pending";
+    const reportTaskStatus = reportTask?.status || intel?.metadata?.report_research_status || "";
 
     return (
       <article
@@ -2585,6 +2626,27 @@ function LeadEngine({
             </div>
           </div>
         )}
+
+        {!compact && reportLookupQueued ? (
+          <div className={styles.reportWorkflowPanel}>
+            <div>
+              <span>OFFICIAL REPORT WORKFLOW</span>
+              <strong>{reportTaskStatus || "lookup pending"}</strong>
+            </div>
+            <div>
+              <span>PROVIDER</span>
+              <strong>{reportTask?.provider || intel?.metadata?.report_research_provider || "Florida Crash Portal / FLHSMV"}</strong>
+            </div>
+            <div>
+              <span>TASK</span>
+              <strong>{reportTask?.id ? reportTask.id.slice(0, 8) : "Queued"}</strong>
+            </div>
+            <div>
+              <span>NEXT ACTION</span>
+              <strong>{reportTask?.next_action || intel?.metadata?.report_research_next_action || "Locate official crash report"}</strong>
+            </div>
+          </div>
+        ) : null}
 
         <div className={styles.incidentDates}>
           <div>
