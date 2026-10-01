@@ -117,6 +117,7 @@ export async function GET() {
       incidentSources,
       incidentIntelligence,
       incidentPeople,
+      reportResearchTasks,
       apolloBudget,
     ] = await Promise.all([
       readTable(
@@ -158,6 +159,10 @@ export async function GET() {
       readTable(
         "pi_incident_people",
         "created_at.desc"
+      ),
+      readTable(
+        "pi_report_research_tasks",
+        "priority.asc,updated_at.desc"
       ),
       getApolloBudget(),
     ]);
@@ -203,6 +208,7 @@ export async function GET() {
       incidentSources,
       incidentIntelligence,
       incidentPeople,
+      reportResearchTasks,
       apolloBudget,
     });
   } catch (error) {

@@ -2946,3 +2946,93 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+
+/* =========================================================
+   V14 · LIVE REPORT TASK / OPERATOR PORTAL HANDOFF
+   ========================================================= */
+.reportWorkflowWrap {
+  margin-top: 8px;
+}
+
+.reportOperatorPanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 7px;
+  padding: 10px;
+  border: 1px solid rgba(100, 215, 160, 0.16);
+  border-radius: 9px;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(100, 215, 160, 0.045),
+      rgba(21, 80, 111, 0.035)
+    );
+}
+
+.reportOperatorCopy {
+  min-width: 0;
+}
+
+.reportOperatorCopy > span {
+  display: block;
+  margin-bottom: 4px;
+  color: #73d7a5;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.reportOperatorCopy > strong {
+  display: block;
+  color: #d3e3e9;
+  font-size: 8px;
+  line-height: 1.35;
+}
+
+.reportOperatorCopy > small {
+  display: block;
+  margin-top: 5px;
+  color: #6f93a4;
+  font-size: 6.5px;
+}
+
+.reportOperatorActions {
+  flex: 0 0 auto;
+}
+
+.reportPortalButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 8px 11px;
+  border: 1px solid rgba(100, 215, 160, 0.24);
+  border-radius: 7px;
+  background: rgba(100, 215, 160, 0.055);
+  color: #8de2b4;
+  font-size: 7px;
+  font-weight: 900;
+  text-decoration: none;
+  transition: 0.15s ease;
+}
+
+.reportPortalButton:hover {
+  border-color: rgba(100, 215, 160, 0.42);
+  background: rgba(100, 215, 160, 0.09);
+  color: #b0efcb;
+}
+
+@media (max-width: 720px) {
+  .reportOperatorPanel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .reportPortalButton {
+    width: 100%;
+  }
+}

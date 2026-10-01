@@ -2628,23 +2628,94 @@ function LeadEngine({
         )}
 
         {!compact && reportLookupQueued ? (
-          <div className={styles.reportWorkflowPanel}>
-            <div>
-              <span>OFFICIAL REPORT WORKFLOW</span>
-              <strong>{reportTaskStatus || "lookup pending"}</strong>
+          <div className={styles.reportWorkflowWrap}>
+            <div className={styles.reportWorkflowPanel}>
+              <div>
+                <span>OFFICIAL REPORT WORKFLOW</span>
+                <strong>
+                  {reportTask?.status ||
+                    reportTaskStatus ||
+                    "lookup pending"}
+                </strong>
+              </div>
+              <div>
+                <span>PROVIDER</span>
+                <strong>
+                  {reportTask?.provider ||
+                    intel?.metadata?.report_research_provider ||
+                    "Florida Crash Portal / FLHSMV"}
+                </strong>
+              </div>
+              <div>
+                <span>TASK</span>
+                <strong>
+                  {reportTask?.id
+                    ? reportTask.id.slice(0, 8)
+                    : "Queued"}
+                </strong>
+              </div>
+              <div>
+                <span>NEXT ACTION</span>
+                <strong>
+                  {reportTask?.next_action ||
+                    reportTask?.result?.next_action ||
+                    intel?.metadata?.report_research_next_action ||
+                    "Locate official crash report"}
+                </strong>
+              </div>
             </div>
-            <div>
-              <span>PROVIDER</span>
-              <strong>{reportTask?.provider || intel?.metadata?.report_research_provider || "Florida Crash Portal / FLHSMV"}</strong>
-            </div>
-            <div>
-              <span>TASK</span>
-              <strong>{reportTask?.id ? reportTask.id.slice(0, 8) : "Queued"}</strong>
-            </div>
-            <div>
-              <span>NEXT ACTION</span>
-              <strong>{reportTask?.next_action || intel?.metadata?.report_research_next_action || "Locate official crash report"}</strong>
-            </div>
+
+            {reportTask ? (
+              <div className={styles.reportOperatorPanel}>
+                <div className={styles.reportOperatorCopy}>
+                  <span>
+                    {reportTask.status === "awaiting_operator_lookup"
+                      ? "OPERATOR ACTION REQUIRED"
+                      : reportTask.status === "awaiting_authorized_portal_lookup"
+                      ? "PORTAL LOOKUP READY"
+                      : reportTask.status === "in_progress"
+                      ? "REPORT WORKER ACTIVE"
+                      : "REPORT RESEARCH"}
+                  </span>
+                  <strong>
+                    {reportTask.status === "awaiting_operator_lookup"
+                      ? "Open the official Florida Crash Portal and run the prepared lookup."
+                      : reportTask.status === "awaiting_authorized_portal_lookup"
+                      ? "The crash fingerprint is ready for an authorized portal lookup."
+                      : "Pulse is preparing or tracking the official crash-report lookup."}
+                  </strong>
+                  {reportTask?.result?.search_packet ? (
+                    <small>
+                      {[
+                        reportTask.result.search_packet.crash_date,
+                        reportTask.result.search_packet.county,
+                        reportTask.result.search_packet.fhp_cad_incident_id,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </small>
+                  ) : null}
+                </div>
+
+                <div className={styles.reportOperatorActions}>
+                  {(reportTask?.result?.portal_url ||
+                    reportTask?.portal?.url) ? (
+                    <a
+                      className={styles.reportPortalButton}
+                      href={
+                        reportTask?.result?.portal_url ||
+                        reportTask?.portal?.url
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open Florida Crash Portal
+                      <ExternalLink size={11} />
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
