@@ -33,7 +33,8 @@ import {
   TrendingUp,
   UserRoundCheck,
   UsersRound,
-  X,
+  X,,
+  Clock3
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import styles from "./personal-injury.module.css";
@@ -164,6 +165,7 @@ type IncidentWatch = {
     | "blocked"
     | "archived";
   notes: string;
+  metadata?: Record<string, any>;
 };
 
 type MarketOpportunity = {
@@ -1961,42 +1963,6 @@ function ReferralEngine({
           </div>
         </div>
       </div>
-
-      <div className={styles.pulseSnapshot}>
-        <div className={styles.pulseSnapshotCard}>
-          <span>LIVE · LAST 24H</span>
-          <strong>{liveIncidents.length}</strong>
-          <small>public incident signals</small>
-        </div>
-        <div className={styles.pulseSnapshotCard}>
-          <span>REVIEW WITHIN 24H</span>
-          <strong>{reviewWithin24h.length}</strong>
-          <small>prepare Guard review</small>
-        </div>
-        <div className={`${styles.pulseSnapshotCard} ${styles.snapshotEligible}`}>
-          <span>ELIGIBLE NOW</span>
-          <strong>{eligibleNow.length}</strong>
-          <small>human review required</small>
-        </div>
-        <div className={styles.pulseSnapshotCard}>
-          <span>HISTORICAL BACKFILL</span>
-          <strong>{historicalIncidents.length}</strong>
-          <small>older event records</small>
-        </div>
-        <div className={styles.pulseSnapshotCard}>
-          <span>HIGH SEVERITY</span>
-          <strong>{highSeverity.length}</strong>
-          <small>research priority</small>
-        </div>
-        <div className={styles.pulseSnapshotCard}>
-          <span>SOURCES READY</span>
-          <strong>
-            {readySources}/{incidentSources.length || 0}
-          </strong>
-          <small>public feeds online</small>
-        </div>
-      </div>
-
       <div className={styles.controls}>
         <label className={styles.searchBox}>
           <Search size={15} />
@@ -2459,6 +2425,41 @@ function LeadEngine({
             <Clock3 size={14} />
             Bootstrap 31–75 Days
           </button>
+        </div>
+      </div>
+
+      <div className={styles.pulseSnapshot}>
+        <div className={styles.pulseSnapshotCard}>
+          <span>LIVE · LAST 24H</span>
+          <strong>{liveIncidents.length}</strong>
+          <small>public incident signals</small>
+        </div>
+        <div className={styles.pulseSnapshotCard}>
+          <span>REVIEW WITHIN 24H</span>
+          <strong>{reviewWithin24h.length}</strong>
+          <small>prepare Guard review</small>
+        </div>
+        <div className={`${styles.pulseSnapshotCard} ${styles.snapshotEligible}`}>
+          <span>ELIGIBLE NOW</span>
+          <strong>{eligibleNow.length}</strong>
+          <small>human review required</small>
+        </div>
+        <div className={styles.pulseSnapshotCard}>
+          <span>HISTORICAL BACKFILL</span>
+          <strong>{historicalIncidents.length}</strong>
+          <small>older event records</small>
+        </div>
+        <div className={styles.pulseSnapshotCard}>
+          <span>HIGH SEVERITY</span>
+          <strong>{highSeverity.length}</strong>
+          <small>research priority</small>
+        </div>
+        <div className={styles.pulseSnapshotCard}>
+          <span>SOURCES READY</span>
+          <strong>
+            {readySources}/{incidentSources.length || 0}
+          </strong>
+          <small>public feeds online</small>
         </div>
       </div>
 
