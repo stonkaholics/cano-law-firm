@@ -2447,6 +2447,37 @@ function LeadEngine({
     );
   });
 
+  const priorityResearchQueue = [
+    ...eligibleNow.map((incident) => ({ incident, bucket: "eligible_now" as const, rank: 0 })),
+    ...reviewWithin24h.map((incident) => ({ incident, bucket: "within_24h" as const, rank: 1 })),
+    ...historicalIncidents
+      .filter((incident) => {
+        const reviewAt = incidentTime(incident.earliest_contact_review_at);
+        return Number.isFinite(reviewAt) && reviewAt <= nowMs + dayMs;
+      })
+      .map((incident) => ({ incident, bucket: "historical_verify" as const, rank: 2 })),
+  ]
+    .filter(
+      (entry, index, all) =>
+        all.findIndex((candidate) => candidate.incident.id === entry.incident.id) === index
+    )
+    .sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      const aReview = incidentTime(a.incident.earliest_contact_review_at);
+      const bReview = incidentTime(b.incident.earliest_contact_review_at);
+      return (aReview || 0) - (bReview || 0);
+    });
+
+  const researchReadyHistorical = historicalIncidents
+    .filter((incident) => {
+      const reviewAt = incidentTime(incident.earliest_contact_review_at);
+      return Number.isFinite(reviewAt) && reviewAt <= nowMs + dayMs;
+    })
+    .sort((a, b) =>
+      (incidentTime(a.earliest_contact_review_at) || 0) -
+      (incidentTime(b.earliest_contact_review_at) || 0)
+    );
+
   const highSeverity = sortedIncidents.filter(
     (incident) => incident.severity === "high"
   );
@@ -2457,7 +2488,8 @@ function LeadEngine({
 
   const renderIncidentCard = (
     incident: IncidentWatch,
-    compact = false
+    compact = false,
+    priorityBucket?: "eligible_now" | "within_24h" | "historical_verify"
   ) => {
     const intel = intelligenceByIncident.get(incident.id);
     const people = peopleByIncident.get(incident.id) || [];
@@ -2467,9 +2499,16 @@ function LeadEngine({
       (intel?.injury_count ?? 0) > 0 || boolFromMeta(meta.injuries_reported);
     const reportNumber = intel?.crash_report_number || "";
     const caseNumber = intel?.agency_case_number || "";
+    const sourceName = String(incident.source || "");
+    const providerName = String(meta.provider || "");
+    const inferredAgency = /Florida Highway Patrol/i.test(sourceName)
+      ? "Florida Highway Patrol"
+      : /Fire Rescue|Fire Department|EMS/i.test(`${sourceName} ${providerName}`)
+      ? "Investigating law-enforcement agency pending"
+      : providerName || sourceName;
     const agency =
       intel?.investigating_agency ||
-      String(meta.provider || incident.source || "");
+      inferredAgency;
     const identityKnown = incident.identity_available || people.length > 0;
     const contactKnown = people.some((person) => Boolean(person.phone || person.email));
     const reportAccessible = intel?.report_status === "public" || intel?.report_status === "available";
@@ -2478,9 +2517,27 @@ function LeadEngine({
       <article
         className={`${styles.incidentCard} ${
           compact ? styles.incidentCardCompact : ""
-        }`}
+        } ${priorityBucket ? styles.priorityIncidentCard : ""}`}
         key={incident.id}
       >
+        {priorityBucket ? (
+          <div className={`${styles.priorityRibbon} ${
+            priorityBucket === "eligible_now"
+              ? styles.priorityNow
+              : priorityBucket === "within_24h"
+              ? styles.prioritySoon
+              : styles.priorityHistorical
+          }`}>
+            <span>
+              {priorityBucket === "eligible_now"
+                ? "REVIEW WINDOW OPEN"
+                : priorityBucket === "within_24h"
+                ? "REVIEW WINDOW < 24H"
+                : "BACKFILL · VERIFY SOURCE"}
+            </span>
+            <strong>Research this case now</strong>
+          </div>
+        ) : null}
         <div className={styles.incidentTop}>
           <div>
             <span>{incident.source || "PUBLIC INCIDENT SOURCE"}</span>
@@ -2557,14 +2614,21 @@ function LeadEngine({
           )}
         </div>
 
+        {isHistoricalIncident(incident) ? (
+          <div className={styles.historicalResearchNotice}>
+            <ShieldCheck size={12} />
+            Backfill record: research is allowed, but source provenance must be verified before Guard can treat it as an operational outreach candidate.
+          </div>
+        ) : null}
+
         <div className={styles.incidentResearchActions}>
           <button
             onClick={() => onResearchIncident(incident.id)}
-            disabled={Boolean(runningAgent) || isHistoricalIncident(incident)}
-            title={isHistoricalIncident(incident) ? "Historical test records are not sent into live research" : "Build or refresh case intelligence for this incident"}
+            disabled={Boolean(runningAgent)}
+            title={isHistoricalIncident(incident) ? "Research this backfill incident and verify its source before any outreach decision" : "Build or refresh case intelligence for this incident"}
           >
             <FileSearch size={12} />
-            {intel ? "Refresh Intelligence" : "Research Incident"}
+            {intel ? "Refresh Intelligence" : isHistoricalIncident(incident) ? "Research Backfill" : "Research Incident"}
           </button>
           {incident.source_url ? (
             <a href={incident.source_url} target="_blank" rel="noreferrer">
@@ -2712,6 +2776,137 @@ function LeadEngine({
           </div>
         </div>
 
+        <div className={`${styles.pulseQueueSection} ${styles.priorityQueueSection}`}>
+          <div className={styles.pulseQueueHeader}>
+            <div>
+              <span>TOP PRIORITY · CASES MATURING FOR REVIEW</span>
+              <h4>Actionable Research Queue</h4>
+              <p>Cases at or closest to the current review window appear first. Research can begin now; any outreach still requires source verification and Guard approval.</p>
+            </div>
+            <div className={styles.queueCounts}>
+              <em>{eligibleNow.length} window open</em>
+              <em>{reviewWithin24h.length} next 24h</em>
+              <em>{researchReadyHistorical.length} backfill to verify</em>
+            </div>
+          </div>
+
+          {priorityResearchQueue.length ? (
+            <div className={styles.priorityIncidentGrid}>
+              {priorityResearchQueue
+                .slice(0, 8)
+                .map(({ incident, bucket }) => renderIncidentCard(incident, false, bucket))}
+            </div>
+          ) : (
+            <div className={styles.queueEmptyState}>
+              <ShieldCheck size={16} />
+              <div>
+                <strong>No incidents are at the immediate research window.</strong>
+                <span>Pulse will promote incidents here as their review dates approach.</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={`${styles.pulseQueueSection} ${styles.historicalPrioritySection}`}>
+          <div className={styles.pulseQueueHeader}>
+            <div>
+              <span>BACKFILL + AGING INVENTORY</span>
+              <h4>Historical Opportunity Watch</h4>
+              <p>Older incidents are useful for immediate case research. Verify the original source before treating any backfill record as operational.</p>
+            </div>
+            <div className={styles.queueCounts}>
+              <em>{historicalIncidents.length} historical</em>
+              <em>{researchReadyHistorical.length} near / past review</em>
+            </div>
+          </div>
+
+          {historicalIncidents.length ? (
+            <div className={styles.incidentGrid}>
+              {historicalIncidents
+                .slice(0, 10)
+                .map((incident) => renderIncidentCard(incident, false, "historical_verify"))}
+            </div>
+          ) : (
+            <div className={styles.historicalEmptyState}>
+              <div>
+                <span>NO VERIFIED BACKFILL YET</span>
+                <strong>Historical research inventory will appear here when a supported source is available.</strong>
+                <p>Live events continue aging in Supabase automatically.</p>
+              </div>
+              <div className={styles.historicalPausedBadge}>HISTORICAL IMPORT PAUSED</div>
+            </div>
+          )}
+        </div>
+
+        <div className={styles.pulseQueueSection}>
+          <div className={styles.pulseQueueHeader}>
+            <div>
+              <span>LIVE PUBLIC SIGNALS</span>
+              <h4>Recent Incidents</h4>
+              <p>Fresh events stay here while they age toward their review window.</p>
+            </div>
+            <div className={styles.queueCounts}>
+              <em>{liveIncidents.length} last 24h</em>
+              <em>{waitingIncidents.length} future review</em>
+            </div>
+          </div>
+
+          {liveIncidents.length ? (
+            <div className={styles.incidentGrid}>
+              {liveIncidents
+                .slice(0, 10)
+                .map((incident) => renderIncidentCard(incident))}
+            </div>
+          ) : (
+            <div className={styles.queueEmptyState}>
+              <HeartPulse size={16} />
+              <div>
+                <strong>No live incident records in the last 24 hours.</strong>
+                <span>Run the live source syncs to refresh the feeds.</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={styles.pulseQueueSection}>
+          <div className={styles.pulseQueueHeader}>
+            <div>
+              <span>GUARD HANDOFF</span>
+              <h4>Review Queue</h4>
+              <p>Compliance review queue generated from real live incidents only.</p>
+            </div>
+            <div className={styles.queueCounts}>
+              <em>{eligibleNow.length} now</em>
+              <em>{reviewWithin24h.length} next 24h</em>
+            </div>
+          </div>
+
+          {eligibleNow.length || reviewWithin24h.length ? (
+            <div className={styles.incidentGrid}>
+              {[...eligibleNow, ...reviewWithin24h]
+                .filter((incident, index, all) => all.findIndex((item) => item.id === incident.id) === index)
+                .slice(0, 6)
+                .map((incident) => renderIncidentCard(incident, true))}
+            </div>
+          ) : (
+            <div className={styles.queueEmptyState}>
+              <ShieldCheck size={16} />
+              <div>
+                <strong>No live incidents are due for Guard review yet.</strong>
+                <span>Research can still proceed before the outreach window opens.</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={styles.sourceHealthSection}>
+          <div className={styles.sourceHealthHeader}>
+            <div>
+              <span>INFRASTRUCTURE</span>
+              <h4>Live Source Health + Testing</h4>
+            </div>
+            <small>Moved below case inventory so actionable research stays first.</small>
+          </div>
         <div className={styles.liveSourceTestStrip}>
           <div>
             <span>LIVE SOURCE TESTING</span>
@@ -2845,105 +3040,7 @@ function LeadEngine({
           </button>
         </div>
 
-        <div className={styles.pulseQueueSection}>
-          <div className={styles.pulseQueueHeader}>
-            <div>
-              <span>GUARD HANDOFF</span>
-              <h4>Review Queue</h4>
-            </div>
-            <div className={styles.queueCounts}>
-              <em>{eligibleNow.length} now</em>
-              <em>{reviewWithin24h.length} next 24h</em>
-            </div>
-          </div>
-
-          {eligibleNow.length || reviewWithin24h.length ? (
-            <div className={styles.incidentGrid}>
-              {[...eligibleNow, ...reviewWithin24h]
-                .filter(
-                  (incident, index, all) =>
-                    all.findIndex((item) => item.id === incident.id) === index
-                )
-                .slice(0, 6)
-                .map((incident) => renderIncidentCard(incident, true))}
-            </div>
-          ) : (
-            <div className={styles.queueEmptyState}>
-              <ShieldCheck size={16} />
-              <div>
-                <strong>No incidents are due for review yet.</strong>
-                <span>
-                  Live incidents will enter this queue only when their review timing
-                  is reached. Historical test records are excluded from operational review.
-                </span>
-              </div>
-            </div>
-          )}
         </div>
-
-        <div className={styles.pulseQueueSection}>
-          <div className={styles.pulseQueueHeader}>
-            <div>
-              <span>LIVE PUBLIC SIGNALS</span>
-              <h4>Recent Incidents</h4>
-            </div>
-            <div className={styles.queueCounts}>
-              <em>{liveIncidents.length} last 24h</em>
-              <em>{waitingIncidents.length} future review</em>
-            </div>
-          </div>
-
-          {liveIncidents.length ? (
-            <div className={styles.incidentGrid}>
-              {liveIncidents
-                .slice(0, 8)
-                .map((incident) => renderIncidentCard(incident))}
-            </div>
-          ) : (
-            <div className={styles.queueEmptyState}>
-              <HeartPulse size={16} />
-              <div>
-                <strong>No live incident records in the last 24 hours.</strong>
-                <span>Run Miami-Dade or Broward sync to refresh the feeds.</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className={styles.pulseQueueSection}>
-          <div className={styles.pulseQueueHeader}>
-            <div>
-              <span>BACKFILL + AGING INVENTORY</span>
-              <h4>Historical Opportunity Watch</h4>
-            </div>
-            <div className={styles.queueCounts}>
-              <em>{historicalIncidents.length} historical</em>
-            </div>
-          </div>
-
-          {historicalIncidents.length ? (
-            <div className={styles.incidentGrid}>
-              {historicalIncidents
-                .slice(0, 8)
-                .map((incident) => renderIncidentCard(incident, true))}
-            </div>
-          ) : (
-            <div className={styles.historicalEmptyState}>
-              <div>
-                <span>NO BACKFILL YET</span>
-                <strong>
-                  Bootstrap Miami-Dade + Broward crash events from the 31–75 day window.
-                </strong>
-                <p>
-                  This gives Pulse older inventory immediately instead of waiting
-                  30 days for today&apos;s live incidents to mature.
-                </p>
-              </div>
-              <div className={styles.historicalPausedBadge}>
-                HISTORICAL IMPORT PAUSED
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
