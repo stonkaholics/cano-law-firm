@@ -1222,33 +1222,212 @@ export async function POST(
     ) {
       const payload = body?.row && typeof body.row === "object" ? body.row : body;
       const incidentId = String(payload?.incident_id || "").trim();
+
       if (!incidentId) {
-        return NextResponse.json({ ok: false, error: "incident_id is required." }, { status: 400 });
+        return NextResponse.json(
+          { ok: false, error: "incident_id is required." },
+          { status: 400 }
+        );
       }
+
+      /*
+      |--------------------------------------------------------------------------
+      | LOAD EXISTING INTELLIGENCE FIRST
+      |--------------------------------------------------------------------------
+      |
+      | n8n frequently sends partial updates (for example only report_status +
+      | metadata).  Normalizing missing fields to empty strings/nulls would wipe
+      | previously verified FHP data.  Always merge against the stored row first.
+      |
+      */
+
+      const existingRows = await supabaseRequest(
+        `pi_incident_intelligence?incident_id=eq.${encodeURIComponent(incidentId)}&select=*&limit=1`
+      );
+
+      const existing =
+        Array.isArray(existingRows) && existingRows.length
+          ? existingRows[0]
+          : {};
+
+      const hasOwn = (key: string) =>
+        Object.prototype.hasOwnProperty.call(payload, key);
+
+      const preferString = (key: string, fallback = "") => {
+        if (!hasOwn(key)) {
+          return String(existing?.[key] ?? fallback);
+        }
+
+        const incoming = String(payload?.[key] ?? "").trim();
+
+        // A partial update containing an accidental empty string should not
+        // erase an already verified value.
+        if (!incoming && String(existing?.[key] ?? "").trim()) {
+          return String(existing[key]);
+        }
+
+        return incoming;
+      };
+
+      const preferNullable = (key: string) => {
+        if (hasOwn(key)) {
+          return payload?.[key] ?? null;
+        }
+
+        return existing?.[key] ?? null;
+      };
+
+      const existingMetadata =
+        existing?.metadata &&
+        typeof existing.metadata === "object" &&
+        !Array.isArray(existing.metadata)
+          ? existing.metadata
+          : {};
+
+      const incomingMetadata =
+        payload?.metadata &&
+        typeof payload.metadata === "object" &&
+        !Array.isArray(payload.metadata)
+          ? payload.metadata
+          : {};
+
+      const existingSourceUrls =
+        Array.isArray(existing?.source_urls)
+          ? existing.source_urls.filter(Boolean).map(String)
+          : [];
+
+      const incomingSourceUrls =
+        Array.isArray(payload?.source_urls)
+          ? payload.source_urls.filter(Boolean).map(String)
+          : [];
+
+      const mergedSourceUrls = Array.from(
+        new Set([
+          ...existingSourceUrls,
+          ...incomingSourceUrls,
+        ])
+      );
 
       const normalized = {
         incident_id: incidentId,
-        investigating_agency: String(payload.investigating_agency || ""),
-        agency_case_number: String(payload.agency_case_number || ""),
-        crash_report_number: String(payload.crash_report_number || ""),
-        report_filed_at: payload.report_filed_at || null,
-        report_public_at: payload.report_public_at || null,
-        vehicle_count: payload.vehicle_count ?? null,
-        injury_count: payload.injury_count ?? null,
-        serious_injury_count: payload.serious_injury_count ?? null,
-        fatality_count: payload.fatality_count ?? null,
-        commercial_vehicle: payload.commercial_vehicle ?? null,
-        pedestrian_involved: payload.pedestrian_involved ?? null,
-        motorcycle_involved: payload.motorcycle_involved ?? null,
-        bicycle_involved: payload.bicycle_involved ?? null,
-        identity_status: String(payload.identity_status || "not_researched"),
-        report_status: String(payload.report_status || "unknown"),
-        research_status: String(payload.research_status || "pending"),
-        contact_count: Math.max(0, Number(payload.contact_count || 0)),
-        research_score: Math.max(0, Math.min(100, Number(payload.research_score || 0))),
-        source_urls: Array.isArray(payload.source_urls) ? payload.source_urls : [],
-        metadata: payload.metadata && typeof payload.metadata === "object" ? payload.metadata : {},
-        researched_at: payload.researched_at || new Date().toISOString(),
+
+        investigating_agency: preferString(
+          "investigating_agency"
+        ),
+
+        agency_case_number: preferString(
+          "agency_case_number"
+        ),
+
+        crash_report_number: preferString(
+          "crash_report_number"
+        ),
+
+        report_filed_at: preferNullable(
+          "report_filed_at"
+        ),
+
+        report_public_at: preferNullable(
+          "report_public_at"
+        ),
+
+        vehicle_count: preferNullable(
+          "vehicle_count"
+        ),
+
+        injury_count: preferNullable(
+          "injury_count"
+        ),
+
+        serious_injury_count: preferNullable(
+          "serious_injury_count"
+        ),
+
+        fatality_count: preferNullable(
+          "fatality_count"
+        ),
+
+        commercial_vehicle: preferNullable(
+          "commercial_vehicle"
+        ),
+
+        pedestrian_involved: preferNullable(
+          "pedestrian_involved"
+        ),
+
+        motorcycle_involved: preferNullable(
+          "motorcycle_involved"
+        ),
+
+        bicycle_involved: preferNullable(
+          "bicycle_involved"
+        ),
+
+        identity_status: hasOwn("identity_status")
+          ? String(
+              payload.identity_status ||
+                existing?.identity_status ||
+                "not_researched"
+            )
+          : String(
+              existing?.identity_status ||
+                "not_researched"
+            ),
+
+        report_status: hasOwn("report_status")
+          ? String(
+              payload.report_status ||
+                existing?.report_status ||
+                "unknown"
+            )
+          : String(
+              existing?.report_status ||
+                "unknown"
+            ),
+
+        research_status: hasOwn("research_status")
+          ? String(
+              payload.research_status ||
+                existing?.research_status ||
+                "pending"
+            )
+          : String(
+              existing?.research_status ||
+                "pending"
+            ),
+
+        contact_count: hasOwn("contact_count")
+          ? Math.max(0, Number(payload.contact_count ?? 0))
+          : Math.max(0, Number(existing?.contact_count ?? 0)),
+
+        research_score: hasOwn("research_score")
+          ? Math.max(
+              0,
+              Math.min(
+                100,
+                Number(payload.research_score ?? 0)
+              )
+            )
+          : Math.max(
+              0,
+              Math.min(
+                100,
+                Number(existing?.research_score ?? 0)
+              )
+            ),
+
+        source_urls: mergedSourceUrls,
+
+        metadata: {
+          ...existingMetadata,
+          ...incomingMetadata,
+        },
+
+        researched_at:
+          payload?.researched_at ||
+          existing?.researched_at ||
+          new Date().toISOString(),
+
         updated_at: new Date().toISOString(),
       };
 
@@ -1256,12 +1435,18 @@ export async function POST(
         "pi_incident_intelligence?on_conflict=incident_id",
         {
           method: "POST",
-          headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+          headers: {
+            Prefer:
+              "resolution=merge-duplicates,return=representation",
+          },
           body: JSON.stringify([normalized]),
         }
       );
 
-      return NextResponse.json({ ok: true, rows: Array.isArray(result) ? result : [] });
+      return NextResponse.json({
+        ok: true,
+        rows: Array.isArray(result) ? result : [],
+      });
     }
 
     if (
