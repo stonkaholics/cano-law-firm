@@ -3042,7 +3042,6 @@ function LeadEngine({
 
         </div>
         </div>
-      </div>
 
       <div className={styles.leadTable}>
         <div className={styles.leadTableHead}>
