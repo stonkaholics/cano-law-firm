@@ -1495,6 +1495,26 @@ export default function PersonalInjuryFloor() {
             onRunPulse={() =>
               runPiAgent("pulse", {
                 mode: "sync_and_qualify",
+                includeIncidentWatch: true,
+              })
+            }
+            onSyncMiamiDade={() =>
+              runPiAgent("pulse", {
+                mode: "sync_public_incidents",
+                geography: "Miami-Dade County, Florida",
+                sources: ["miami_dade_mdfr"],
+              })
+            }
+            onSyncBroward={() =>
+              runPiAgent("pulse", {
+                mode: "sync_public_incidents",
+                geography: "Broward County, Florida",
+                sources: [
+                  "fort_lauderdale_fire_active_calls",
+                  "broward_bso_public_alerts",
+                  "fl511_broward",
+                  "fhp_broward",
+                ],
               })
             }
           />
