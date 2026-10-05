@@ -30,6 +30,7 @@ import {
   ShieldCheck,
   Sparkles,
   Target,
+  Stethoscope,
   TrendingUp,
   UserRoundCheck,
   UsersRound,
@@ -259,29 +260,6 @@ type IncidentSource = {
   metadata?: Record<string, any>;
 };
 
-
-
-type ReportResearchTask = {
-  id: string;
-  incident_id: string;
-  intelligence_id?: string | null;
-  agent_id: string;
-  task_type: string;
-  provider: string;
-  status: string;
-  priority: string;
-  identifiers?: Record<string, any>;
-  fingerprint?: Record<string, any>;
-  portal?: Record<string, any>;
-  requested_fields?: string[];
-  verification_rules?: Record<string, any>;
-  research_context?: Record<string, any>;
-  next_action?: string;
-  result?: Record<string, any>;
-  created_at?: string;
-  updated_at?: string;
-};
-
 type Campaign = {
   id: string;
   name: string;
@@ -302,7 +280,6 @@ type WorkspacePayload = {
   incidents: IncidentWatch[];
   incidentIntelligence: IncidentIntelligence[];
   incidentPeople: IncidentPerson[];
-  reportResearchTasks: ReportResearchTask[];
   opportunities: MarketOpportunity[];
   outreach: OutreachQueueItem[];
   incidentSources: IncidentSource[];
@@ -381,6 +358,33 @@ const agents: PiAgent[] = [
       "Conversion report",
     ],
     status: "ready",
+  },
+  {
+    id: "medintel",
+    name: "MedIntel",
+    role: "Medical Records Intelligence",
+    shortRole: "Medical",
+    description:
+      "Reviews authorized medical-record packets and builds source-traceable treatment timelines, diagnoses, imaging, procedures, bills, treatment gaps, prior conditions, and attorney-review flags.",
+    zone: "manager",
+    icon: Stethoscope,
+    capabilities: [
+      "Review medical-record packets",
+      "Build treatment chronology",
+      "Extract diagnoses and imaging",
+      "Track procedures and medications",
+      "Identify treatment gaps and prior conditions",
+      "Preserve document and page provenance",
+    ],
+    output: [
+      "Medical chronology",
+      "Injury and diagnosis index",
+      "Imaging and procedure summary",
+      "Billing summary",
+      "Treatment-gap flags",
+      "Attorney review queue",
+    ],
+    status: "review",
   },
   {
     id: "beacon",
@@ -818,7 +822,7 @@ function incidentGateTone(item: IncidentWatch) {
 
 function agentWorkspaceMode(agentId: string): TabId {
   if (["scout", "bridge", "reach", "orbit"].includes(agentId)) return "referrals";
-  if (["pulse", "intake"].includes(agentId)) return "leads";
+  if (["pulse", "intake", "medintel"].includes(agentId)) return "leads";
   if (["beacon", "radar", "launch", "ledger", "catalyst"].includes(agentId)) return "campaigns";
   return "compliance";
 }
@@ -834,7 +838,6 @@ export default function PersonalInjuryFloor() {
     incidents: [],
     incidentIntelligence: [],
     incidentPeople: [],
-    reportResearchTasks: [],
     opportunities: [],
     outreach: [],
     incidentSources: [],
@@ -878,7 +881,6 @@ export default function PersonalInjuryFloor() {
           ? data.incidentIntelligence
           : [],
         incidentPeople: Array.isArray(data.incidentPeople) ? data.incidentPeople : [],
-        reportResearchTasks: Array.isArray(data.reportResearchTasks) ? data.reportResearchTasks : [],
         opportunities: Array.isArray(data.opportunities) ? data.opportunities : [],
         outreach: Array.isArray(data.outreach) ? data.outreach : [],
         incidentSources: Array.isArray(data.incidentSources)
@@ -921,7 +923,6 @@ export default function PersonalInjuryFloor() {
       outreach: number;
       incidentIntelligence: number;
       incidentPeople: number;
-      reportResearchTasks: number;
     }
   ) {
     const started = Date.now();
@@ -951,7 +952,6 @@ export default function PersonalInjuryFloor() {
             ? data.incidentIntelligence
             : [],
           incidentPeople: Array.isArray(data.incidentPeople) ? data.incidentPeople : [],
-          reportResearchTasks: Array.isArray(data.reportResearchTasks) ? data.reportResearchTasks : [],
           opportunities: Array.isArray(data.opportunities)
             ? data.opportunities
             : [],
@@ -981,8 +981,7 @@ export default function PersonalInjuryFloor() {
           next.opportunities.length !== baseline.opportunities ||
           next.outreach.length !== baseline.outreach ||
           next.incidentIntelligence.length !== baseline.incidentIntelligence ||
-          next.incidentPeople.length !== baseline.incidentPeople ||
-          next.reportResearchTasks.length !== baseline.reportResearchTasks;
+          next.incidentPeople.length !== baseline.incidentPeople;
 
         if (changed) {
           setAgentMessage(
@@ -1108,6 +1107,7 @@ export default function PersonalInjuryFloor() {
       | "catalyst"
       | "scout"
       | "pulse"
+      | "medintel"
       | "beacon"
       | "bridge"
       | "reach"
@@ -1154,7 +1154,6 @@ export default function PersonalInjuryFloor() {
         outreach: workspace.outreach.length,
         incidentIntelligence: workspace.incidentIntelligence.length,
         incidentPeople: workspace.incidentPeople.length,
-        reportResearchTasks: workspace.reportResearchTasks.length,
       };
 
       void pollWorkspaceAfterAgent(baseline);
@@ -1580,7 +1579,6 @@ export default function PersonalInjuryFloor() {
             incidents={workspace.incidents}
             incidentIntelligence={workspace.incidentIntelligence}
             incidentPeople={workspace.incidentPeople}
-            reportResearchTasks={workspace.reportResearchTasks}
             incidentSources={workspace.incidentSources}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
@@ -1711,13 +1709,15 @@ export default function PersonalInjuryFloor() {
               <div className={styles.workstationHeaderActions}>
                 <button
                   className={styles.agentRunButton}
-                  disabled={Boolean(runningAgent)}
+                  disabled={Boolean(runningAgent) || selectedAgent.id === "medintel"}
                   onClick={() =>
-                    runPiAgent(selectedAgent.id as any, {
-                      mode: `manual_${selectedAgent.id}_run`,
-                      geography: "Florida",
-                      requestedFrom: "agent_workstation",
-                    })
+                    selectedAgent.id === "medintel"
+                      ? undefined
+                      : runPiAgent(selectedAgent.id as any, {
+                          mode: `manual_${selectedAgent.id}_run`,
+                          geography: "Florida",
+                          requestedFrom: "agent_workstation",
+                        })
                   }
                 >
                   {runningAgent === selectedAgent.id ? (
@@ -1725,7 +1725,9 @@ export default function PersonalInjuryFloor() {
                   ) : (
                     <Sparkles size={14} />
                   )}
-                  {runningAgent === selectedAgent.id
+                  {selectedAgent.id === "medintel"
+                    ? "Use Medical Intake Below"
+                    : runningAgent === selectedAgent.id
                     ? "Running…"
                     : `Run ${selectedAgent.name}`}
                 </button>
@@ -1817,13 +1819,14 @@ export default function PersonalInjuryFloor() {
                     })
                   }
                 />
+              ) : selectedAgent.id === "medintel" ? (
+                <MedIntelWorkstation />
               ) : ["pulse", "intake"].includes(selectedAgent.id) ? (
                 <LeadEngine
                   leads={filteredLeads}
                   incidents={workspace.incidents}
                   incidentIntelligence={workspace.incidentIntelligence}
                   incidentPeople={workspace.incidentPeople}
-                  reportResearchTasks={workspace.reportResearchTasks}
                   incidentSources={workspace.incidentSources}
                   searchTerm={searchTerm}
                   setSearchTerm={setSearchTerm}
@@ -1931,6 +1934,442 @@ export default function PersonalInjuryFloor() {
         </div>
       )}
     </main>
+  );
+}
+
+type MedicalRecordRow = {
+  id: string;
+  matter_id: string;
+  original_filename: string;
+  storage_path: string;
+  mime_type: string;
+  size_bytes: number;
+  status: string;
+  page_count?: number | null;
+  created_at: string;
+  updated_at?: string;
+};
+
+type MedicalReviewRow = {
+  id: string;
+  matter_id: string;
+  status: string;
+  record_count: number;
+  page_count: number;
+  provider_count: number;
+  date_from?: string | null;
+  date_to?: string | null;
+  documented_charges?: number | null;
+  treatment_gap_count: number;
+  prior_condition_count: number;
+  attorney_flag_count: number;
+  summary?: string;
+  result?: Record<string, any>;
+  created_at: string;
+  updated_at?: string;
+};
+
+function MedIntelWorkstation() {
+  const [matterId, setMatterId] = useState("");
+  const [records, setRecords] = useState<MedicalRecordRow[]>([]);
+  const [reviews, setReviews] = useState<MedicalReviewRow[]>([]);
+  const [selectedReview, setSelectedReview] = useState<MedicalReviewRow | null>(null);
+  const [loadingMedical, setLoadingMedical] = useState(false);
+  const [medicalMessage, setMedicalMessage] = useState("");
+  const [hipaaReady, setHipaaReady] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+
+  async function loadMedical() {
+    setLoadingMedical(true);
+    setMedicalMessage("");
+    try {
+      const query = matterId.trim()
+        ? `?matter_id=${encodeURIComponent(matterId.trim())}`
+        : "";
+      const response = await fetch(`/api/pi/medical${query}`, {
+        cache: "no-store",
+      });
+      const data = await response.json();
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || "Unable to load medical workspace.");
+      }
+      setHipaaReady(Boolean(data?.hipaa_ready));
+      setRecords(Array.isArray(data?.records) ? data.records : []);
+      setReviews(Array.isArray(data?.reviews) ? data.reviews : []);
+      if (!selectedReview && data?.reviews?.[0]) {
+        setSelectedReview(data.reviews[0]);
+      }
+    } catch (error) {
+      setMedicalMessage(
+        error instanceof Error ? error.message : "Unable to load medical workspace."
+      );
+    } finally {
+      setLoadingMedical(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadMedical();
+  }, []);
+
+  async function uploadSelectedFiles() {
+    const cleanMatterId = matterId.trim();
+    if (!cleanMatterId) {
+      setMedicalMessage("Enter an opaque PI matter ID before uploading records.");
+      return;
+    }
+    if (!selectedFiles.length) {
+      setMedicalMessage("Choose at least one PDF medical-record file.");
+      return;
+    }
+
+    setLoadingMedical(true);
+    setMedicalMessage("");
+
+    try {
+      for (const file of selectedFiles) {
+        if (file.type !== "application/pdf") {
+          throw new Error(`${file.name}: only PDF is enabled for the HIPAA intake path.`);
+        }
+
+        const initResponse = await fetch("/api/pi/medical", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "create_upload",
+            matter_id: cleanMatterId,
+            filename: file.name,
+            mime_type: file.type,
+            size_bytes: file.size,
+          }),
+        });
+
+        const initData = await initResponse.json();
+        if (!initResponse.ok || initData?.ok === false) {
+          throw new Error(initData?.error || `Unable to prepare ${file.name}.`);
+        }
+
+        const uploadResponse = await fetch(initData.signed_upload_url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": file.type || "application/pdf",
+          },
+          body: file,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Secure upload failed for ${file.name}.`);
+        }
+
+        const finishResponse = await fetch("/api/pi/medical", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "finalize_upload",
+            record_id: initData.record_id,
+            matter_id: cleanMatterId,
+            storage_path: initData.storage_path,
+          }),
+        });
+
+        const finishData = await finishResponse.json();
+        if (!finishResponse.ok || finishData?.ok === false) {
+          throw new Error(finishData?.error || `Unable to queue ${file.name}.`);
+        }
+      }
+
+      setSelectedFiles([]);
+      setMedicalMessage(
+        "Medical records uploaded to the protected storage path and queued for MedIntel."
+      );
+      await loadMedical();
+    } catch (error) {
+      setMedicalMessage(
+        error instanceof Error ? error.message : "Medical upload failed."
+      );
+    } finally {
+      setLoadingMedical(false);
+    }
+  }
+
+  async function startReview() {
+    const cleanMatterId = matterId.trim();
+    if (!cleanMatterId) {
+      setMedicalMessage("Enter the PI matter ID first.");
+      return;
+    }
+
+    setLoadingMedical(true);
+    setMedicalMessage("");
+    try {
+      const response = await fetch("/api/pi/medical", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "start_review",
+          matter_id: cleanMatterId,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || "Unable to start MedIntel.");
+      }
+      setMedicalMessage(
+        data?.message || "MedIntel review queued. Refresh after the workflow completes."
+      );
+      await loadMedical();
+    } catch (error) {
+      setMedicalMessage(
+        error instanceof Error ? error.message : "Unable to start MedIntel."
+      );
+    } finally {
+      setLoadingMedical(false);
+    }
+  }
+
+  const result = selectedReview?.result || {};
+  const timeline = Array.isArray(result?.treatment_timeline)
+    ? result.treatment_timeline
+    : [];
+  const diagnoses = Array.isArray(result?.diagnoses) ? result.diagnoses : [];
+  const imaging = Array.isArray(result?.imaging) ? result.imaging : [];
+  const gaps = Array.isArray(result?.treatment_gaps) ? result.treatment_gaps : [];
+  const flags = Array.isArray(result?.attorney_attention)
+    ? result.attorney_attention
+    : [];
+
+  return (
+    <div className={styles.medIntelShell}>
+      <section className={styles.medIntelCompliance}>
+        <div>
+          <span>HIPAA PROCESSING GATE</span>
+          <strong>
+            {hipaaReady ? "Protected workflow enabled" : "Protected workflow locked"}
+          </strong>
+          <p>
+            Raw medical PDFs upload directly from the browser to protected storage.
+            The Cano application receives metadata and opaque storage paths only.
+          </p>
+        </div>
+        <div
+          className={`${styles.medIntelHipaaBadge} ${
+            hipaaReady ? styles.medIntelHipaaReady : styles.medIntelHipaaLocked
+          }`}
+        >
+          <ShieldCheck size={15} />
+          {hipaaReady ? "HIPAA GATE READY" : "BAA / CONFIG REQUIRED"}
+        </div>
+      </section>
+
+      <section className={styles.medIntelIntake}>
+        <div className={styles.medIntelField}>
+          <label>PI MATTER ID</label>
+          <input
+            value={matterId}
+            onChange={(event) => setMatterId(event.target.value)}
+            placeholder="Use opaque matter UUID / internal ID"
+            autoComplete="off"
+          />
+        </div>
+
+        <div className={styles.medIntelField}>
+          <label>MEDICAL RECORD PDFS</label>
+          <input
+            type="file"
+            accept="application/pdf,.pdf"
+            multiple
+            disabled={!hipaaReady || loadingMedical}
+            onChange={(event) =>
+              setSelectedFiles(Array.from(event.target.files || []))
+            }
+          />
+        </div>
+
+        <div className={styles.medIntelIntakeActions}>
+          <button
+            onClick={uploadSelectedFiles}
+            disabled={!hipaaReady || loadingMedical || !selectedFiles.length}
+          >
+            <FileSearch size={14} />
+            Secure Upload
+          </button>
+          <button
+            onClick={startReview}
+            disabled={!hipaaReady || loadingMedical || !matterId.trim()}
+          >
+            <Sparkles size={14} />
+            Start MedIntel Review
+          </button>
+          <button onClick={loadMedical} disabled={loadingMedical}>
+            <RefreshCw size={14} className={loadingMedical ? styles.spin : ""} />
+            Refresh
+          </button>
+        </div>
+      </section>
+
+      {medicalMessage ? (
+        <div className={styles.medIntelMessage}>{medicalMessage}</div>
+      ) : null}
+
+      <section className={styles.medIntelStats}>
+        <div>
+          <span>RECORD FILES</span>
+          <strong>{records.length}</strong>
+        </div>
+        <div>
+          <span>REVIEWS</span>
+          <strong>{reviews.length}</strong>
+        </div>
+        <div>
+          <span>PAGES</span>
+          <strong>{selectedReview?.page_count || 0}</strong>
+        </div>
+        <div>
+          <span>PROVIDERS</span>
+          <strong>{selectedReview?.provider_count || 0}</strong>
+        </div>
+        <div>
+          <span>TREATMENT GAPS</span>
+          <strong>{selectedReview?.treatment_gap_count || 0}</strong>
+        </div>
+        <div>
+          <span>ATTORNEY FLAGS</span>
+          <strong>{selectedReview?.attorney_flag_count || 0}</strong>
+        </div>
+      </section>
+
+      <div className={styles.medIntelGrid}>
+        <section className={styles.medIntelQueue}>
+          <div className={styles.medIntelSectionHeader}>
+            <div>
+              <span>MEDICAL REVIEW QUEUE</span>
+              <strong>Packets & analysis runs</strong>
+            </div>
+          </div>
+
+          {reviews.length ? (
+            reviews.map((review) => (
+              <button
+                key={review.id}
+                className={`${styles.medIntelReviewRow} ${
+                  selectedReview?.id === review.id ? styles.medIntelReviewActive : ""
+                }`}
+                onClick={() => setSelectedReview(review)}
+              >
+                <div>
+                  <strong>{review.matter_id}</strong>
+                  <span>
+                    {review.record_count} files · {review.page_count || 0} pages
+                  </span>
+                </div>
+                <em>{review.status}</em>
+              </button>
+            ))
+          ) : (
+            <div className={styles.medIntelEmpty}>
+              No medical review jobs yet.
+            </div>
+          )}
+
+          <div className={styles.medIntelRecordList}>
+            <span>RECORD INVENTORY</span>
+            {records.slice(0, 12).map((record) => (
+              <div key={record.id}>
+                <FileSearch size={12} />
+                <div>
+                  <strong>{record.original_filename}</strong>
+                  <small>
+                    {record.status} · {Math.ceil((record.size_bytes || 0) / 1024)} KB
+                  </small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.medIntelAnalysis}>
+          <div className={styles.medIntelSectionHeader}>
+            <div>
+              <span>MEDICAL INTELLIGENCE</span>
+              <strong>
+                {selectedReview
+                  ? selectedReview.status.replaceAll("_", " ")
+                  : "Select a review"}
+              </strong>
+            </div>
+          </div>
+
+          {selectedReview ? (
+            <>
+              <div className={styles.medIntelSummary}>
+                <p>
+                  {selectedReview.summary ||
+                    result?.executive_summary ||
+                    "Analysis is queued or still processing."}
+                </p>
+              </div>
+
+              <div className={styles.medIntelFindingGrid}>
+                <MedicalFindingPanel title="TREATMENT TIMELINE" items={timeline} />
+                <MedicalFindingPanel title="DIAGNOSES" items={diagnoses} />
+                <MedicalFindingPanel title="IMAGING" items={imaging} />
+                <MedicalFindingPanel title="TREATMENT GAPS" items={gaps} />
+                <MedicalFindingPanel title="ATTORNEY ATTENTION" items={flags} />
+              </div>
+            </>
+          ) : (
+            <div className={styles.medIntelEmpty}>
+              Upload a record packet and start MedIntel to build the chronology.
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function MedicalFindingPanel({
+  title,
+  items,
+}: {
+  title: string;
+  items: any[];
+}) {
+  return (
+    <div className={styles.medIntelFindingPanel}>
+      <span>{title}</span>
+      {items.length ? (
+        items.slice(0, 8).map((item, index) => (
+          <div key={`${title}-${index}`}>
+            <strong>
+              {item?.date ||
+                item?.diagnosis ||
+                item?.finding ||
+                item?.title ||
+                item?.description ||
+                "Finding"}
+            </strong>
+            <p>
+              {item?.provider ||
+                item?.summary ||
+                item?.details ||
+                item?.note ||
+                ""}
+            </p>
+            {item?.source?.page ? (
+              <small>
+                Source page {item.source.page}
+                {item?.source?.document_id
+                  ? ` · ${item.source.document_id}`
+                  : ""}
+              </small>
+            ) : null}
+          </div>
+        ))
+      ) : (
+        <em>No verified findings yet.</em>
+      )}
+    </div>
   );
 }
 
@@ -2349,7 +2788,6 @@ function LeadEngine({
   incidents,
   incidentIntelligence,
   incidentPeople,
-  reportResearchTasks,
   incidentSources,
   searchTerm,
   setSearchTerm,
@@ -2371,7 +2809,6 @@ function LeadEngine({
   incidents: IncidentWatch[];
   incidentIntelligence: IncidentIntelligence[];
   incidentPeople: IncidentPerson[];
-  reportResearchTasks: ReportResearchTask[];
   incidentSources: IncidentSource[];
   searchTerm: string;
   setSearchTerm: (value: string) => void;
@@ -2398,10 +2835,6 @@ function LeadEngine({
 
   const intelligenceByIncident = new Map(
     incidentIntelligence.map((item) => [item.incident_id, item])
-  );
-
-  const reportTaskByIncident = new Map(
-    reportResearchTasks.map((task) => [task.incident_id, task])
   );
 
   const peopleByIncident = incidentPeople.reduce((map, person) => {
@@ -2530,7 +2963,6 @@ function LeadEngine({
     priorityBucket?: "eligible_now" | "within_24h" | "historical_verify"
   ) => {
     const intel = intelligenceByIncident.get(incident.id);
-    const reportTask = reportTaskByIncident.get(incident.id);
     const people = peopleByIncident.get(incident.id) || [];
     const meta = incident.metadata || {};
     const score = incidentResearchScore(incident);
@@ -2551,8 +2983,6 @@ function LeadEngine({
     const identityKnown = incident.identity_available || people.length > 0;
     const contactKnown = people.some((person) => Boolean(person.phone || person.email));
     const reportAccessible = intel?.report_status === "public" || intel?.report_status === "available";
-    const reportLookupQueued = Boolean(reportTask) || intel?.report_status === "official_report_lookup_pending";
-    const reportTaskStatus = reportTask?.status || intel?.metadata?.report_research_status || "";
 
     return (
       <article
@@ -2626,98 +3056,6 @@ function LeadEngine({
             </div>
           </div>
         )}
-
-        {!compact && reportLookupQueued ? (
-          <div className={styles.reportWorkflowWrap}>
-            <div className={styles.reportWorkflowPanel}>
-              <div>
-                <span>OFFICIAL REPORT WORKFLOW</span>
-                <strong>
-                  {reportTask?.status ||
-                    reportTaskStatus ||
-                    "lookup pending"}
-                </strong>
-              </div>
-              <div>
-                <span>PROVIDER</span>
-                <strong>
-                  {reportTask?.provider ||
-                    intel?.metadata?.report_research_provider ||
-                    "Florida Crash Portal / FLHSMV"}
-                </strong>
-              </div>
-              <div>
-                <span>TASK</span>
-                <strong>
-                  {reportTask?.id
-                    ? reportTask.id.slice(0, 8)
-                    : "Queued"}
-                </strong>
-              </div>
-              <div>
-                <span>NEXT ACTION</span>
-                <strong>
-                  {reportTask?.next_action ||
-                    reportTask?.result?.next_action ||
-                    intel?.metadata?.report_research_next_action ||
-                    "Locate official crash report"}
-                </strong>
-              </div>
-            </div>
-
-            {reportTask ? (
-              <div className={styles.reportOperatorPanel}>
-                <div className={styles.reportOperatorCopy}>
-                  <span>
-                    {reportTask.status === "awaiting_operator_lookup"
-                      ? "OPERATOR ACTION REQUIRED"
-                      : reportTask.status === "awaiting_authorized_portal_lookup"
-                      ? "PORTAL LOOKUP READY"
-                      : reportTask.status === "in_progress"
-                      ? "REPORT WORKER ACTIVE"
-                      : "REPORT RESEARCH"}
-                  </span>
-                  <strong>
-                    {reportTask.status === "awaiting_operator_lookup"
-                      ? "Open the official Florida Crash Portal and run the prepared lookup."
-                      : reportTask.status === "awaiting_authorized_portal_lookup"
-                      ? "The crash fingerprint is ready for an authorized portal lookup."
-                      : "Pulse is preparing or tracking the official crash-report lookup."}
-                  </strong>
-                  {reportTask?.result?.search_packet ? (
-                    <small>
-                      {[
-                        reportTask.result.search_packet.crash_date,
-                        reportTask.result.search_packet.county,
-                        reportTask.result.search_packet.fhp_cad_incident_id,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </small>
-                  ) : null}
-                </div>
-
-                <div className={styles.reportOperatorActions}>
-                  {(reportTask?.result?.portal_url ||
-                    reportTask?.portal?.url) ? (
-                    <a
-                      className={styles.reportPortalButton}
-                      href={
-                        reportTask?.result?.portal_url ||
-                        reportTask?.portal?.url
-                      }
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Open Florida Crash Portal
-                      <ExternalLink size={11} />
-                    </a>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
 
         <div className={styles.incidentDates}>
           <div>
