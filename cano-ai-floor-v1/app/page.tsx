@@ -960,13 +960,26 @@ export default function Home() {
         </div>
 
         <div className="topbar-actions">
+          <a
+            className="floor-switch-button"
+            href="/personal-injury"
+            aria-label="Open Personal Injury Floor 02"
+          >
+            <span className="floor-switch-dot" />
+            <Activity size={13} />
+            <span className="floor-switch-label">Personal Injury</span>
+            <span className="floor-switch-number">FLOOR 02</span>
+          </a>
+
           <button
+            type="button"
             className="matter-center-button"
             onClick={() => setMatterCenterOpen(true)}
+            aria-label={`Open Matter Center with ${matters.length} shared matters`}
           >
             <UsersRound size={15} />
-            Matter Center
-            <strong>{matters.length}</strong>
+            <span className="matter-center-label">Matter Center</span>
+            <strong className="matter-center-count">{matters.length}</strong>
           </button>
 
           <div className="system-pill">
