@@ -5683,3 +5683,179 @@ button { font: inherit; }
     min-height: 34px !important;
   }
 }
+
+
+/* =========================================================
+   MAIN FLOOR HEADER — FINAL SIBLING LAYOUT FIX
+   PI Floor, Matter Center, and Systems Online are siblings.
+   ========================================================= */
+
+.topbar {
+  overflow: visible;
+}
+
+.topbar-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 9px !important;
+  flex-wrap: nowrap !important;
+  min-width: 0;
+  overflow: visible !important;
+}
+
+.floor-switch-button,
+.matter-center-button,
+.system-pill {
+  position: relative !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  transform: none !important;
+  white-space: nowrap !important;
+}
+
+.floor-switch-button {
+  min-height: 36px !important;
+  padding: 7px 11px !important;
+  border: 1px solid rgba(107,184,255,.22) !important;
+  border-radius: 999px !important;
+  background: rgba(107,184,255,.05) !important;
+  color: #9bcae8 !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  z-index: auto !important;
+}
+
+.floor-switch-button:hover {
+  color: #c4e3f5 !important;
+  border-color: rgba(107,184,255,.38) !important;
+  background: rgba(107,184,255,.085) !important;
+}
+
+.floor-switch-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #6bb8ff;
+  box-shadow: 0 0 9px rgba(107,184,255,.55);
+}
+
+.floor-switch-label,
+.matter-center-label {
+  display: inline !important;
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  overflow: visible !important;
+  clip: auto !important;
+  clip-path: none !important;
+  transform: none !important;
+}
+
+.floor-switch-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 17px;
+  padding: 0 6px;
+  border: 1px solid rgba(107,184,255,.2);
+  border-radius: 999px;
+  color: #79b7de;
+  background: rgba(107,184,255,.045);
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .06em;
+}
+
+.matter-center-button {
+  min-height: 36px !important;
+  padding: 7px 11px !important;
+  border: 1px solid rgba(224,191,133,.19) !important;
+  border-radius: 999px !important;
+  background: rgba(201,165,104,.055) !important;
+  color: #d9be88 !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  z-index: auto !important;
+}
+
+.matter-center-button:hover {
+  border-color: rgba(224,191,133,.34) !important;
+  background: rgba(201,165,104,.09) !important;
+  color: #edd09a !important;
+}
+
+.matter-center-button > strong,
+.matter-center-button .matter-center-count {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  flex: 0 0 auto !important;
+  min-width: 20px !important;
+  width: auto !important;
+  height: 20px !important;
+  margin: 0 !important;
+  padding: 0 5px !important;
+  border-radius: 999px !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  background: rgba(224,191,133,.1) !important;
+  color: #f0cf92 !important;
+  font-size: 8px !important;
+}
+
+.system-pill {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .topbar-actions {
+    gap: 7px !important;
+  }
+
+  .floor-switch-button,
+  .matter-center-button {
+    padding-left: 9px !important;
+    padding-right: 9px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    align-items: flex-start;
+  }
+
+  .topbar-actions {
+    flex-wrap: wrap !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .matter-center-label {
+    display: none !important;
+  }
+
+  .floor-switch-number {
+    display: none;
+  }
+}
