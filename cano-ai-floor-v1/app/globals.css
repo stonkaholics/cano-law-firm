@@ -5577,3 +5577,109 @@ button { font: inherit; }
     white-space: normal;
   }
 }
+
+/* =========================================================
+   MAIN FLOOR HEADER — FIX PI / MATTER CENTER OVERLAP
+   ========================================================= */
+
+.topbar-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  flex-wrap: nowrap !important;
+}
+
+/* PI FLOOR SWITCH */
+.floor-switch-button {
+  position: relative !important;
+  flex: 0 0 auto !important;
+  min-width: max-content !important;
+  min-height: 36px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+
+  padding: 7px 13px !important;
+  margin: 0 !important;
+
+  white-space: nowrap !important;
+  z-index: 1 !important;
+}
+
+/* MATTER CENTER */
+.matter-center-button {
+  position: relative !important;
+  flex: 0 0 auto !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+
+  min-width: max-content !important;
+  min-height: 36px !important;
+
+  padding: 7px 12px !important;
+  margin: 0 !important;
+
+  white-space: nowrap !important;
+  z-index: 1 !important;
+}
+
+/* If the "2" is a badge inside Matter Center,
+   keep it in normal flow instead of floating over PI Floor */
+.matter-center-button .matter-count,
+.matter-center-button .matter-count-badge,
+.matter-center-button .count-badge,
+.matter-center-button .badge {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  min-width: 22px !important;
+  height: 22px !important;
+
+  margin-left: 2px !important;
+}
+
+/* SYSTEM STATUS */
+.system-status,
+.system-pill,
+.systems-online {
+  position: relative !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+}
+
+/* TABLET */
+@media (max-width: 900px) {
+  .topbar-actions {
+    gap: 7px !important;
+  }
+
+  .floor-switch-button,
+  .matter-center-button {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+}
+
+/* MOBILE — allow clean second row instead of overlap */
+@media (max-width: 720px) {
+  .topbar-actions {
+    flex-wrap: wrap !important;
+    justify-content: flex-end !important;
+  }
+
+  .floor-switch-button,
+  .matter-center-button {
+    min-height: 34px !important;
+  }
+}
