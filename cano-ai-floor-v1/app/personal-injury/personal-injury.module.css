@@ -2985,3 +2985,293 @@
   .medIntelFindingGrid{grid-template-columns:1fr;}
   .medIntelIntakeActions{flex-wrap:wrap;}
 }
+
+
+/* =========================================================
+   FLOOR 02 · DEPARTMENTAL VISUAL FLOOR V1
+   Managers / Growth & Intake / Medical / Personal Injury
+   ========================================================= */
+
+.departmentGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.departmentPod {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(125, 91, 181, 0.24);
+  border-radius: 16px;
+  padding: 14px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.018), transparent 34%),
+    rgba(8, 9, 22, 0.58);
+}
+
+.departmentPod::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 2px;
+  opacity: .7;
+  pointer-events: none;
+}
+
+.departmentManager::before {
+  background: linear-gradient(90deg, #d3a968, transparent 75%);
+}
+
+.departmentGrowth::before {
+  background: linear-gradient(90deg, #69b8ef, transparent 75%);
+}
+
+.departmentMedical::before {
+  background: linear-gradient(90deg, #63d5ad, transparent 75%);
+}
+
+.departmentPi::before {
+  background: linear-gradient(90deg, #a77be4, transparent 75%);
+}
+
+.departmentManager {
+  border-color: rgba(211, 169, 104, 0.22);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(211,169,104,.055), transparent 34%),
+    rgba(8, 9, 22, 0.58);
+}
+
+.departmentGrowth {
+  border-color: rgba(105, 184, 239, 0.20);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(105,184,239,.05), transparent 34%),
+    rgba(8, 9, 22, 0.58);
+}
+
+.departmentMedical {
+  border-color: rgba(99, 213, 173, 0.20);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(99,213,173,.055), transparent 34%),
+    rgba(8, 9, 22, 0.58);
+}
+
+.departmentPi {
+  border-color: rgba(167, 123, 228, 0.24);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(167,123,228,.06), transparent 34%),
+    rgba(8, 9, 22, 0.58);
+}
+
+.departmentHeader {
+  min-height: 86px;
+  padding: 2px 3px 12px;
+  border-bottom: 1px solid rgba(155, 126, 200, 0.11);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.departmentHeader > div:first-child {
+  min-width: 0;
+}
+
+.departmentHeader > div:first-child > span {
+  display: block;
+  margin-bottom: 5px;
+  color: #765f9d;
+  font-size: 6.5px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+
+.departmentManager .departmentHeader > div:first-child > span {
+  color: #b9955f;
+}
+
+.departmentGrowth .departmentHeader > div:first-child > span {
+  color: #659fc3;
+}
+
+.departmentMedical .departmentHeader > div:first-child > span {
+  color: #5fae92;
+}
+
+.departmentPi .departmentHeader > div:first-child > span {
+  color: #9570c8;
+}
+
+.departmentHeader h3 {
+  margin: 0;
+  color: #e5def4;
+  font-family: Georgia, serif;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.departmentHeader p {
+  max-width: 560px;
+  margin: 5px 0 0;
+  color: #667c89;
+  font-size: 7.5px;
+  line-height: 1.55;
+}
+
+.departmentCount {
+  flex: 0 0 auto;
+  min-width: 48px;
+  padding: 7px 8px;
+  border: 1px solid rgba(150, 115, 205, .15);
+  border-radius: 9px;
+  background: rgba(255,255,255,.014);
+  text-align: center;
+}
+
+.departmentCount strong {
+  display: block;
+  color: #d9cbed;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.departmentCount span {
+  display: block;
+  margin-top: 3px;
+  color: #6d5a8a;
+  font-size: 6px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.departmentDeskGrid {
+  padding-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 6px;
+  align-items: start;
+}
+
+.departmentMedical .departmentDeskGrid,
+.departmentManager .departmentDeskGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.departmentPi .departmentDeskGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.departmentPod .deskNode {
+  min-width: 0;
+  padding: 6px 2px;
+}
+
+.departmentPod .deskLabel {
+  min-width: 0;
+  width: min(100%, 104px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 6.5px;
+}
+
+.departmentPod .agentName {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.departmentMedical .deskLabel {
+  border-color: rgba(99, 213, 173, .36);
+  background: linear-gradient(
+    180deg,
+    rgba(43, 116, 93, .34),
+    rgba(21, 61, 50, .42)
+  );
+}
+
+.departmentGrowth .deskLabel {
+  border-color: rgba(105, 184, 239, .34);
+  background: linear-gradient(
+    180deg,
+    rgba(43, 91, 125, .34),
+    rgba(21, 48, 69, .42)
+  );
+}
+
+.departmentManager .deskLabel {
+  border-color: rgba(211, 169, 104, .34);
+  background: linear-gradient(
+    180deg,
+    rgba(111, 81, 42, .34),
+    rgba(60, 42, 22, .42)
+  );
+}
+
+.departmentPi .deskLabel {
+  border-color: rgba(167, 123, 228, .40);
+  background: linear-gradient(
+    180deg,
+    rgba(80, 43, 133, .48),
+    rgba(45, 23, 81, .55)
+  );
+}
+
+@media (max-width: 1180px) {
+  .departmentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .departmentDeskGrid,
+  .departmentMedical .departmentDeskGrid,
+  .departmentManager .departmentDeskGrid,
+  .departmentPi .departmentDeskGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .departmentGrid {
+    gap: 10px;
+  }
+
+  .departmentPod {
+    padding: 11px;
+  }
+
+  .departmentHeader {
+    min-height: 0;
+  }
+
+  .departmentDeskGrid,
+  .departmentMedical .departmentDeskGrid,
+  .departmentManager .departmentDeskGrid,
+  .departmentPi .departmentDeskGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .departmentPod .deskLabel {
+    width: min(100%, 150px);
+    font-size: 8px;
+  }
+}
+
+@media (max-width: 470px) {
+  .departmentHeader {
+    flex-direction: column;
+  }
+
+  .departmentCount {
+    display: none;
+  }
+
+  .departmentDeskGrid,
+  .departmentMedical .departmentDeskGrid,
+  .departmentManager .departmentDeskGrid,
+  .departmentPi .departmentDeskGrid {
+    grid-template-columns: 1fr;
+  }
+}

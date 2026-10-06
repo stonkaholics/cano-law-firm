@@ -70,11 +70,12 @@ type PiAgent = {
   role: string;
   shortRole: string;
   description: string;
-  zone: "manager" | "growth";
+  zone: "manager" | "growth" | "medical" | "pi";
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
   capabilities: string[];
   output: string[];
   status: "ready" | "working" | "review";
+  runnable?: boolean;
 };
 
 type ReferralContact = {
@@ -366,7 +367,7 @@ const agents: PiAgent[] = [
     shortRole: "Medical",
     description:
       "Reviews authorized medical-record packets and builds source-traceable treatment timelines, diagnoses, imaging, procedures, bills, treatment gaps, prior conditions, and attorney-review flags.",
-    zone: "manager",
+    zone: "medical",
     icon: Stethoscope,
     capabilities: [
       "Review medical-record packets",
@@ -385,6 +386,81 @@ const agents: PiAgent[] = [
       "Attorney review queue",
     ],
     status: "review",
+  },
+  {
+    id: "caretrack",
+    name: "CareTrack",
+    role: "Treatment Continuity Agent",
+    shortRole: "Treatment",
+    description:
+      "Tracks treatment continuity, provider follow-ups, referrals, therapy cadence, and documented gaps without making clinical judgments.",
+    zone: "medical",
+    icon: CalendarClock,
+    capabilities: [
+      "Track treatment chronology",
+      "Flag documented treatment gaps",
+      "Track referrals and follow-ups",
+      "Surface missed or unresolved next steps",
+      "Preserve provider and source attribution",
+    ],
+    output: [
+      "Treatment continuity timeline",
+      "Gap review queue",
+      "Provider follow-up list",
+      "Missing treatment records",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "medbills",
+    name: "MedBills",
+    role: "Medical Specials & Billing Agent",
+    shortRole: "Medical Bills",
+    description:
+      "Organizes medical bills, charges, provider balances, and documented specials so damages work can trace every number back to a source.",
+    zone: "medical",
+    icon: CircleDollarSign,
+    capabilities: [
+      "Inventory medical bills",
+      "Track provider charges",
+      "Identify duplicate billing records",
+      "Reconcile bills to treatment dates",
+      "Preserve source-document references",
+    ],
+    output: [
+      "Medical specials ledger",
+      "Provider billing summary",
+      "Missing bill list",
+      "Charge reconciliation flags",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "futurecare",
+    name: "FutureCare",
+    role: "Future Care & Prognosis Extractor",
+    shortRole: "Future Care",
+    description:
+      "Extracts provider-stated prognosis, restrictions, permanency, future treatment, and care recommendations without independently diagnosing or predicting outcomes.",
+    zone: "medical",
+    icon: ClipboardCheck,
+    capabilities: [
+      "Extract provider prognosis statements",
+      "Capture future-care recommendations",
+      "Track restrictions and permanency statements",
+      "Separate provider opinion from AI inference",
+      "Preserve page-level provenance",
+    ],
+    output: [
+      "Future-care summary",
+      "Prognosis statement index",
+      "Restriction timeline",
+      "Attorney review flags",
+    ],
+    status: "review",
+    runnable: false,
   },
   {
     id: "beacon",
@@ -561,6 +637,156 @@ const agents: PiAgent[] = [
     ],
     output: ["Compliance queue", "Approval status", "Blocked actions"],
     status: "review",
+  },
+  {
+    id: "vector",
+    name: "Vector",
+    role: "Liability & Evidence Agent",
+    shortRole: "Liability",
+    description:
+      "Organizes crash facts, reports, witnesses, photos, citations, scene evidence, and liability issues into an attorney-review liability file.",
+    zone: "pi",
+    icon: FileSearch,
+    capabilities: [
+      "Build liability chronology",
+      "Organize crash and incident reports",
+      "Track witness and evidence references",
+      "Identify disputed liability facts",
+      "Flag missing evidence",
+    ],
+    output: [
+      "Liability brief",
+      "Evidence inventory",
+      "Witness index",
+      "Missing-evidence queue",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "cover",
+    name: "Cover",
+    role: "Insurance & Coverage Agent",
+    shortRole: "Coverage",
+    description:
+      "Tracks carriers, policies, claim numbers, limits, coverage positions, PIP/MedPay, UM/UIM, and outstanding insurance documents.",
+    zone: "pi",
+    icon: ShieldCheck,
+    capabilities: [
+      "Inventory insurance coverage",
+      "Track claim and policy identifiers",
+      "Organize limits and coverage positions",
+      "Track PIP, MedPay, UM and UIM issues",
+      "Flag missing policy documents",
+    ],
+    output: [
+      "Coverage matrix",
+      "Carrier and claim summary",
+      "Policy-document queue",
+      "Coverage issue flags",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "valor",
+    name: "Valor",
+    role: "Damages Intelligence Agent",
+    shortRole: "Damages",
+    description:
+      "Combines verified medical, wage, property, out-of-pocket, and other documented damages into a source-traceable damages picture for attorney review.",
+    zone: "pi",
+    icon: CircleDollarSign,
+    capabilities: [
+      "Organize economic damages",
+      "Track wage-loss documentation",
+      "Connect medical specials to source records",
+      "Track property and out-of-pocket losses",
+      "Surface missing damages support",
+    ],
+    output: [
+      "Damages ledger",
+      "Economic-loss summary",
+      "Support-document checklist",
+      "Damages review flags",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "forge",
+    name: "Forge",
+    role: "Demand Package Agent",
+    shortRole: "Demand",
+    description:
+      "Assembles verified liability, medical, coverage, and damages intelligence into an attorney-controlled demand package without inventing facts or valuation.",
+    zone: "pi",
+    icon: ClipboardCheck,
+    capabilities: [
+      "Assemble demand-package facts",
+      "Pull verified medical chronology",
+      "Pull liability and damages support",
+      "Build exhibit checklist",
+      "Flag unsupported demand statements",
+    ],
+    output: [
+      "Demand draft packet",
+      "Exhibit checklist",
+      "Missing-support queue",
+      "Attorney approval package",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "resolve",
+    name: "Resolve",
+    role: "Negotiation Intelligence Agent",
+    shortRole: "Negotiation",
+    description:
+      "Tracks offers, counters, adjuster positions, negotiation history, authority, and unresolved issues for attorney-directed settlement strategy.",
+    zone: "pi",
+    icon: MessageSquareText,
+    capabilities: [
+      "Track offers and counters",
+      "Summarize adjuster positions",
+      "Maintain negotiation chronology",
+      "Compare offers to documented case facts",
+      "Prepare attorney decision points",
+    ],
+    output: [
+      "Negotiation timeline",
+      "Offer/counter ledger",
+      "Open issue list",
+      "Attorney decision brief",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "trial",
+    name: "Trial",
+    role: "Litigation Readiness Agent",
+    shortRole: "Litigation",
+    description:
+      "Checks whether the matter file is ready for escalation by organizing deadlines, evidence, experts, records, pleadings, and unresolved proof gaps for attorney review.",
+    zone: "pi",
+    icon: Landmark,
+    capabilities: [
+      "Build litigation-readiness checklist",
+      "Track critical deadlines",
+      "Inventory evidence and records",
+      "Flag expert and proof gaps",
+      "Prepare escalation summary",
+    ],
+    output: [
+      "Litigation readiness scorecard",
+      "Deadline list",
+      "Evidence gap report",
+      "Escalation brief",
+    ],
+    status: "review",
+    runnable: false,
   },
 ];
 
@@ -1026,6 +1252,8 @@ export default function PersonalInjuryFloor() {
 
   const managerAgents = agents.filter((agent) => agent.zone === "manager");
   const growthAgents = agents.filter((agent) => agent.zone === "growth");
+  const medicalAgents = agents.filter((agent) => agent.zone === "medical");
+  const personalInjuryAgents = agents.filter((agent) => agent.zone === "pi");
 
   const filteredReferrals = useMemo(() => {
     const needle = searchTerm.trim().toLowerCase();
@@ -1397,37 +1625,42 @@ export default function PersonalInjuryFloor() {
         </div>
 
         <div className={styles.floorBoard}>
-          <div className={styles.floorLabels}>
-            <span>MANAGER OFFICES</span>
-            <span>GROWTH & INTAKE AGENT FLOOR</span>
-          </div>
+          <div className={styles.departmentGrid}>
+            <FloorDepartment
+              title="Managers"
+              kicker="COMMAND & COORDINATION"
+              description="Own priorities, referral intelligence, lead operations, market intelligence, and cross-floor decision support."
+              agents={managerAgents}
+              onOpen={setSelectedAgent}
+              tone="manager"
+            />
 
-          <div className={styles.floorLayout}>
-            <div className={styles.managerBox}>
-              <div className={styles.managerGrid}>
-                {managerAgents.map((agent) => (
-                  <AgentDesk
-                    key={agent.id}
-                    agent={agent}
-                    onOpen={setSelectedAgent}
-                  />
-                ))}
-              </div>
-            </div>
+            <FloorDepartment
+              title="Growth & Intake"
+              kicker="ACQUISITION · REFERRALS · CONVERSION"
+              description="Covers referral development, outreach, paid media, demand research, intake, attribution, follow-up, and marketing compliance."
+              agents={growthAgents}
+              onOpen={setSelectedAgent}
+              tone="growth"
+            />
 
-            <div className={styles.floorDivider} />
+            <FloorDepartment
+              title="Medical"
+              kicker="RECORDS · TREATMENT · BILLS · FUTURE CARE"
+              description="Turns medical records into source-traceable intelligence while separating documented provider statements from AI inference."
+              agents={medicalAgents}
+              onOpen={setSelectedAgent}
+              tone="medical"
+            />
 
-            <div className={styles.openFloorBox}>
-              <div className={styles.openFloorGrid}>
-                {growthAgents.map((agent) => (
-                  <AgentDesk
-                    key={agent.id}
-                    agent={agent}
-                    onOpen={setSelectedAgent}
-                  />
-                ))}
-              </div>
-            </div>
+            <FloorDepartment
+              title="Personal Injury"
+              kicker="LIABILITY · COVERAGE · DAMAGES · RESOLUTION"
+              description="The case-work pillar: liability, insurance coverage, damages, demand preparation, negotiation, and litigation readiness."
+              agents={personalInjuryAgents}
+              onOpen={setSelectedAgent}
+              tone="pi"
+            />
           </div>
         </div>
       </section>
@@ -1709,9 +1942,13 @@ export default function PersonalInjuryFloor() {
               <div className={styles.workstationHeaderActions}>
                 <button
                   className={styles.agentRunButton}
-                  disabled={Boolean(runningAgent) || selectedAgent.id === "medintel"}
+                  disabled={
+                    Boolean(runningAgent) ||
+                    selectedAgent.id === "medintel" ||
+                    selectedAgent.runnable === false
+                  }
                   onClick={() =>
-                    selectedAgent.id === "medintel"
+                    selectedAgent.id === "medintel" || selectedAgent.runnable === false
                       ? undefined
                       : runPiAgent(selectedAgent.id as any, {
                           mode: `manual_${selectedAgent.id}_run`,
@@ -1727,6 +1964,8 @@ export default function PersonalInjuryFloor() {
                   )}
                   {selectedAgent.id === "medintel"
                     ? "Use Medical Intake Below"
+                    : selectedAgent.runnable === false
+                    ? "Pillar Ready · Workflow Next"
                     : runningAgent === selectedAgent.id
                     ? "Running…"
                     : `Run ${selectedAgent.name}`}
@@ -2410,6 +2649,59 @@ function MiniStat({
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+function FloorDepartment({
+  title,
+  kicker,
+  description,
+  agents,
+  onOpen,
+  tone,
+}: {
+  title: string;
+  kicker: string;
+  description: string;
+  agents: PiAgent[];
+  onOpen: (agent: PiAgent) => void;
+  tone: "manager" | "growth" | "medical" | "pi";
+}) {
+  return (
+    <section
+      className={`${styles.departmentPod} ${
+        tone === "manager"
+          ? styles.departmentManager
+          : tone === "growth"
+          ? styles.departmentGrowth
+          : tone === "medical"
+          ? styles.departmentMedical
+          : styles.departmentPi
+      }`}
+    >
+      <div className={styles.departmentHeader}>
+        <div>
+          <span>{kicker}</span>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+
+        <div className={styles.departmentCount}>
+          <strong>{agents.length}</strong>
+          <span>agents</span>
+        </div>
+      </div>
+
+      <div className={styles.departmentDeskGrid}>
+        {agents.map((agent) => (
+          <AgentDesk
+            key={agent.id}
+            agent={agent}
+            onOpen={onOpen}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 
