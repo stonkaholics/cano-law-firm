@@ -960,18 +960,32 @@ export default function Home() {
         </div>
 
         <div className="topbar-actions">
+          <a
+            className="floor-switch-button"
+            href="/personal-injury"
+            aria-label="Open Personal Injury Floor 02"
+            title="Open Personal Injury Floor"
+          >
+            <Activity size={15} />
+            <span className="floor-switch-label">Personal Injury</span>
+            <span className="floor-switch-tag">FLOOR 02</span>
+          </a>
+
           <button
+            type="button"
             className="matter-center-button"
             onClick={() => setMatterCenterOpen(true)}
+            aria-label={`Open Matter Center with ${matters.length} shared matters`}
+            title="Open Matter Center"
           >
             <UsersRound size={15} />
-            Matter Center
-            <strong>{matters.length}</strong>
+            <span className="matter-center-label">Matter Center</span>
+            <strong className="matter-count-badge">{matters.length}</strong>
           </button>
 
           <div className="system-pill">
             <span className="live-dot" />
-            Systems Online
+            <span className="system-pill-label">Systems Online</span>
           </div>
         </div>
       </header>
