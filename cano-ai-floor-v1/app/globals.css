@@ -5654,8 +5654,8 @@ button { font: inherit; }
 
 /* ---------------------------------------------------------
    MATTER CENTER
-   Reserve 148px immediately to its right for the global PI switch.
-   That is the key fix for the original overlap.
+   Reserve a full 220px lane immediately to its right for the global PI switch.
+   The surrounding shell positions the PI switch over this header region, so the larger lane keeps Matter Center completely clear of it.
    --------------------------------------------------------- */
 
 .matter-center-button {
@@ -5668,7 +5668,7 @@ button { font: inherit; }
   min-width: max-content !important;
   min-height: 36px !important;
 
-  margin: 0 148px 0 0 !important;
+  margin: 0 220px 0 0 !important;
   padding: 7px 10px 7px 12px !important;
 
   display: inline-flex !important;
@@ -5793,7 +5793,7 @@ button { font: inherit; }
 
   .matter-center-button {
     /* Global PI switch is slightly tighter at tablet width. */
-    margin-right: 132px !important;
+    margin-right: 200px !important;
   }
 }
 
@@ -5813,7 +5813,7 @@ button { font: inherit; }
   }
 
   .matter-center-button {
-    margin-right: 124px !important;
+    margin-right: 188px !important;
   }
 }
 
@@ -5845,7 +5845,7 @@ button { font: inherit; }
   .matter-center-button {
     min-width: 42px !important;
     padding: 0 6px !important;
-    margin-right: 108px !important;
+    margin-right: 164px !important;
   }
 }
 
@@ -5862,10 +5862,36 @@ button { font: inherit; }
    * control; Matter Center becomes compact so all controls still fit.
    */
   .matter-center-button {
-    margin-right: 92px !important;
+    margin-right: 138px !important;
   }
 
   .topbar-actions > .system-pill {
     display: none !important;
+  }
+}
+
+
+/* =========================================================
+   IMMIGRATION HEADER V3 — SCREENSHOT-CALIBRATED CLEARANCE
+   The shell-owned PI button is overlay-positioned. Keep the page-owned
+   Matter Center completely to its left instead of allowing the two pills
+   to occupy the same horizontal lane.
+   ========================================================= */
+
+@media (min-width: 981px) {
+  .topbar-actions > .matter-center-button {
+    margin-right: 220px !important;
+  }
+}
+
+@media (min-width: 821px) and (max-width: 980px) {
+  .topbar-actions > .matter-center-button {
+    margin-right: 200px !important;
+  }
+}
+
+@media (min-width: 681px) and (max-width: 820px) {
+  .topbar-actions > .matter-center-button {
+    margin-right: 188px !important;
   }
 }
