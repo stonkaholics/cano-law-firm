@@ -5895,3 +5895,28 @@ button { font: inherit; }
     margin-right: 188px !important;
   }
 }
+
+
+/* =========================================================
+   IMMIGRATION HEADER V4 — PI FLOOR POSITION TUNING
+   Latest screenshot: structure is correct; shift only the shell-owned
+   Personal Injury / FLOOR 02 pill farther right.
+   ========================================================= */
+
+@media (min-width: 981px) {
+  .floor-switch-button {
+    transform: translateX(28px) !important;
+  }
+}
+
+@media (min-width: 821px) and (max-width: 980px) {
+  .floor-switch-button {
+    transform: translateX(18px) !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .floor-switch-button {
+    transform: none !important;
+  }
+}
