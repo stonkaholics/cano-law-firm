@@ -105,10 +105,32 @@ function shortPlaceholderLabel(raw: string) {
 
 function placeholderDetail(raw: string) {
   const normalized = normalizePlaceholderKey(raw);
+
+  const compactDetails: Record<string, string> = {
+    "DIVISION TBD":
+      "Confirm the correct federal court division before filing.",
+    "DISTRICT TBD":
+      "Confirm the correct federal district before filing.",
+    "RESPONDENT TBD":
+      "Confirm the proper habeas respondent / immediate custodian before filing.",
+    "CASE NO. TBD":
+      "Insert the civil action number once assigned.",
+    "A-NUMBER TBD":
+      "Confirm the detainee's correct A-number.",
+    "DETENTION DATE TBD":
+      "Confirm the operative detention date from the record.",
+    "RELIEF TBD":
+      "Confirm the final requested relief before filing.",
+    "DATE TBD":
+      "Insert the applicable filing, verification, or signature date.",
+  };
+
   return (
     INLINE_PLACEHOLDER_MAP[normalized]?.detail ||
+    compactDetails[normalized] ||
     String(raw || "")
       .replace(/^\[?ATTORNEY INPUT NEEDED:\s*/i, "")
+      .replace(/^\[?ATTORNEY \/ RESEARCH INPUT NEEDED:\s*/i, "")
       .replace(/\]$/, "")
       .trim()
   );
@@ -170,10 +192,68 @@ export default function DraftManagerWorkstation({
     );
   }
 
-  const placeholders = useMemo(
-    () => (Array.isArray(draft?.placeholders) ? draft.placeholders : []),
-    [draft]
-  );
+  /*
+  |--------------------------------------------------------------------------
+  | ATTORNEY-EDITABLE PLACEHOLDERS
+  |--------------------------------------------------------------------------
+  |
+  | Scribe may return verbose placeholders in draft.placeholders:
+  |   [ATTORNEY INPUT NEEDED: CONFIRM DIVISION]
+  |
+  | It may also place compact filing placeholders directly in markdown:
+  |   [DIVISION TBD]
+  |   [RESPONDENT TBD]
+  |   [CASE NO. TBD]
+  |
+  | Use both as sources of truth so compact TBD fields remain yellow,
+  | clickable, and available in the Attorney Input Editor.
+  |--------------------------------------------------------------------------
+  */
+
+  const placeholders = useMemo(() => {
+    const explicit = Array.isArray(draft?.placeholders)
+      ? draft.placeholders
+          .map((item: any) => String(item || "").trim())
+          .filter(Boolean)
+      : [];
+
+    const markdown = String(draft?.markdown || "");
+
+    const bracketTokens =
+      markdown.match(/\[[^\]\n]{2,180}\]/g) || [];
+
+    const looksEditable = (token: string) => {
+      const normalized = normalizePlaceholderKey(token);
+
+      return (
+        /^ATTORNEY INPUT NEEDED:/i.test(normalized) ||
+        /^ATTORNEY \/ RESEARCH INPUT NEEDED:/i.test(normalized) ||
+        /\bTBD\b/i.test(normalized) ||
+        /\bTO BE DETERMINED\b/i.test(normalized) ||
+        /^INSERT\b/i.test(normalized) ||
+        /^CONFIRM\b/i.test(normalized) ||
+        /^VERIFY\b/i.test(normalized)
+      );
+    };
+
+    const inferred = bracketTokens
+      .filter(looksEditable)
+      .map((item) => item.trim());
+
+    const seen = new Set<string>();
+    const combined: string[] = [];
+
+    for (const item of [...explicit, ...inferred]) {
+      const key = normalizePlaceholder(item);
+
+      if (!key || seen.has(key)) continue;
+
+      seen.add(key);
+      combined.push(item);
+    }
+
+    return combined;
+  }, [draft]);
 
   const mondayItemId = matter?.mondayItemId || matter?.matterId || "";
   const inputStorageKey = mondayItemId
@@ -275,10 +355,26 @@ export default function DraftManagerWorkstation({
     if (!/^\[[^\]\n]+\]$/.test(part)) return false;
 
     const resolved = resolvePlaceholderFromDraft(part);
-    if (placeholders.includes(resolved)) return true;
 
-    return /^\[(ATTORNEY INPUT NEEDED:|ATTORNEY \/ RESEARCH INPUT NEEDED:)/i.test(
-      part
+    if (placeholders.includes(resolved)) {
+      return true;
+    }
+
+    const normalized = normalizePlaceholderKey(part);
+
+    /*
+    | Fail-safe detection:
+    | obvious filing placeholders stay yellow/clickable even if Scribe
+    | accidentally omits them from draft.placeholders.
+    */
+    return (
+      /^ATTORNEY INPUT NEEDED:/i.test(normalized) ||
+      /^ATTORNEY \/ RESEARCH INPUT NEEDED:/i.test(normalized) ||
+      /\bTBD\b/i.test(normalized) ||
+      /\bTO BE DETERMINED\b/i.test(normalized) ||
+      /^INSERT\b/i.test(normalized) ||
+      /^CONFIRM\b/i.test(normalized) ||
+      /^VERIFY\b/i.test(normalized)
     );
   }
 
