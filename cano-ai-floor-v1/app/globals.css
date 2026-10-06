@@ -5905,13 +5905,13 @@ button { font: inherit; }
 
 @media (min-width: 981px) {
   .floor-switch-button {
-    transform: translateX(28px) !important;
+    transform: translateX(48px) !important;
   }
 }
 
 @media (min-width: 821px) and (max-width: 980px) {
   .floor-switch-button {
-    transform: translateX(18px) !important;
+    transform: translateX(32px) !important;
   }
 }
 
