@@ -2986,28 +2986,39 @@
   .medIntelIntakeActions{flex-wrap:wrap;}
 }
 
-
 /* =========================================================
-   FLOOR 02 · DEPARTMENTAL VISUAL FLOOR V1
-   Managers / Growth & Intake / Medical / Personal Injury
+   FLOOR 02 · PRACTICE-AREA VISUAL FLOOR V2
+   Managers / Growth & Intake / Accidents /
+   Nursing Home Negligence / Wrongful Death
    ========================================================= */
 
 .departmentGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+  align-items: start;
 }
 
 .departmentPod {
+  --dept-accent: #9b77d2;
+  --dept-accent-rgb: 155, 119, 210;
   position: relative;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid rgba(125, 91, 181, 0.24);
+  border: 1px solid rgba(var(--dept-accent-rgb), 0.22);
   border-radius: 16px;
   padding: 14px;
   background:
+    radial-gradient(
+      circle at 0% 0%,
+      rgba(var(--dept-accent-rgb), 0.065),
+      transparent 35%
+    ),
     linear-gradient(180deg, rgba(255,255,255,.018), transparent 34%),
-    rgba(8, 9, 22, 0.58);
+    rgba(8, 9, 22, 0.62);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.018),
+    0 18px 45px rgba(0,0,0,.08);
 }
 
 .departmentPod::before {
@@ -3016,58 +3027,60 @@
   inset: 0 auto auto 0;
   width: 100%;
   height: 2px;
-  opacity: .7;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--dept-accent-rgb), .95),
+    rgba(var(--dept-accent-rgb), .15) 58%,
+    transparent
+  );
+  opacity: .72;
   pointer-events: none;
 }
 
-.departmentManager::before {
-  background: linear-gradient(90deg, #d3a968, transparent 75%);
-}
-
-.departmentGrowth::before {
-  background: linear-gradient(90deg, #69b8ef, transparent 75%);
-}
-
-.departmentMedical::before {
-  background: linear-gradient(90deg, #63d5ad, transparent 75%);
-}
-
-.departmentPi::before {
-  background: linear-gradient(90deg, #a77be4, transparent 75%);
-}
-
 .departmentManager {
-  border-color: rgba(211, 169, 104, 0.22);
-  background:
-    radial-gradient(circle at 0% 0%, rgba(211,169,104,.055), transparent 34%),
-    rgba(8, 9, 22, 0.58);
+  --dept-accent: #d3a968;
+  --dept-accent-rgb: 211, 169, 104;
 }
 
 .departmentGrowth {
-  border-color: rgba(105, 184, 239, 0.20);
-  background:
-    radial-gradient(circle at 0% 0%, rgba(105,184,239,.05), transparent 34%),
-    rgba(8, 9, 22, 0.58);
+  --dept-accent: #69b8ef;
+  --dept-accent-rgb: 105, 184, 239;
 }
 
-.departmentMedical {
-  border-color: rgba(99, 213, 173, 0.20);
-  background:
-    radial-gradient(circle at 0% 0%, rgba(99,213,173,.055), transparent 34%),
-    rgba(8, 9, 22, 0.58);
+.departmentAccidents {
+  --dept-accent: #a77be4;
+  --dept-accent-rgb: 167, 123, 228;
 }
 
-.departmentPi {
-  border-color: rgba(167, 123, 228, 0.24);
-  background:
-    radial-gradient(circle at 0% 0%, rgba(167,123,228,.06), transparent 34%),
-    rgba(8, 9, 22, 0.58);
+.departmentNursing {
+  --dept-accent: #63d5ad;
+  --dept-accent-rgb: 99, 213, 173;
+}
+
+.departmentWrongful {
+  --dept-accent: #d08a9c;
+  --dept-accent-rgb: 208, 138, 156;
+}
+
+/* Managers stays compact; each actual practice group gets more visual room. */
+.departmentManager {
+  grid-column: span 1;
+}
+
+.departmentGrowth {
+  grid-column: span 1;
+}
+
+.departmentAccidents,
+.departmentNursing,
+.departmentWrongful {
+  grid-column: 1 / -1;
 }
 
 .departmentHeader {
-  min-height: 86px;
+  min-height: 92px;
   padding: 2px 3px 12px;
-  border-bottom: 1px solid rgba(155, 126, 200, 0.11);
+  border-bottom: 1px solid rgba(var(--dept-accent-rgb), 0.13);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -3081,65 +3094,49 @@
 .departmentHeader > div:first-child > span {
   display: block;
   margin-bottom: 5px;
-  color: #765f9d;
+  color: rgba(var(--dept-accent-rgb), .78);
   font-size: 6.5px;
   font-weight: 900;
   letter-spacing: .14em;
 }
 
-.departmentManager .departmentHeader > div:first-child > span {
-  color: #b9955f;
-}
-
-.departmentGrowth .departmentHeader > div:first-child > span {
-  color: #659fc3;
-}
-
-.departmentMedical .departmentHeader > div:first-child > span {
-  color: #5fae92;
-}
-
-.departmentPi .departmentHeader > div:first-child > span {
-  color: #9570c8;
-}
-
 .departmentHeader h3 {
   margin: 0;
-  color: #e5def4;
+  color: #e8e0f5;
   font-family: Georgia, serif;
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 500;
 }
 
 .departmentHeader p {
-  max-width: 560px;
+  max-width: 760px;
   margin: 5px 0 0;
   color: #667c89;
   font-size: 7.5px;
-  line-height: 1.55;
+  line-height: 1.6;
 }
 
 .departmentCount {
   flex: 0 0 auto;
-  min-width: 48px;
-  padding: 7px 8px;
-  border: 1px solid rgba(150, 115, 205, .15);
+  min-width: 52px;
+  padding: 8px 9px;
+  border: 1px solid rgba(var(--dept-accent-rgb), .18);
   border-radius: 9px;
-  background: rgba(255,255,255,.014);
+  background: rgba(var(--dept-accent-rgb), .035);
   text-align: center;
 }
 
 .departmentCount strong {
   display: block;
-  color: #d9cbed;
-  font-size: 15px;
+  color: rgba(var(--dept-accent-rgb), .95);
+  font-size: 16px;
   line-height: 1;
 }
 
 .departmentCount span {
   display: block;
   margin-top: 3px;
-  color: #6d5a8a;
+  color: rgba(var(--dept-accent-rgb), .62);
   font-size: 6px;
   font-weight: 800;
   letter-spacing: .08em;
@@ -3147,20 +3144,24 @@
 }
 
 .departmentDeskGrid {
-  padding-top: 12px;
+  padding-top: 13px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px 6px;
+  gap: 12px 7px;
   align-items: start;
 }
 
-.departmentMedical .departmentDeskGrid,
-.departmentManager .departmentDeskGrid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.departmentGrowth .departmentDeskGrid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
-.departmentPi .departmentDeskGrid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.departmentAccidents .departmentDeskGrid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.departmentNursing .departmentDeskGrid,
+.departmentWrongful .departmentDeskGrid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .departmentPod .deskNode {
@@ -3170,11 +3171,29 @@
 
 .departmentPod .deskLabel {
   min-width: 0;
-  width: min(100%, 104px);
+  width: min(100%, 112px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  border-color: rgba(var(--dept-accent-rgb), .38);
+  background: linear-gradient(
+    180deg,
+    rgba(var(--dept-accent-rgb), .24),
+    rgba(var(--dept-accent-rgb), .09)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.035),
+    0 4px 14px rgba(0,0,0,.08);
   font-size: 6.5px;
+}
+
+.departmentPod .deskNode:hover .deskLabel {
+  border-color: rgba(var(--dept-accent-rgb), .66);
+  background: linear-gradient(
+    180deg,
+    rgba(var(--dept-accent-rgb), .34),
+    rgba(var(--dept-accent-rgb), .13)
+  );
 }
 
 .departmentPod .agentName {
@@ -3184,40 +3203,20 @@
   white-space: nowrap;
 }
 
-.departmentMedical .deskLabel {
-  border-color: rgba(99, 213, 173, .36);
-  background: linear-gradient(
-    180deg,
-    rgba(43, 116, 93, .34),
-    rgba(21, 61, 50, .42)
-  );
+.departmentPod .deskNode > svg {
+  color: rgba(var(--dept-accent-rgb), .72);
 }
 
-.departmentGrowth .deskLabel {
-  border-color: rgba(105, 184, 239, .34);
-  background: linear-gradient(
-    180deg,
-    rgba(43, 91, 125, .34),
-    rgba(21, 48, 69, .42)
-  );
-}
+@media (max-width: 1380px) {
+  .departmentGrowth .departmentDeskGrid,
+  .departmentNursing .departmentDeskGrid,
+  .departmentWrongful .departmentDeskGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 
-.departmentManager .deskLabel {
-  border-color: rgba(211, 169, 104, .34);
-  background: linear-gradient(
-    180deg,
-    rgba(111, 81, 42, .34),
-    rgba(60, 42, 22, .42)
-  );
-}
-
-.departmentPi .deskLabel {
-  border-color: rgba(167, 123, 228, .40);
-  background: linear-gradient(
-    180deg,
-    rgba(80, 43, 133, .48),
-    rgba(45, 23, 81, .55)
-  );
+  .departmentAccidents .departmentDeskGrid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 1180px) {
@@ -3225,10 +3224,19 @@
     grid-template-columns: 1fr;
   }
 
+  .departmentManager,
+  .departmentGrowth,
+  .departmentAccidents,
+  .departmentNursing,
+  .departmentWrongful {
+    grid-column: 1;
+  }
+
   .departmentDeskGrid,
-  .departmentMedical .departmentDeskGrid,
-  .departmentManager .departmentDeskGrid,
-  .departmentPi .departmentDeskGrid {
+  .departmentGrowth .departmentDeskGrid,
+  .departmentAccidents .departmentDeskGrid,
+  .departmentNursing .departmentDeskGrid,
+  .departmentWrongful .departmentDeskGrid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
@@ -3247,9 +3255,10 @@
   }
 
   .departmentDeskGrid,
-  .departmentMedical .departmentDeskGrid,
-  .departmentManager .departmentDeskGrid,
-  .departmentPi .departmentDeskGrid {
+  .departmentGrowth .departmentDeskGrid,
+  .departmentAccidents .departmentDeskGrid,
+  .departmentNursing .departmentDeskGrid,
+  .departmentWrongful .departmentDeskGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -3269,9 +3278,10 @@
   }
 
   .departmentDeskGrid,
-  .departmentMedical .departmentDeskGrid,
-  .departmentManager .departmentDeskGrid,
-  .departmentPi .departmentDeskGrid {
+  .departmentGrowth .departmentDeskGrid,
+  .departmentAccidents .departmentDeskGrid,
+  .departmentNursing .departmentDeskGrid,
+  .departmentWrongful .departmentDeskGrid {
     grid-template-columns: 1fr;
   }
 }

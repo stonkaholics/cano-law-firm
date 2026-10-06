@@ -70,7 +70,7 @@ type PiAgent = {
   role: string;
   shortRole: string;
   description: string;
-  zone: "manager" | "growth" | "medical" | "pi";
+  zone: "manager" | "growth" | "accidents" | "nursing" | "wrongful";
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
   capabilities: string[];
   output: string[];
@@ -288,30 +288,111 @@ type WorkspacePayload = {
 };
 
 const agents: PiAgent[] = [
+  // ================================================================
+  // MANAGERS — cross-practice command, strategy, QA, compliance
+  // ================================================================
   {
     id: "catalyst",
     name: "Catalyst",
-    role: "PI Growth Manager",
-    shortRole: "Growth",
+    role: "PI Operations Director",
+    shortRole: "Operations",
     description:
-      "Coordinates the Personal Injury growth floor: referral development, inbound lead performance, campaign priorities, and revenue attribution.",
+      "Coordinates the Personal Injury floor across growth, intake, accidents, nursing-home negligence, and wrongful-death matters. Surfaces priorities, bottlenecks, and cross-practice work that needs attorney attention.",
     zone: "manager",
     icon: TrendingUp,
     capabilities: [
-      "Set growth priorities",
-      "Rank referral and lead opportunities",
-      "Coordinate campaigns",
-      "Surface conversion bottlenecks",
-      "Prepare weekly growth briefs",
+      "Set cross-practice priorities",
+      "Coordinate specialist work",
+      "Surface stalled matters and bottlenecks",
+      "Track pipeline and case-development health",
+      "Prepare executive PI floor briefs",
     ],
     output: [
-      "Growth brief",
+      "Operations brief",
       "Priority queue",
-      "Channel scorecard",
-      "Pipeline summary",
+      "Cross-practice scorecard",
+      "Attorney attention list",
     ],
     status: "ready",
   },
+  {
+    id: "atlaspi",
+    name: "Atlas",
+    role: "PI Case Strategy Manager",
+    shortRole: "Case Strategy",
+    description:
+      "Synthesizes verified specialist outputs into a matter-level strategy view without replacing the specialist agents or making final legal conclusions.",
+    zone: "manager",
+    icon: Compass,
+    capabilities: [
+      "Synthesize specialist outputs",
+      "Build matter strategy summaries",
+      "Identify unresolved factual issues",
+      "Connect liability, medical, coverage, and damages work",
+      "Escalate attorney decision points",
+    ],
+    output: [
+      "Case strategy brief",
+      "Issue matrix",
+      "Specialist dependency map",
+      "Attorney decision queue",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "coordinatorpi",
+    name: "Coordinator",
+    role: "PI Workflow Coordinator",
+    shortRole: "Coordinator",
+    description:
+      "Routes work to the correct practice-area specialists, tracks dependencies, and keeps each matter moving through the PI pipeline.",
+    zone: "manager",
+    icon: Activity,
+    capabilities: [
+      "Route work by practice area",
+      "Track agent dependencies",
+      "Sequence specialist tasks",
+      "Detect stalled workflow stages",
+      "Maintain matter run status",
+    ],
+    output: [
+      "Workflow plan",
+      "Next-agent queue",
+      "Dependency status",
+      "Stalled-task alerts",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "guard",
+    name: "Guard",
+    role: "Compliance & Quality Manager",
+    shortRole: "Compliance + QA",
+    description:
+      "Maintains human-approval gates, marketing and solicitation controls, source-traceability expectations, and quality-review flags across the PI floor.",
+    zone: "manager",
+    icon: ShieldCheck,
+    capabilities: [
+      "Human-approval gates",
+      "Marketing and solicitation review",
+      "Source-traceability checks",
+      "Missing-input detection",
+      "Quality and compliance escalation",
+    ],
+    output: [
+      "Compliance queue",
+      "Quality review flags",
+      "Blocked actions",
+      "Attorney approval status",
+    ],
+    status: "review",
+  },
+
+  // ================================================================
+  // GROWTH & INTAKE — acquire, qualify, route, attribute
+  // ================================================================
   {
     id: "scout",
     name: "Scout",
@@ -319,7 +400,7 @@ const agents: PiAgent[] = [
     shortRole: "Referrals",
     description:
       "Finds and enriches professional referral opportunities, explains why each relationship may fit, and sends approved prospects into outreach.",
-    zone: "manager",
+    zone: "growth",
     icon: Handshake,
     capabilities: [
       "Discover professional referral targets",
@@ -340,127 +421,49 @@ const agents: PiAgent[] = [
     id: "pulse",
     name: "Pulse",
     role: "Lead Operations Manager",
-    shortRole: "Leads",
+    shortRole: "Lead Ops",
     description:
-      "Owns the inbound PI lead queue from calls, forms, advertising, directories, referrals, and future integrations.",
-    zone: "manager",
+      "Owns the inbound PI lead queue from calls, forms, advertising, directories, referrals, public incident intelligence, and future integrations.",
+    zone: "growth",
     icon: HeartPulse,
     capabilities: [
       "Deduplicate leads",
       "Prioritize response speed",
       "Track source attribution",
-      "Route qualified leads",
-      "Measure consult and signed-case conversion",
+      "Route qualified leads by practice area",
+      "Coordinate incident-intelligence research",
     ],
     output: [
       "Lead queue",
       "Qualification status",
       "Source attribution",
-      "Conversion report",
+      "Practice-area routing",
     ],
     status: "ready",
   },
   {
-    id: "medintel",
-    name: "MedIntel",
-    role: "Medical Records Intelligence",
-    shortRole: "Medical",
+    id: "intake",
+    name: "Intake",
+    role: "PI Lead Qualifier",
+    shortRole: "Intake",
     description:
-      "Reviews authorized medical-record packets and builds source-traceable treatment timelines, diagnoses, imaging, procedures, bills, treatment gaps, prior conditions, and attorney-review flags.",
-    zone: "medical",
-    icon: Stethoscope,
+      "Structures incoming facts and identifies the practice-specific questions still needed before attorney review.",
+    zone: "growth",
+    icon: UserRoundCheck,
     capabilities: [
-      "Review medical-record packets",
-      "Build treatment chronology",
-      "Extract diagnoses and imaging",
-      "Track procedures and medications",
-      "Identify treatment gaps and prior conditions",
-      "Preserve document and page provenance",
+      "Lead intake structuring",
+      "Practice-area classification",
+      "Urgency detection",
+      "Missing-question detection",
+      "Consult routing",
     ],
     output: [
-      "Medical chronology",
-      "Injury and diagnosis index",
-      "Imaging and procedure summary",
-      "Billing summary",
-      "Treatment-gap flags",
-      "Attorney review queue",
+      "Lead brief",
+      "Practice-area classification",
+      "Missing questions",
+      "Consult priority",
     ],
-    status: "review",
-  },
-  {
-    id: "caretrack",
-    name: "CareTrack",
-    role: "Treatment Continuity Agent",
-    shortRole: "Treatment",
-    description:
-      "Tracks treatment continuity, provider follow-ups, referrals, therapy cadence, and documented gaps without making clinical judgments.",
-    zone: "medical",
-    icon: CalendarClock,
-    capabilities: [
-      "Track treatment chronology",
-      "Flag documented treatment gaps",
-      "Track referrals and follow-ups",
-      "Surface missed or unresolved next steps",
-      "Preserve provider and source attribution",
-    ],
-    output: [
-      "Treatment continuity timeline",
-      "Gap review queue",
-      "Provider follow-up list",
-      "Missing treatment records",
-    ],
-    status: "review",
-    runnable: false,
-  },
-  {
-    id: "medbills",
-    name: "MedBills",
-    role: "Medical Specials & Billing Agent",
-    shortRole: "Medical Bills",
-    description:
-      "Organizes medical bills, charges, provider balances, and documented specials so damages work can trace every number back to a source.",
-    zone: "medical",
-    icon: CircleDollarSign,
-    capabilities: [
-      "Inventory medical bills",
-      "Track provider charges",
-      "Identify duplicate billing records",
-      "Reconcile bills to treatment dates",
-      "Preserve source-document references",
-    ],
-    output: [
-      "Medical specials ledger",
-      "Provider billing summary",
-      "Missing bill list",
-      "Charge reconciliation flags",
-    ],
-    status: "review",
-    runnable: false,
-  },
-  {
-    id: "futurecare",
-    name: "FutureCare",
-    role: "Future Care & Prognosis Extractor",
-    shortRole: "Future Care",
-    description:
-      "Extracts provider-stated prognosis, restrictions, permanency, future treatment, and care recommendations without independently diagnosing or predicting outcomes.",
-    zone: "medical",
-    icon: ClipboardCheck,
-    capabilities: [
-      "Extract provider prognosis statements",
-      "Capture future-care recommendations",
-      "Track restrictions and permanency statements",
-      "Separate provider opinion from AI inference",
-      "Preserve page-level provenance",
-    ],
-    output: [
-      "Future-care summary",
-      "Prognosis statement index",
-      "Restriction timeline",
-      "Attorney review flags",
-    ],
-    status: "review",
-    runnable: false,
+    status: "ready",
   },
   {
     id: "beacon",
@@ -468,21 +471,21 @@ const agents: PiAgent[] = [
     role: "Market Intelligence Manager",
     shortRole: "Market Intel",
     description:
-      "Researches PI demand, competitors, directories, geographic opportunities, and campaign gaps without making autonomous spend decisions.",
-    zone: "manager",
+      "Researches PI demand, competitors, directories, geographic opportunities, and campaign gaps across each practice area.",
+    zone: "growth",
     icon: Compass,
     capabilities: [
       "Market and competitor research",
+      "Practice-area opportunity research",
       "Directory opportunity research",
       "Geo opportunity mapping",
-      "Search-theme research",
       "Campaign intelligence",
     ],
     output: [
       "Opportunity map",
       "Competitor notes",
       "Directory list",
-      "Campaign research",
+      "Practice-area campaign research",
     ],
     status: "ready",
   },
@@ -511,7 +514,7 @@ const agents: PiAgent[] = [
     role: "Outreach Drafting Agent",
     shortRole: "Outreach",
     description:
-      "Drafts professional referral outreach for human approval. It does not auto-contact accident victims.",
+      "Drafts professional referral outreach for human approval. It does not autonomously contact accident victims or represented persons.",
     zone: "growth",
     icon: Send,
     capabilities: [
@@ -549,13 +552,13 @@ const agents: PiAgent[] = [
     role: "PI Demand Research Agent",
     shortRole: "Demand",
     description:
-      "Researches high-intent PI demand, geographic gaps, search themes, and market opportunities for attorney review.",
+      "Researches high-intent demand, geographic gaps, search themes, and market opportunities by PI practice area.",
     zone: "growth",
     icon: Search,
     capabilities: [
       "Search-demand research",
       "Geo comparisons",
-      "High-value case-type research",
+      "Practice-area demand research",
       "Local-market gap detection",
       "Trend monitoring",
     ],
@@ -568,7 +571,7 @@ const agents: PiAgent[] = [
     role: "Paid Media Intelligence Agent",
     shortRole: "Paid Media",
     description:
-      "Organizes Google and Meta campaign performance and proposes tests; budget and creative changes remain human-approved.",
+      "Organizes Google and Meta campaign performance and proposes practice-specific tests; budget and creative changes remain human-approved.",
     zone: "growth",
     icon: Megaphone,
     capabilities: [
@@ -582,75 +585,66 @@ const agents: PiAgent[] = [
     status: "ready",
   },
   {
-    id: "intake",
-    name: "Intake",
-    role: "PI Lead Qualifier",
-    shortRole: "Qualifier",
-    description:
-      "Structures incoming PI lead facts, urgency, treatment status, liability indicators, insurance information, and missing intake questions.",
-    zone: "growth",
-    icon: UserRoundCheck,
-    capabilities: [
-      "Lead intake structuring",
-      "Urgency detection",
-      "Missing-question detection",
-      "Consult routing",
-      "Conflict/compliance hold flags",
-    ],
-    output: ["Lead brief", "Missing questions", "Consult priority"],
-    status: "ready",
-  },
-  {
     id: "ledger",
     name: "Ledger",
     role: "Lead Attribution Agent",
     shortRole: "Attribution",
     description:
-      "Connects leads, consults, signed matters, referral sources, and marketing spend so the firm can see what actually produces cases.",
+      "Connects leads, consults, signed matters, referral sources, practice areas, and marketing spend so the firm can see what actually produces cases.",
     zone: "growth",
     icon: CircleDollarSign,
     capabilities: [
       "Source attribution",
+      "Practice-area attribution",
       "CAC reporting",
       "Referral attribution",
       "Signed-case conversion",
-      "Channel comparisons",
     ],
     output: ["Attribution table", "CAC summary", "Source ROI"],
     status: "ready",
   },
+
+  // ================================================================
+  // ACCIDENTS — auto/truck/motorcycle/pedestrian and related claims
+  // ================================================================
   {
-    id: "guard",
-    name: "Guard",
-    role: "Marketing Compliance Gate",
-    shortRole: "Compliance",
+    id: "crashintel",
+    name: "CrashIntel",
+    role: "Crash Report & Scene Intelligence",
+    shortRole: "Crash Intel",
     description:
-      "Flags outreach, ads, lead vendors, and solicitation workflows that need attorney or Florida Bar compliance review before activation.",
-    zone: "growth",
-    icon: ShieldCheck,
+      "Builds the accident-specific fact base from authorized crash reports, CAD/event records, scene facts, citations, vehicles, agencies, and source documents.",
+    zone: "accidents",
+    icon: FileSearch,
     capabilities: [
-      "Human-approval gates",
-      "Lead-vendor review queue",
-      "Outreach-type classification",
-      "Ad-review tracking",
-      "Compliance notes",
+      "Organize crash-report facts",
+      "Track agencies and report identifiers",
+      "Build accident chronology",
+      "Inventory vehicles, citations, and scene evidence",
+      "Flag missing official records",
     ],
-    output: ["Compliance queue", "Approval status", "Blocked actions"],
+    output: [
+      "Crash intelligence brief",
+      "Accident chronology",
+      "Official-record inventory",
+      "Missing-report queue",
+    ],
     status: "review",
+    runnable: false,
   },
   {
     id: "vector",
     name: "Vector",
-    role: "Liability & Evidence Agent",
+    role: "Accident Liability & Evidence Agent",
     shortRole: "Liability",
     description:
-      "Organizes crash facts, reports, witnesses, photos, citations, scene evidence, and liability issues into an attorney-review liability file.",
-    zone: "pi",
+      "Organizes crash facts, witnesses, photos, video, citations, scene evidence, and disputed liability issues into an attorney-review liability file.",
+    zone: "accidents",
     icon: FileSearch,
     capabilities: [
       "Build liability chronology",
-      "Organize crash and incident reports",
-      "Track witness and evidence references",
+      "Organize crash and incident evidence",
+      "Track witness references",
       "Identify disputed liability facts",
       "Flag missing evidence",
     ],
@@ -666,11 +660,11 @@ const agents: PiAgent[] = [
   {
     id: "cover",
     name: "Cover",
-    role: "Insurance & Coverage Agent",
+    role: "Accident Insurance & Coverage Agent",
     shortRole: "Coverage",
     description:
       "Tracks carriers, policies, claim numbers, limits, coverage positions, PIP/MedPay, UM/UIM, and outstanding insurance documents.",
-    zone: "pi",
+    zone: "accidents",
     icon: ShieldCheck,
     capabilities: [
       "Inventory insurance coverage",
@@ -689,18 +683,118 @@ const agents: PiAgent[] = [
     runnable: false,
   },
   {
+    id: "medintel",
+    name: "MedIntel",
+    role: "Accident Medical Records Intelligence",
+    shortRole: "Medical",
+    description:
+      "Reviews authorized accident-related medical-record packets and builds source-traceable treatment timelines, diagnoses, imaging, procedures, bills, prior conditions, and attorney-review flags.",
+    zone: "accidents",
+    icon: Stethoscope,
+    capabilities: [
+      "Review medical-record packets",
+      "Build treatment chronology",
+      "Extract diagnoses and imaging",
+      "Track procedures and medications",
+      "Identify prior conditions and documented gaps",
+      "Preserve document and page provenance",
+    ],
+    output: [
+      "Medical chronology",
+      "Injury and diagnosis index",
+      "Imaging and procedure summary",
+      "Attorney review queue",
+    ],
+    status: "review",
+  },
+  {
+    id: "caretrack",
+    name: "CareTrack",
+    role: "Accident Treatment Continuity Agent",
+    shortRole: "Treatment",
+    description:
+      "Tracks post-accident treatment continuity, referrals, therapy cadence, provider follow-ups, and documented treatment gaps without making clinical judgments.",
+    zone: "accidents",
+    icon: CalendarClock,
+    capabilities: [
+      "Track treatment chronology",
+      "Flag documented treatment gaps",
+      "Track referrals and follow-ups",
+      "Surface unresolved treatment steps",
+      "Preserve provider attribution",
+    ],
+    output: [
+      "Treatment continuity timeline",
+      "Gap review queue",
+      "Provider follow-up list",
+      "Missing treatment records",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "medbills",
+    name: "MedBills",
+    role: "Accident Medical Specials Agent",
+    shortRole: "Medical Bills",
+    description:
+      "Organizes accident-related medical bills, charges, provider balances, and specials so every damages number remains traceable to a source.",
+    zone: "accidents",
+    icon: CircleDollarSign,
+    capabilities: [
+      "Inventory medical bills",
+      "Track provider charges",
+      "Identify duplicate billing records",
+      "Reconcile bills to treatment dates",
+      "Preserve source-document references",
+    ],
+    output: [
+      "Medical specials ledger",
+      "Provider billing summary",
+      "Missing bill list",
+      "Charge reconciliation flags",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "futurecare",
+    name: "FutureCare",
+    role: "Accident Future Care & Prognosis Extractor",
+    shortRole: "Future Care",
+    description:
+      "Extracts provider-stated prognosis, restrictions, permanency, future treatment, and care recommendations without independently diagnosing or predicting outcomes.",
+    zone: "accidents",
+    icon: ClipboardCheck,
+    capabilities: [
+      "Extract provider prognosis statements",
+      "Capture future-care recommendations",
+      "Track restrictions and permanency statements",
+      "Separate provider opinion from AI inference",
+      "Preserve page-level provenance",
+    ],
+    output: [
+      "Future-care summary",
+      "Prognosis statement index",
+      "Restriction timeline",
+      "Attorney review flags",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
     id: "valor",
     name: "Valor",
-    role: "Damages Intelligence Agent",
+    role: "Accident Damages Intelligence Agent",
     shortRole: "Damages",
     description:
-      "Combines verified medical, wage, property, out-of-pocket, and other documented damages into a source-traceable damages picture for attorney review.",
-    zone: "pi",
+      "Combines verified medical, wage, property, out-of-pocket, and other documented accident damages into a source-traceable damages picture.",
+    zone: "accidents",
     icon: CircleDollarSign,
     capabilities: [
       "Organize economic damages",
       "Track wage-loss documentation",
-      "Connect medical specials to source records",
+      "Connect medical specials to records",
       "Track property and out-of-pocket losses",
       "Surface missing damages support",
     ],
@@ -716,11 +810,11 @@ const agents: PiAgent[] = [
   {
     id: "forge",
     name: "Forge",
-    role: "Demand Package Agent",
+    role: "Accident Demand Package Agent",
     shortRole: "Demand",
     description:
-      "Assembles verified liability, medical, coverage, and damages intelligence into an attorney-controlled demand package without inventing facts or valuation.",
-    zone: "pi",
+      "Assembles verified accident liability, medical, coverage, and damages intelligence into an attorney-controlled demand package.",
+    zone: "accidents",
     icon: ClipboardCheck,
     capabilities: [
       "Assemble demand-package facts",
@@ -741,11 +835,11 @@ const agents: PiAgent[] = [
   {
     id: "resolve",
     name: "Resolve",
-    role: "Negotiation Intelligence Agent",
+    role: "Accident Negotiation Intelligence Agent",
     shortRole: "Negotiation",
     description:
       "Tracks offers, counters, adjuster positions, negotiation history, authority, and unresolved issues for attorney-directed settlement strategy.",
-    zone: "pi",
+    zone: "accidents",
     icon: MessageSquareText,
     capabilities: [
       "Track offers and counters",
@@ -766,11 +860,11 @@ const agents: PiAgent[] = [
   {
     id: "trial",
     name: "Trial",
-    role: "Litigation Readiness Agent",
+    role: "Accident Litigation Readiness Agent",
     shortRole: "Litigation",
     description:
-      "Checks whether the matter file is ready for escalation by organizing deadlines, evidence, experts, records, pleadings, and unresolved proof gaps for attorney review.",
-    zone: "pi",
+      "Checks whether an accident matter is ready for escalation by organizing deadlines, evidence, experts, records, pleadings, and unresolved proof gaps.",
+    zone: "accidents",
     icon: Landmark,
     capabilities: [
       "Build litigation-readiness checklist",
@@ -784,6 +878,464 @@ const agents: PiAgent[] = [
       "Deadline list",
       "Evidence gap report",
       "Escalation brief",
+    ],
+    status: "review",
+    runnable: false,
+  },
+
+  // ================================================================
+  // NURSING HOME NEGLIGENCE — facility, chart, care, staffing, harm
+  // ================================================================
+  {
+    id: "facilityintel",
+    name: "FacilityIntel",
+    role: "Facility & Regulatory Intelligence Agent",
+    shortRole: "Facility Intel",
+    description:
+      "Builds a facility profile from authorized and public sources: ownership, licensing, inspections, citations, deficiencies, complaint history, and other regulatory context.",
+    zone: "nursing",
+    icon: Building2,
+    capabilities: [
+      "Build facility ownership profile",
+      "Organize inspection and citation history",
+      "Track regulatory deficiencies",
+      "Collect public facility context",
+      "Preserve source provenance",
+    ],
+    output: [
+      "Facility intelligence brief",
+      "Regulatory history",
+      "Ownership map",
+      "Source index",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "chartaudit",
+    name: "ChartAudit",
+    role: "Nursing Home Chart Review Agent",
+    shortRole: "Chart Review",
+    description:
+      "Builds a source-traceable resident chronology from authorized nursing, physician, therapy, medication, wound, vitals, and hospital records.",
+    zone: "nursing",
+    icon: Stethoscope,
+    capabilities: [
+      "Build resident medical chronology",
+      "Separate nursing and physician documentation",
+      "Track vitals, wounds, falls, infections, and transfers",
+      "Extract orders and medication changes",
+      "Flag missing or contradictory chart entries",
+    ],
+    output: [
+      "Resident chronology",
+      "Clinical event index",
+      "Contradiction flags",
+      "Missing-record queue",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "careplan",
+    name: "CarePlan",
+    role: "Care Plan & Assessment Agent",
+    shortRole: "Care Plans",
+    description:
+      "Tracks assessments, care plans, risk scores, interventions, physician orders, and documented changes in condition for attorney and expert review.",
+    zone: "nursing",
+    icon: ClipboardCheck,
+    capabilities: [
+      "Track care-plan revisions",
+      "Extract risk assessments",
+      "Map ordered interventions",
+      "Track changes in condition",
+      "Flag documentation gaps",
+    ],
+    output: [
+      "Care-plan timeline",
+      "Assessment matrix",
+      "Intervention map",
+      "Documentation-gap list",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "staffwatch",
+    name: "StaffWatch",
+    role: "Staffing & Operations Intelligence Agent",
+    shortRole: "Staffing",
+    description:
+      "Organizes staffing records, shift coverage, assignments, agency staffing, call logs, policies, and operational records when available.",
+    zone: "nursing",
+    icon: UsersRound,
+    capabilities: [
+      "Organize staffing records",
+      "Track shift and assignment data",
+      "Compare staffing documents across dates",
+      "Inventory relevant policies",
+      "Flag missing operational records",
+    ],
+    output: [
+      "Staffing chronology",
+      "Shift coverage summary",
+      "Policy inventory",
+      "Missing staffing records",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "eventreview",
+    name: "EventReview",
+    role: "Neglect Event Reconstruction Agent",
+    shortRole: "Event Review",
+    description:
+      "Reconstructs documented falls, pressure injuries, infections, elopement, abuse allegations, medication events, transfers, and other sentinel events without independently concluding negligence.",
+    zone: "nursing",
+    icon: Activity,
+    capabilities: [
+      "Reconstruct documented events",
+      "Track pre-event and post-event condition",
+      "Organize incident reports and notifications",
+      "Compare accounts across records",
+      "Flag unresolved factual conflicts",
+    ],
+    output: [
+      "Event reconstruction",
+      "Pre/post condition timeline",
+      "Account comparison",
+      "Unresolved fact list",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "standards",
+    name: "Standards",
+    role: "Standards & Deviation Research Agent",
+    shortRole: "Standards",
+    description:
+      "Organizes applicable regulations, facility policies, care-plan requirements, and expert-supplied standards, then flags factual comparison points for attorney or expert review rather than making a negligence conclusion.",
+    zone: "nursing",
+    icon: Landmark,
+    capabilities: [
+      "Organize regulations and policies",
+      "Map requirements to documented facts",
+      "Flag possible comparison points",
+      "Separate authority from factual evidence",
+      "Preserve citations and provenance",
+    ],
+    output: [
+      "Standards matrix",
+      "Fact-to-standard comparison",
+      "Authority index",
+      "Expert review queue",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "nhdamages",
+    name: "ResidentDamages",
+    role: "Nursing Home Damages Agent",
+    shortRole: "Damages",
+    description:
+      "Organizes documented injury, hospitalization, additional treatment, expenses, functional decline, and other damages evidence for attorney review.",
+    zone: "nursing",
+    icon: CircleDollarSign,
+    capabilities: [
+      "Organize documented damages",
+      "Track hospitalization and treatment costs",
+      "Track functional-status evidence",
+      "Connect harm evidence to source records",
+      "Flag missing damages support",
+    ],
+    output: [
+      "Damages ledger",
+      "Functional-impact summary",
+      "Expense summary",
+      "Support-document queue",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "nhexpert",
+    name: "ExpertPrep",
+    role: "Nursing Home Expert Review Prep Agent",
+    shortRole: "Expert Prep",
+    description:
+      "Packages the verified chronology, care plans, staffing, event records, standards, and unresolved questions into a clean expert-review packet.",
+    zone: "nursing",
+    icon: FileSearch,
+    capabilities: [
+      "Assemble expert-review packet",
+      "Build issue-specific chronologies",
+      "Collect source references",
+      "Surface unanswered clinical questions",
+      "Track missing expert materials",
+    ],
+    output: [
+      "Expert packet",
+      "Issue chronology",
+      "Question list",
+      "Missing-material checklist",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "nhforge",
+    name: "NHForge",
+    role: "Nursing Home Case Package Agent",
+    shortRole: "Case Package",
+    description:
+      "Assembles verified facility, chart, staffing, event, standards, expert, and damages work into an attorney-controlled claim or litigation package.",
+    zone: "nursing",
+    icon: ClipboardCheck,
+    capabilities: [
+      "Assemble claim package",
+      "Pull verified specialist findings",
+      "Build exhibit and evidence checklist",
+      "Flag unsupported statements",
+      "Prepare attorney review package",
+    ],
+    output: [
+      "Claim package",
+      "Evidence checklist",
+      "Missing-support queue",
+      "Attorney review packet",
+    ],
+    status: "review",
+    runnable: false,
+  },
+
+  // ================================================================
+  // WRONGFUL DEATH — death event, survivors, estate, losses, case build
+  // ================================================================
+  {
+    id: "fatalintel",
+    name: "FatalIntel",
+    role: "Death Event & Record Intelligence Agent",
+    shortRole: "Death Records",
+    description:
+      "Organizes the fatal event chronology and authorized death-related records, including final treatment, death certificate, medical-examiner or autopsy materials, and source provenance when available.",
+    zone: "wrongful",
+    icon: FileSearch,
+    capabilities: [
+      "Build fatal-event chronology",
+      "Inventory death-related records",
+      "Track final treatment and transfers",
+      "Organize medical-examiner/autopsy materials",
+      "Flag missing death records",
+    ],
+    output: [
+      "Fatal-event brief",
+      "Death-record inventory",
+      "Final-care chronology",
+      "Missing-record queue",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "wdliability",
+    name: "CauseMap",
+    role: "Wrongful Death Liability Agent",
+    shortRole: "Liability",
+    description:
+      "Organizes the underlying incident, conduct, evidence, witnesses, reports, and disputed facts relevant to attorney review of a wrongful-death claim.",
+    zone: "wrongful",
+    icon: FileSearch,
+    capabilities: [
+      "Build liability chronology",
+      "Organize incident evidence",
+      "Track witnesses and reports",
+      "Identify disputed facts",
+      "Flag missing liability evidence",
+    ],
+    output: [
+      "Liability brief",
+      "Evidence inventory",
+      "Witness index",
+      "Open factual issues",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "survivors",
+    name: "SurvivorMap",
+    role: "Survivor & Estate Relationship Agent",
+    shortRole: "Survivors",
+    description:
+      "Organizes verified family relationships, potential survivors, estate representative information, dependency facts, and supporting documents for attorney review.",
+    zone: "wrongful",
+    icon: UsersRound,
+    capabilities: [
+      "Map verified family relationships",
+      "Track estate representative information",
+      "Organize dependency evidence",
+      "Inventory relationship documents",
+      "Flag unresolved survivor information",
+    ],
+    output: [
+      "Survivor relationship map",
+      "Estate information summary",
+      "Dependency evidence index",
+      "Missing-document queue",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "estate",
+    name: "EstateTrack",
+    role: "Estate & Probate Coordination Agent",
+    shortRole: "Estate",
+    description:
+      "Tracks estate-opening status, personal representative information, probate documents, and coordination items that affect the wrongful-death matter.",
+    zone: "wrongful",
+    icon: Landmark,
+    capabilities: [
+      "Track estate-opening status",
+      "Organize probate documents",
+      "Track representative information",
+      "Surface estate-related dependencies",
+      "Flag missing probate materials",
+    ],
+    output: [
+      "Estate status brief",
+      "Probate document index",
+      "Dependency checklist",
+      "Attorney attention items",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "wdcoverage",
+    name: "DeathCover",
+    role: "Wrongful Death Coverage Agent",
+    shortRole: "Coverage",
+    description:
+      "Tracks applicable carriers, policies, claim numbers, limits, coverage positions, and outstanding insurance documents for the wrongful-death claim.",
+    zone: "wrongful",
+    icon: ShieldCheck,
+    capabilities: [
+      "Inventory applicable coverage",
+      "Track carriers and claim identifiers",
+      "Organize limits and coverage positions",
+      "Track outstanding policy documents",
+      "Flag coverage issues",
+    ],
+    output: [
+      "Coverage matrix",
+      "Carrier summary",
+      "Policy-document queue",
+      "Coverage issue flags",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "lossmodel",
+    name: "LossModel",
+    role: "Economic Loss & Dependency Agent",
+    shortRole: "Economic Loss",
+    description:
+      "Organizes verified earnings, benefits, support, services, dependency, funeral expenses, final medical expenses, and economist-support materials without independently valuing the claim.",
+    zone: "wrongful",
+    icon: CircleDollarSign,
+    capabilities: [
+      "Organize earnings history",
+      "Track benefits and support evidence",
+      "Track funeral and final medical expenses",
+      "Inventory economist inputs",
+      "Flag missing economic-loss support",
+    ],
+    output: [
+      "Economic-loss ledger",
+      "Dependency support summary",
+      "Expense inventory",
+      "Economist input checklist",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "lifeloss",
+    name: "LifeLoss",
+    role: "Survivor Impact Evidence Agent",
+    shortRole: "Life Impact",
+    description:
+      "Organizes source-supported evidence of the decedent's role, family relationships, services, companionship, support, and survivor impact for attorney review.",
+    zone: "wrongful",
+    icon: HeartPulse,
+    capabilities: [
+      "Organize relationship evidence",
+      "Track support and services evidence",
+      "Build life-impact chronology",
+      "Inventory witness and family materials",
+      "Preserve source attribution",
+    ],
+    output: [
+      "Life-impact brief",
+      "Relationship evidence index",
+      "Witness material list",
+      "Missing-support queue",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "wdexperts",
+    name: "DeathExpertPrep",
+    role: "Wrongful Death Expert Coordination Agent",
+    shortRole: "Expert Prep",
+    description:
+      "Packages verified medical, liability, economic, and death-related materials into issue-specific expert-review packets and tracks unanswered expert questions.",
+    zone: "wrongful",
+    icon: Stethoscope,
+    capabilities: [
+      "Assemble expert packets",
+      "Separate medical and economic issues",
+      "Track source references",
+      "Prepare unanswered-question lists",
+      "Flag missing expert materials",
+    ],
+    output: [
+      "Expert packet",
+      "Issue chronology",
+      "Expert question list",
+      "Missing-material checklist",
+    ],
+    status: "review",
+    runnable: false,
+  },
+  {
+    id: "wdforge",
+    name: "LegacyForge",
+    role: "Wrongful Death Case Package Agent",
+    shortRole: "Case Package",
+    description:
+      "Assembles verified liability, death records, survivor, estate, coverage, economic-loss, life-impact, and expert work into an attorney-controlled claim or litigation package.",
+    zone: "wrongful",
+    icon: ClipboardCheck,
+    capabilities: [
+      "Assemble wrongful-death package",
+      "Pull verified specialist findings",
+      "Build exhibit and evidence checklist",
+      "Flag unsupported statements",
+      "Prepare attorney review package",
+    ],
+    output: [
+      "Claim package",
+      "Exhibit checklist",
+      "Missing-support queue",
+      "Attorney approval packet",
     ],
     status: "review",
     runnable: false,
@@ -1252,8 +1804,9 @@ export default function PersonalInjuryFloor() {
 
   const managerAgents = agents.filter((agent) => agent.zone === "manager");
   const growthAgents = agents.filter((agent) => agent.zone === "growth");
-  const medicalAgents = agents.filter((agent) => agent.zone === "medical");
-  const personalInjuryAgents = agents.filter((agent) => agent.zone === "pi");
+  const accidentAgents = agents.filter((agent) => agent.zone === "accidents");
+  const nursingAgents = agents.filter((agent) => agent.zone === "nursing");
+  const wrongfulDeathAgents = agents.filter((agent) => agent.zone === "wrongful");
 
   const filteredReferrals = useMemo(() => {
     const needle = searchTerm.trim().toLowerCase();
@@ -1628,8 +2181,8 @@ export default function PersonalInjuryFloor() {
           <div className={styles.departmentGrid}>
             <FloorDepartment
               title="Managers"
-              kicker="COMMAND & COORDINATION"
-              description="Own priorities, referral intelligence, lead operations, market intelligence, and cross-floor decision support."
+              kicker="COMMAND · STRATEGY · QA · COORDINATION"
+              description="Cross-practice leadership for workflow coordination, case strategy, compliance, quality control, and attorney decision support."
               agents={managerAgents}
               onOpen={setSelectedAgent}
               tone="manager"
@@ -1637,29 +2190,38 @@ export default function PersonalInjuryFloor() {
 
             <FloorDepartment
               title="Growth & Intake"
-              kicker="ACQUISITION · REFERRALS · CONVERSION"
-              description="Covers referral development, outreach, paid media, demand research, intake, attribution, follow-up, and marketing compliance."
+              kicker="ACQUISITION · REFERRALS · QUALIFICATION · CONVERSION"
+              description="Gets the right matters into the firm, classifies them, routes them to the correct practice team, and measures what actually produces signed cases."
               agents={growthAgents}
               onOpen={setSelectedAgent}
               tone="growth"
             />
 
             <FloorDepartment
-              title="Medical"
-              kicker="RECORDS · TREATMENT · BILLS · FUTURE CARE"
-              description="Turns medical records into source-traceable intelligence while separating documented provider statements from AI inference."
-              agents={medicalAgents}
+              title="Accidents"
+              kicker="CRASH INTEL · LIABILITY · MEDICAL · COVERAGE · DAMAGES"
+              description="Purpose-built for auto, truck, motorcycle, pedestrian, bicycle, rideshare, and related accident matters from report research through demand, negotiation, and litigation readiness."
+              agents={accidentAgents}
               onOpen={setSelectedAgent}
-              tone="medical"
+              tone="accidents"
             />
 
             <FloorDepartment
-              title="Personal Injury"
-              kicker="LIABILITY · COVERAGE · DAMAGES · RESOLUTION"
-              description="The case-work pillar: liability, insurance coverage, damages, demand preparation, negotiation, and litigation readiness."
-              agents={personalInjuryAgents}
+              title="Nursing Home Negligence"
+              kicker="FACILITY · CHART · CARE PLAN · STAFFING · EVENT RECONSTRUCTION"
+              description="Purpose-built for facility and regulatory research, resident chart review, care plans, staffing, sentinel-event reconstruction, expert preparation, damages, and case packaging."
+              agents={nursingAgents}
               onOpen={setSelectedAgent}
-              tone="pi"
+              tone="nursing"
+            />
+
+            <FloorDepartment
+              title="Wrongful Death"
+              kicker="DEATH RECORDS · SURVIVORS · ESTATE · LOSSES · EXPERTS"
+              description="Purpose-built for fatal-event records, liability, survivor and estate structure, coverage, economic loss, life-impact evidence, expert preparation, and wrongful-death case packaging."
+              agents={wrongfulDeathAgents}
+              onOpen={setSelectedAgent}
+              tone="wrongful"
             />
           </div>
         </div>
@@ -2665,7 +3227,7 @@ function FloorDepartment({
   description: string;
   agents: PiAgent[];
   onOpen: (agent: PiAgent) => void;
-  tone: "manager" | "growth" | "medical" | "pi";
+  tone: "manager" | "growth" | "accidents" | "nursing" | "wrongful";
 }) {
   return (
     <section
@@ -2674,9 +3236,11 @@ function FloorDepartment({
           ? styles.departmentManager
           : tone === "growth"
           ? styles.departmentGrowth
-          : tone === "medical"
-          ? styles.departmentMedical
-          : styles.departmentPi
+          : tone === "accidents"
+          ? styles.departmentAccidents
+          : tone === "nursing"
+          ? styles.departmentNursing
+          : styles.departmentWrongful
       }`}
     >
       <div className={styles.departmentHeader}>
