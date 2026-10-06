@@ -8,6 +8,7 @@ import {
   isSpecialistAgentId,
   insertAgentRun,
   getLatestSpecialistState,
+  updateAgentRun,
 } from "../../../../lib/supabase/agents";
 
 import {
@@ -24,6 +25,51 @@ import {
   retrieveFirmDraftingSources,
 } from "../../../../lib/legal/firm-drafting-retrieval";
 
+/*
+|--------------------------------------------------------------------------
+| SPECIALIST WEBHOOK
+|--------------------------------------------------------------------------
+|
+| Keep the Vercel env var as the preferred configuration, but use the
+| production n8n endpoint as a safe fallback so Immigration specialists
+| cannot silently stop dispatching because the env var is missing/renamed.
+|
+*/
+
+const DEFAULT_SPECIALIST_WEBHOOK =
+  "https://epiq.app.n8n.cloud/webhook/specialist-agent";
+
+/*
+|--------------------------------------------------------------------------
+| WORKING-RUN RECOVERY
+|--------------------------------------------------------------------------
+|
+| A failed n8n execution can die before /api/agents/complete is called.
+| In that situation Supabase still says the latest run is "working".
+|
+| Previously /api/agents/run treated ANY "working" run as a duplicate forever,
+| which meant every later click returned accepted/deduplicated WITHOUT ever
+| posting to n8n again.
+|
+| Automatic pipeline calls still dedupe fresh work. Manual refreshes can
+| supersede the stuck run immediately, and old automatic runs self-heal.
+|
+*/
+
+const WORKING_RUN_STALE_MS = 10 * 60 * 1000;
+
+function ageMs(isoDate?: string | null) {
+  if (!isoDate) return Number.POSITIVE_INFINITY;
+
+  const time = new Date(isoDate).getTime();
+
+  if (!Number.isFinite(time)) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return Date.now() - time;
+}
+
 export async function POST(
   request: NextRequest
 ) {
@@ -33,18 +79,18 @@ export async function POST(
   const mondayItemId =
     String(
       body?.mondayItemId || ""
-    );
+    ).trim();
 
   const agentId =
     String(
       body?.agentId || ""
-    );
+    ).trim();
 
   const triggerType =
     String(
       body?.triggerType ||
         "manual"
-    );
+    ).trim();
 
   const options =
     body?.options &&
@@ -86,15 +132,18 @@ export async function POST(
   }
 
   const webhook =
-    process.env
-      .N8N_SPECIALIST_AGENT_WEBHOOK;
+    String(
+      process.env
+        .N8N_SPECIALIST_AGENT_WEBHOOK ||
+        DEFAULT_SPECIALIST_WEBHOOK
+    ).trim();
 
   if (!webhook) {
     return NextResponse.json(
       {
         ok: false,
         error:
-          "Missing N8N_SPECIALIST_AGENT_WEBHOOK. Add the generic specialist workflow webhook in Vercel.",
+          "Specialist webhook is not configured.",
       },
       {
         status: 500,
@@ -154,26 +203,115 @@ export async function POST(
     const existingState =
       priorAgents[agentId];
 
+    /*
+    |--------------------------------------------------------------------------
+    | DO NOT LET FAILED N8N RUNS PERMANENTLY BLOCK IMMIGRATION
+    |--------------------------------------------------------------------------
+    */
+
     if (
       existingState?.run
         ?.status === "working"
     ) {
-      return NextResponse.json(
-        {
-          ok: true,
-          accepted: true,
-          deduplicated: true,
-          runId:
-            existingState.run.id,
-          agentId,
-          agentName:
-            config.name,
-          status: "working",
-        },
-        {
-          status: 202,
-        }
-      );
+      const existingRun =
+        existingState.run;
+
+      const runAge =
+        ageMs(
+          existingRun.started_at
+        );
+
+      const explicitUserRetry =
+        triggerType === "refresh" ||
+        body?.forceRestart === true;
+
+      const staleWorkingRun =
+        runAge >=
+        WORKING_RUN_STALE_MS;
+
+      /*
+      | Pipeline calls should not create duplicates while a real run is fresh.
+      | Manual refreshes are intentional user retries and may supersede it.
+      */
+      if (
+        !explicitUserRetry &&
+        !staleWorkingRun
+      ) {
+        return NextResponse.json(
+          {
+            ok: true,
+            accepted: true,
+            deduplicated: true,
+            runId:
+              existingRun.id,
+            agentId,
+            agentName:
+              config.name,
+            status: "working",
+            webhookDispatched:
+              false,
+            reason:
+              "fresh_working_run",
+          },
+          {
+            status: 202,
+          }
+        );
+      }
+
+      /*
+      | Close the abandoned run before creating the replacement. This keeps
+      | Supabase truthful and prevents the UI from being locked forever.
+      */
+      try {
+        await updateAgentRun(
+          existingRun.id,
+          {
+            status: "error",
+            error_message:
+              explicitUserRetry
+                ? "Superseded by an explicit specialist refresh."
+                : "Recovered stale working run that never completed its n8n callback.",
+            completed_at:
+              new Date()
+                .toISOString(),
+          }
+        );
+
+        await insertActivity({
+          matter_id:
+            matter.id,
+          monday_item_id:
+            mondayItemId,
+          event_type:
+            "specialist_stale_run_recovered",
+          agent_id:
+            agentId,
+          actor:
+            "Cano AI",
+          title:
+            `${config.name} stale run cleared`,
+          detail:
+            explicitUserRetry
+              ? "A user refresh superseded the prior working run so n8n could be dispatched again."
+              : "The prior run remained working without a completion callback and was automatically cleared.",
+          metadata: {
+            superseded_run_id:
+              existingRun.id,
+            previous_started_at:
+              existingRun.started_at,
+            age_ms:
+              runAge,
+            trigger_type:
+              triggerType,
+          },
+        });
+      } catch (recoveryError) {
+        console.error(
+          "Unable to mark prior specialist run as superseded:",
+          recoveryError
+        );
+      }
     }
 
     let draftingRequest: any =
@@ -187,6 +325,16 @@ export async function POST(
         (options as any)
           ?.draftType || ""
       ).toLowerCase();
+
+    /*
+    |--------------------------------------------------------------------------
+    | SCRIBE RETRIEVAL
+    |--------------------------------------------------------------------------
+    |
+    | Preserve the drafting-library work already added. Immigration specialist
+    | dispatch does not depend on this branch unless agentId === "drafting".
+    |
+    */
 
     if (
       agentId === "drafting"
@@ -224,10 +372,10 @@ export async function POST(
             ? error.message
             : "Firm drafting retrieval failed.";
 
-        // Drafting is still allowed
-        // to proceed using Case Brain,
-        // specialists, authorities,
-        // and the static firm profile.
+        /*
+        | Drafting may continue using Case Brain, specialists, authorities,
+        | and the static firm profile if exemplar retrieval itself fails.
+        */
         console.error(
           "Firm drafting retrieval:",
           error
@@ -289,7 +437,8 @@ export async function POST(
     }
 
     const inputPayload = {
-      matter: storedMatter,
+      matter:
+        storedMatter,
 
       request:
         draftingRequest,
@@ -375,7 +524,7 @@ export async function POST(
                 ? ""
                 : "s"
             }.`
-          : `${config.routeLabel} is analyzing the active matter.`,
+          : `${config.routeLabel} is being dispatched to the Cano n8n specialist workflow.`,
 
       metadata: {
         run_id:
@@ -383,6 +532,9 @@ export async function POST(
 
         trigger_type:
           triggerType,
+
+        specialist_webhook:
+          webhook,
 
         ...(agentId ===
         "drafting"
@@ -410,70 +562,187 @@ export async function POST(
         request.nextUrl.origin
       ).toString();
 
-    const response =
-      await fetch(
-        webhook,
+    /*
+    |--------------------------------------------------------------------------
+    | DISPATCH TO N8N
+    |--------------------------------------------------------------------------
+    */
+
+    let response: Response;
+    let ack = "";
+
+    try {
+      response =
+        await fetch(
+          webhook,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+
+              ...(process.env
+                .N8N_SHARED_SECRET
+                ? {
+                    "x-cano-secret":
+                      process.env
+                        .N8N_SHARED_SECRET,
+                  }
+                : {}),
+            },
+
+            body:
+              JSON.stringify({
+                action:
+                  "run_specialist_agent",
+
+                runId:
+                  run.id,
+
+                agentId,
+
+                agentName:
+                  config.name,
+
+                mondayItemId,
+
+                databaseMatterId:
+                  matter.id,
+
+                triggerType,
+
+                callbackUrl,
+
+                authorityResearchUrl,
+
+                input:
+                  inputPayload,
+              }),
+
+            cache:
+              "no-store",
+          }
+        );
+
+      ack =
+        await response.text();
+    } catch (dispatchError) {
+      const message =
+        dispatchError instanceof Error
+          ? dispatchError.message
+          : "Unknown n8n dispatch error.";
+
+      /*
+      | Critical recovery: never leave a run as "working" if the POST itself
+      | could not be delivered.
+      */
+      await updateAgentRun(
+        run.id,
         {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-
-            ...(process.env
-              .N8N_SHARED_SECRET
-              ? {
-                  "x-cano-secret":
-                    process.env
-                      .N8N_SHARED_SECRET,
-                }
-              : {}),
-          },
-
-          body:
-            JSON.stringify({
-              action:
-                "run_specialist_agent",
-
-              runId:
-                run.id,
-
-              agentId,
-
-              agentName:
-                config.name,
-
-              mondayItemId,
-
-              databaseMatterId:
-                matter.id,
-
-              triggerType,
-
-              callbackUrl,
-
-              authorityResearchUrl,
-
-              input:
-                inputPayload,
-            }),
-
-          cache:
-            "no-store",
+          status: "error",
+          error_message:
+            `n8n specialist webhook dispatch failed: ${message}`,
+          completed_at:
+            new Date()
+              .toISOString(),
         }
       );
 
-    const ack =
-      await response.text();
+      await insertActivity({
+        matter_id:
+          matter.id,
+
+        monday_item_id:
+          mondayItemId,
+
+        event_type:
+          "specialist_dispatch_error",
+
+        agent_id:
+          agentId,
+
+        actor:
+          "Cano AI",
+
+        title:
+          `${config.name} could not reach n8n`,
+
+        detail:
+          message,
+
+        metadata: {
+          run_id:
+            run.id,
+          webhook,
+        },
+      });
+
+      throw new Error(
+        `Could not reach the n8n specialist webhook: ${message}`
+      );
+    }
 
     if (
       !response.ok
     ) {
-      throw new Error(
+      const message =
         `n8n could not accept ${config.name} (${response.status}): ${
           ack ||
           response.statusText
-        }`
+        }`;
+
+      /*
+      | Same recovery for an HTTP rejection: mark the new run error now,
+      | otherwise the next click would once again look permanently "working".
+      */
+      await updateAgentRun(
+        run.id,
+        {
+          status: "error",
+          error_message:
+            message,
+          completed_at:
+            new Date()
+              .toISOString(),
+        }
+      );
+
+      await insertActivity({
+        matter_id:
+          matter.id,
+
+        monday_item_id:
+          mondayItemId,
+
+        event_type:
+          "specialist_dispatch_error",
+
+        agent_id:
+          agentId,
+
+        actor:
+          "Cano AI",
+
+        title:
+          `${config.name} n8n dispatch rejected`,
+
+        detail:
+          message,
+
+        metadata: {
+          run_id:
+            run.id,
+          webhook,
+          http_status:
+            response.status,
+          response_body:
+            ack,
+        },
+      });
+
+      throw new Error(
+        message
       );
     }
 
@@ -482,6 +751,12 @@ export async function POST(
         ok: true,
 
         accepted: true,
+
+        webhookDispatched:
+          true,
+
+        webhook:
+          webhook,
 
         runId:
           run.id,
@@ -493,6 +768,11 @@ export async function POST(
 
         status:
           "working",
+
+        n8nAck:
+          ack
+            ? ack.slice(0, 1000)
+            : null,
 
         ...(agentId ===
         "drafting"
