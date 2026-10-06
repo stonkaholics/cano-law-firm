@@ -960,17 +960,6 @@ export default function Home() {
         </div>
 
         <div className="topbar-actions">
-          <a
-            className="floor-switch-button"
-            href="/personal-injury"
-            aria-label="Open Personal Injury Floor 02"
-            title="Open Personal Injury Floor"
-          >
-            <Activity size={15} />
-            <span className="floor-switch-label">Personal Injury</span>
-            <span className="floor-switch-tag">FLOOR 02</span>
-          </a>
-
           <button
             type="button"
             className="matter-center-button"

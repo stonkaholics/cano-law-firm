@@ -5579,17 +5579,19 @@ button { font: inherit; }
 }
 
 /* =========================================================
-   IMMIGRATION FLOOR HEADER — AUTHORITATIVE LAYOUT FIX
-   PI FLOOR / MATTER CENTER / SYSTEM STATUS
+   IMMIGRATION HEADER — SINGLE GLOBAL PI SWITCH
+   Matter Center | [reserved PI Floor slot] | Systems Online
    ========================================================= */
 
 /*
- * Desktop structure:
+ * The Personal Injury / FLOOR 02 switch is rendered by the app shell,
+ * NOT by app/page.tsx. Do not render a second PI button in this page.
  *
- * [ CANO BRAND ]    [ PERSONAL INJURY ] [ MATTER CENTER 2 ] [ SYSTEMS ONLINE ]
+ * Desktop visual order:
+ *   MATTER CENTER     PERSONAL INJURY / FLOOR 02     SYSTEMS ONLINE
  *
- * All three right-side controls live in normal flex flow. Nothing is
- * absolutely positioned and the Matter Center count is part of its own button.
+ * The right-side page actions reserve the center slot so the global
+ * floor switch cannot sit on top of Matter Center.
  */
 
 .topbar {
@@ -5609,12 +5611,11 @@ button { font: inherit; }
   min-width: 0;
 }
 
-.topbar > .topbar-actions {
-  position: relative;
-  isolation: isolate;
-  flex: 0 0 auto;
+.topbar-actions {
+  position: relative !important;
+  flex: 0 0 auto !important;
   min-width: 0;
-  margin-left: auto;
+  margin-left: auto !important;
 
   display: flex !important;
   align-items: center !important;
@@ -5625,96 +5626,49 @@ button { font: inherit; }
   overflow: visible !important;
 }
 
-/* Reset any old positioning that could cause one header control to cover another. */
-.topbar > .topbar-actions > .floor-switch-button,
-.topbar > .topbar-actions > .matter-center-button,
-.topbar > .topbar-actions > .system-pill {
-  position: relative !important;
-  inset: auto !important;
-  top: auto !important;
-  right: auto !important;
-  bottom: auto !important;
-  left: auto !important;
-  transform: none !important;
-  float: none !important;
-
-  flex: 0 0 auto !important;
-  margin: 0 !important;
-  white-space: nowrap !important;
-}
-
 /* ---------------------------------------------------------
-   FLOOR 02 SWITCH
+   GLOBAL FLOOR SWITCH
+   There must be only ONE of these in the app shell.
+   We style it here but app/page.tsx does not create it.
    --------------------------------------------------------- */
 
 .floor-switch-button {
-  min-height: 36px;
-  min-width: max-content;
-  padding: 7px 12px;
+  min-height: 36px !important;
+  min-width: max-content !important;
+  padding: 7px 12px !important;
 
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
 
-  border: 1px solid rgba(107, 184, 255, .24);
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(21, 57, 82, .72), rgba(10, 29, 43, .76));
-  color: #b9ddf6;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.035),
-    0 0 0 1px rgba(107,184,255,.025);
+  border-radius: 999px !important;
+  white-space: nowrap !important;
 
-  text-decoration: none;
-  cursor: pointer;
-  z-index: 1;
-}
-
-.floor-switch-button:hover {
-  border-color: rgba(107, 184, 255, .42);
-  background:
-    linear-gradient(180deg, rgba(25, 68, 97, .82), rgba(12, 35, 51, .86));
-}
-
-.floor-switch-button > svg {
-  flex: 0 0 auto;
-  color: #6bb8ff;
-}
-
-.floor-switch-label {
-  display: inline-block;
-  color: #c7e3f6;
-  font-size: 10px;
-  line-height: 1;
-  font-weight: 800;
-}
-
-.floor-switch-tag {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 18px;
-  padding: 0 7px;
-
-  border: 1px solid rgba(107,184,255,.20);
-  border-radius: 999px;
-  background: rgba(107,184,255,.075);
-
-  color: #8bc9f4;
-  font-size: 7px;
-  line-height: 1;
-  font-weight: 900;
-  letter-spacing: .08em;
+  /*
+   * Keep the global switch above the header background, but do not use
+   * a transform here. Its app-shell position remains the source of truth.
+   */
+  z-index: 12 !important;
 }
 
 /* ---------------------------------------------------------
    MATTER CENTER
+   Reserve 148px immediately to its right for the global PI switch.
+   That is the key fix for the original overlap.
    --------------------------------------------------------- */
 
 .matter-center-button {
+  position: relative !important;
+  inset: auto !important;
+  transform: none !important;
+  float: none !important;
+
+  flex: 0 0 auto !important;
   min-width: max-content !important;
   min-height: 36px !important;
+
+  margin: 0 148px 0 0 !important;
   padding: 7px 10px 7px 12px !important;
 
   display: inline-flex !important;
@@ -5727,8 +5681,9 @@ button { font: inherit; }
   background: rgba(201,165,104,.055) !important;
   color: #d9be88 !important;
 
+  white-space: nowrap !important;
   cursor: pointer;
-  z-index: 1;
+  z-index: 1 !important;
 }
 
 .matter-center-button:hover {
@@ -5744,8 +5699,8 @@ button { font: inherit; }
   display: inline-block !important;
   position: static !important;
   width: auto !important;
-  max-width: none !important;
   height: auto !important;
+  max-width: none !important;
   margin: 0 !important;
   padding: 0 !important;
 
@@ -5785,20 +5740,26 @@ button { font: inherit; }
   font-size: 9px !important;
   line-height: 1 !important;
   font-weight: 900 !important;
-  z-index: auto !important;
 }
 
 /* ---------------------------------------------------------
-   SYSTEM STATUS
+   SYSTEMS ONLINE
    --------------------------------------------------------- */
 
-.topbar > .topbar-actions > .system-pill {
+.topbar-actions > .system-pill {
+  position: relative !important;
+  inset: auto !important;
+  transform: none !important;
+  float: none !important;
+
+  flex: 0 0 auto !important;
   min-height: 36px;
+  margin: 0 !important;
   padding: 7px 12px;
 
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   gap: 8px;
 
   border: 1px solid var(--line);
@@ -5806,7 +5767,8 @@ button { font: inherit; }
   background: rgba(255,255,255,.025);
   color: #c5d3dc;
   font-size: 11px;
-  z-index: 1;
+  white-space: nowrap;
+  z-index: 1 !important;
 }
 
 .system-pill-label {
@@ -5815,7 +5777,7 @@ button { font: inherit; }
 }
 
 /* ---------------------------------------------------------
-   RESPONSIVE HEADER
+   RESPONSIVE
    --------------------------------------------------------- */
 
 @media (max-width: 980px) {
@@ -5825,24 +5787,13 @@ button { font: inherit; }
     gap: 16px;
   }
 
-  .topbar > .topbar-actions {
+  .topbar-actions {
     gap: 7px !important;
   }
 
-  .floor-switch-button,
-  .matter-center-button,
-  .topbar > .topbar-actions > .system-pill {
-    min-height: 34px !important;
-  }
-
-  .floor-switch-button {
-    padding-left: 10px;
-    padding-right: 10px;
-  }
-
   .matter-center-button {
-    padding-left: 10px !important;
-    padding-right: 8px !important;
+    /* Global PI switch is slightly tighter at tablet width. */
+    margin-right: 132px !important;
   }
 }
 
@@ -5855,10 +5806,14 @@ button { font: inherit; }
     display: none;
   }
 
-  .topbar > .topbar-actions > .system-pill {
+  .topbar-actions > .system-pill {
     width: 36px;
     min-width: 36px;
     padding: 0;
+  }
+
+  .matter-center-button {
+    margin-right: 124px !important;
   }
 }
 
@@ -5866,6 +5821,7 @@ button { font: inherit; }
   .topbar {
     min-height: 68px;
     padding: 10px 14px;
+    gap: 8px;
   }
 
   .brand {
@@ -5882,49 +5838,34 @@ button { font: inherit; }
     font-size: 12px;
   }
 
-  .topbar > .topbar-actions {
-    gap: 5px !important;
-  }
-
-  .floor-switch-label,
   .matter-center-label {
     display: none !important;
   }
 
-  .floor-switch-button {
-    min-width: 38px !important;
-    padding: 0 8px !important;
-  }
-
-  .floor-switch-tag {
-    padding: 0 5px;
-    font-size: 6px;
-  }
-
   .matter-center-button {
-    min-width: 38px !important;
+    min-width: 42px !important;
     padding: 0 6px !important;
+    margin-right: 108px !important;
   }
 }
 
-@media (max-width: 470px) {
-  .topbar {
-    align-items: center;
-    gap: 8px;
-  }
-
+@media (max-width: 520px) {
   .brand-title {
-    max-width: 116px;
+    max-width: 112px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .floor-switch-tag {
-    display: none;
+  /*
+   * On very small screens the global floor switch remains the navigation
+   * control; Matter Center becomes compact so all controls still fit.
+   */
+  .matter-center-button {
+    margin-right: 92px !important;
   }
 
-  .topbar > .topbar-actions > .system-pill {
+  .topbar-actions > .system-pill {
     display: none !important;
   }
 }
