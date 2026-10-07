@@ -683,3 +683,35 @@
     overflow-y: auto;
   }
 }
+
+
+.guardActions {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.regenerateButton {
+  border-color: rgba(107,184,255,.18) !important;
+  background: rgba(107,184,255,.035) !important;
+  color: #86bad6 !important;
+}
+
+.reviewHeadBadges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.revisionPill {
+  padding: 4px 6px;
+  border: 1px solid rgba(120,171,255,.15);
+  border-radius: 999px;
+  background: rgba(120,171,255,.03);
+  color: #83afd0;
+  font-size: 5px;
+  font-weight: 900;
+  letter-spacing: .07em;
+}

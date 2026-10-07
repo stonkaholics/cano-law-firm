@@ -7,6 +7,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  WandSparkles,
   X,
   XCircle,
 } from "lucide-react";
@@ -102,6 +103,7 @@ export default function GuardWorkstationBridge() {
   });
   const [loading, setLoading] = useState(false);
   const [runningId, setRunningId] = useState<string | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -259,6 +261,107 @@ export default function GuardWorkstationBridge() {
       }
     },
     [pollForReview, runningId]
+  );
+
+  const regenerateWithGuardEdits = useCallback(
+    async (draftId: string) => {
+      if (regeneratingId) return;
+
+      setRegeneratingId(draftId);
+      setError("");
+      setNotice(
+        "Sending Guard feedback back to Reach for a revised draft…"
+      );
+
+      try {
+        const response = await fetch(
+          "/api/pi/guard/regenerate",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              outreachEventId: draftId,
+            }),
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || data?.ok === false) {
+          throw new Error(
+            data?.error ||
+            "Unable to send Guard edits back to Reach."
+          );
+        }
+
+        const startedAt =
+          clean(data.startedAt) ||
+          new Date().toISOString();
+
+        let attempts = 0;
+
+        stopPolling();
+
+        const check = async () => {
+          attempts += 1;
+
+          const next = await loadState();
+
+          if (!next) return;
+
+          const revised =
+            next.drafts.find(
+              (draft) =>
+                clean(
+                  draft.metadata?.revision_of
+                ) === draftId &&
+                new Date(
+                  draft.created_at || 0
+                ).getTime() >=
+                  new Date(startedAt).getTime() - 5000
+            ) || null;
+
+          if (revised) {
+            setRegeneratingId(null);
+            setSelectedId(revised.id);
+            setNotice(
+              "Reach created a revised draft using Guard's required edits. Run Guard Review again on the new version."
+            );
+            stopPolling();
+            return;
+          }
+
+          if (attempts >= 30) {
+            setRegeneratingId(null);
+            setError(
+              "Reach accepted the revision request, but the revised draft did not appear within about 90 seconds. Check the Reach branch in n8n."
+            );
+            stopPolling();
+          }
+        };
+
+        void check();
+
+        pollRef.current = window.setInterval(
+          () => void check(),
+          3000
+        );
+      } catch (caught) {
+        setRegeneratingId(null);
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Unable to regenerate the Reach draft."
+        );
+      }
+    },
+    [
+      loadState,
+      regeneratingId,
+      stopPolling,
+    ]
   );
 
   const humanDecision = useCallback(
@@ -589,8 +692,16 @@ export default function GuardWorkstationBridge() {
                     </p>
                   </div>
 
-                  <div className={styles.statusPill}>
-                    {clean(selected.status) || "draft"}
+                  <div className={styles.reviewHeadBadges}>
+                    {selected.metadata?.revision_of ? (
+                      <div className={styles.revisionPill}>
+                        REVISED
+                      </div>
+                    ) : null}
+
+                    <div className={styles.statusPill}>
+                      {clean(selected.status) || "draft"}
+                    </div>
                   </div>
                 </div>
 
@@ -636,27 +747,56 @@ export default function GuardWorkstationBridge() {
                       </h4>
                     </div>
 
-                    <button
-                      onClick={() => void runGuardReview(selected.id)}
-                      disabled={
-                        Boolean(runningId) ||
-                        clean(selected.status).toLowerCase() !== "draft"
-                      }
-                    >
-                      {runningId === selected.id ? (
-                        <RefreshCw
-                          size={13}
-                          className={styles.spin}
-                        />
-                      ) : (
-                        <ShieldCheck size={13} />
-                      )}
-                      {runningId === selected.id
-                        ? "Guard Reviewing…"
-                        : selectedReview
-                        ? "Run Again"
-                        : "Run Guard Review"}
-                    </button>
+                    <div className={styles.guardActions}>
+                      {selectedReview ? (
+                        <button
+                          className={styles.regenerateButton}
+                          onClick={() =>
+                            void regenerateWithGuardEdits(selected.id)
+                          }
+                          disabled={
+                            Boolean(regeneratingId) ||
+                            Boolean(runningId) ||
+                            clean(selected.status).toLowerCase() !== "draft"
+                          }
+                        >
+                          {regeneratingId === selected.id ? (
+                            <RefreshCw
+                              size={13}
+                              className={styles.spin}
+                            />
+                          ) : (
+                            <WandSparkles size={13} />
+                          )}
+                          {regeneratingId === selected.id
+                            ? "Regenerating…"
+                            : "Regenerate With Guard Edits"}
+                        </button>
+                      ) : null}
+
+                      <button
+                        onClick={() => void runGuardReview(selected.id)}
+                        disabled={
+                          Boolean(runningId) ||
+                          Boolean(regeneratingId) ||
+                          clean(selected.status).toLowerCase() !== "draft"
+                        }
+                      >
+                        {runningId === selected.id ? (
+                          <RefreshCw
+                            size={13}
+                            className={styles.spin}
+                          />
+                        ) : (
+                          <ShieldCheck size={13} />
+                        )}
+                        {runningId === selected.id
+                          ? "Guard Reviewing…"
+                          : selectedReview
+                          ? "Run Again"
+                          : "Run Guard Review"}
+                      </button>
+                    </div>
                   </div>
 
                   {selectedReview ? (
@@ -753,9 +893,7 @@ export default function GuardWorkstationBridge() {
 
                 <div className={styles.sendLocked}>
                   <Clock3 size={14} />
-                  Approval is stored, but email sending remains disabled in this
-                  build. The next PI-only patch connects approved Reach drafts to
-                  Gmail and Orbit.
+                  Guard can now send required edits back to Reach for a revised draft. Approval is still stored separately, and email sending remains disabled until the next PI-only send patch.
                 </div>
               </>
             ) : (

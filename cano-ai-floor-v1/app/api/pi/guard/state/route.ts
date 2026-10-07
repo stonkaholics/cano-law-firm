@@ -56,7 +56,7 @@ export async function GET(
             direction: "eq.outbound",
             channel: "eq.email",
             order: "created_at.desc",
-            limit: 200,
+            limit: 250,
           }
         ),
 
@@ -66,44 +66,66 @@ export async function GET(
             select: "*",
             subject_type:
               "eq.outreach_event",
-            order: "reviewed_at.desc",
-            limit: 300,
+            order:
+              "reviewed_at.desc",
+            limit: 400,
           }
         ),
       ]);
 
     const reachDrafts =
-      drafts.filter((draft) => {
-        const agent =
+      drafts.filter(
+        (draft) =>
           String(
             draft.metadata?.agent ||
             ""
           )
             .trim()
-            .toLowerCase();
+            .toLowerCase() ===
+            "reach"
+      );
 
-        const status =
-          String(
-            draft.status ||
-            ""
+    /*
+    | Once a revised draft exists, hide the old version from the active Guard
+    | queue. The original record is still retained in Supabase for audit/history.
+    */
+    const supersededIds =
+      new Set(
+        reachDrafts
+          .map(
+            (draft) =>
+              String(
+                draft.metadata?.revision_of ||
+                ""
+              ).trim()
           )
-            .trim()
-            .toLowerCase();
+          .filter(Boolean)
+      );
 
-        return (
-          agent === "reach" &&
+    const visibleDrafts =
+      reachDrafts.filter(
+        (draft) =>
+          !supersededIds.has(
+            draft.id
+          ) &&
           [
             "draft",
             "approved",
             "rejected",
-          ].includes(status)
-        );
-      });
+          ].includes(
+            String(
+              draft.status ||
+              ""
+            )
+              .trim()
+              .toLowerCase()
+          )
+      );
 
     const prospectIds =
       Array.from(
         new Set(
-          reachDrafts
+          visibleDrafts
             .map(
               (draft) =>
                 String(
@@ -141,10 +163,12 @@ export async function GET(
 
     return NextResponse.json({
       ok: true,
+
       drafts:
-        reachDrafts.map(
+        visibleDrafts.map(
           (draft) => ({
             ...draft,
+
             prospect:
               draft.referral_prospect_id
                 ? prospectById.get(
@@ -153,6 +177,7 @@ export async function GET(
                 : null,
           })
         ),
+
       reviews,
     });
   } catch (error) {
