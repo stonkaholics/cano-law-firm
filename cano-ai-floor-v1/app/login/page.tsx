@@ -14,12 +14,14 @@ import {
 
 import styles from "./login.module.css";
 
-import {
-  createAuthBrowserClient,
-} from "../../lib/supabase/auth-browser";
-
-function safeNextPath(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+function safeNextPath(
+  value: string | null
+) {
+  if (
+    !value ||
+    !value.startsWith("/") ||
+    value.startsWith("//")
+  ) {
     return "/";
   }
 
@@ -27,28 +29,49 @@ function safeNextPath(value: string | null) {
 }
 
 export default function LoginPage() {
-  const [nextPath, setNextPath] = useState("/");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [nextPath, setNextPath] =
+    useState("/");
+
+  const [email, setEmail] =
+    useState("");
+
+  const [password, setPassword] =
+    useState("");
+
+  const [error, setError] =
+    useState("");
+
+  const [submitting, setSubmitting] =
+    useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (
+      typeof window ===
+      "undefined"
+    ) {
+      return;
+    }
 
-    const params = new URLSearchParams(window.location.search);
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
 
     setNextPath(
-      safeNextPath(params.get("next"))
+      safeNextPath(
+        params.get("next")
+      )
     );
 
     setError(
-      params.get("error") || ""
+      params.get("error") ||
+        ""
     );
   }, []);
 
   async function handleSubmit(
-    event: FormEvent<HTMLFormElement>
+    event:
+      FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
@@ -58,53 +81,54 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const supabase = createAuthBrowserClient();
+      const response =
+        await fetch(
+          "/api/auth/login",
+          {
+            method:
+              "POST",
 
-      /*
-      | Fail with a useful message instead of leaving the button spinning
-      | forever if the Auth endpoint stalls.
-      */
-      const loginPromise =
-        supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(),
-          password,
-        });
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
 
-      const timeoutPromise =
-        new Promise<never>((_, reject) => {
-          window.setTimeout(() => {
-            reject(
-              new Error(
-                "Login timed out while contacting Supabase Auth. Please try again."
-              )
-            );
-          }, 15000);
-        });
+            body:
+              JSON.stringify({
+                email,
+                password,
+                next:
+                  nextPath,
+              }),
 
-      const {
-        data,
-        error: signInError,
-      } = await Promise.race([
-        loginPromise,
-        timeoutPromise,
-      ]);
+            cache:
+              "no-store",
+          }
+        );
 
-      if (signInError) {
-        throw signInError;
-      }
+      const data =
+        await response.json();
 
-      if (!data?.session) {
+      if (
+        !response.ok ||
+        data?.ok === false
+      ) {
         throw new Error(
-          "Supabase did not return an authenticated session."
+          data?.error ||
+            "Unable to sign in."
         );
       }
 
       /*
-      | createBrowserClient writes the Supabase SSR auth cookies.
-      | Use a full navigation so middleware receives those cookies on the
-      | protected request.
+      | The server has already set Cano's signed HttpOnly cookie.
+      | No Supabase browser SDK or auth round-trip is needed here.
       */
-      window.location.assign(nextPath);
+      window.location.replace(
+        safeNextPath(
+          data?.next ||
+            nextPath
+        )
+      );
     } catch (loginError) {
       setError(
         loginError instanceof Error
@@ -117,50 +141,114 @@ export default function LoginPage() {
   }
 
   return (
-    <main className={styles.shell}>
-      <div className={styles.glow} />
+    <main
+      className={
+        styles.shell
+      }
+    >
+      <div
+        className={
+          styles.glow
+        }
+      />
 
-      <section className={styles.card}>
-        <div className={styles.brand}>
-          <div className={styles.mark}>C</div>
+      <section
+        className={
+          styles.card
+        }
+      >
+        <div
+          className={
+            styles.brand
+          }
+        >
+          <div
+            className={
+              styles.mark
+            }
+          >
+            C
+          </div>
 
           <div>
-            <span>CANO LAW FIRM</span>
-            <strong>AI Legal Operations</strong>
+            <span>
+              CANO LAW FIRM
+            </span>
+
+            <strong>
+              AI Legal Operations
+            </strong>
           </div>
         </div>
 
-        <div className={styles.security}>
-          <ShieldCheck size={17} />
-          <span>Secure internal access</span>
+        <div
+          className={
+            styles.security
+          }
+        >
+          <ShieldCheck
+            size={17}
+          />
+
+          <span>
+            Secure internal access
+          </span>
         </div>
 
-        <div className={styles.heading}>
-          <div className={styles.icon}>
-            <LockKeyhole size={22} />
+        <div
+          className={
+            styles.heading
+          }
+        >
+          <div
+            className={
+              styles.icon
+            }
+          >
+            <LockKeyhole
+              size={22}
+            />
           </div>
 
           <div>
-            <span>AUTHENTICATION REQUIRED</span>
-            <h1>Sign in to Cano AI</h1>
+            <span>
+              AUTHENTICATION REQUIRED
+            </span>
+
+            <h1>
+              Sign in to Cano AI
+            </h1>
+
             <p>
-              Access is limited to authorized Cano Law Firm personnel.
+              Access is limited to
+              authorized Cano Law Firm
+              personnel.
             </p>
           </div>
         </div>
 
         {error ? (
-          <div className={styles.error}>
+          <div
+            className={
+              styles.error
+            }
+          >
             {error}
           </div>
         ) : null}
 
         <form
-          className={styles.form}
-          onSubmit={handleSubmit}
+          className={
+            styles.form
+          }
+          onSubmit={
+            handleSubmit
+          }
         >
           <label>
-            <span>Email</span>
+            <span>
+              Email
+            </span>
 
             <input
               name="email"
@@ -169,15 +257,21 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(event) =>
-                setEmail(event.target.value)
+                setEmail(
+                  event.target.value
+                )
               }
-              disabled={submitting}
+              disabled={
+                submitting
+              }
               placeholder="name@canolawfirm.com"
             />
           </label>
 
           <label>
-            <span>Password</span>
+            <span>
+              Password
+            </span>
 
             <input
               name="password"
@@ -186,16 +280,22 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(event) =>
-                setPassword(event.target.value)
+                setPassword(
+                  event.target.value
+                )
               }
-              disabled={submitting}
+              disabled={
+                submitting
+              }
               placeholder="••••••••••••"
             />
           </label>
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={
+              submitting
+            }
           >
             {submitting ? (
               <>
@@ -207,20 +307,31 @@ export default function LoginPage() {
               </>
             ) : (
               <>
-                <LockKeyhole size={15} />
+                <LockKeyhole
+                  size={15}
+                />
                 Sign In
               </>
             )}
           </button>
         </form>
 
-        <div className={styles.notice}>
-          <strong>Confidential system</strong>
+        <div
+          className={
+            styles.notice
+          }
+        >
+          <strong>
+            Confidential system
+          </strong>
 
           <p>
-            Client and matter information may be privileged or otherwise
-            confidential. Do not share account credentials or leave an
-            authenticated session unattended.
+            Client and matter information
+            may be privileged or otherwise
+            confidential. Do not share
+            account credentials or leave
+            an authenticated session
+            unattended.
           </p>
         </div>
       </section>

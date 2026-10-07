@@ -1,16 +1,39 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createAuthServerClient } from "../../../../lib/supabase/auth-server";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
 
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createAuthServerClient();
-    await supabase.auth.signOut();
-  } catch (error) {
-    console.error("Cano AI logout error:", error);
-  }
+import {
+  CANO_SESSION_COOKIE,
+} from "../../../../lib/auth/session";
 
-  return NextResponse.redirect(
-    new URL("/login", request.url),
-    { status: 303 }
+export async function POST(
+  request: NextRequest
+) {
+  const response =
+    NextResponse.redirect(
+      new URL(
+        "/login",
+        request.url
+      ),
+      {
+        status: 303,
+      }
+    );
+
+  response.cookies.set(
+    CANO_SESSION_COOKIE,
+    "",
+    {
+      httpOnly: true,
+      secure:
+        process.env.NODE_ENV ===
+        "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    }
   );
+
+  return response;
 }

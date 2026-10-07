@@ -1,73 +1,258 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createAuthServerClient } from "../../../../lib/supabase/auth-server";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
 
-function safeNextPath(value: string) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+import {
+  CANO_SESSION_COOKIE,
+  CANO_SESSION_MAX_AGE,
+  createCanoSessionToken,
+} from "../../../../lib/auth/session";
+
+function getSupabaseConfig() {
+  const url =
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  const anonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url) {
+    throw new Error(
+      "Missing SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL."
+    );
+  }
+
+  if (!anonKey) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_SUPABASE_ANON_KEY."
+    );
+  }
+
+  return {
+    url: url.replace(/\/$/, ""),
+    anonKey,
+  };
+}
+
+function safeNextPath(
+  value: string
+) {
+  if (
+    !value ||
+    !value.startsWith("/") ||
+    value.startsWith("//")
+  ) {
     return "/";
   }
 
   return value;
 }
 
-export async function POST(request: NextRequest) {
+async function verifyWithSupabase(
+  email: string,
+  password: string
+) {
+  const {
+    url,
+    anonKey,
+  } =
+    getSupabaseConfig();
+
+  const controller =
+    new AbortController();
+
+  const timeout =
+    setTimeout(
+      () =>
+        controller.abort(),
+      25000
+    );
+
   try {
-    const formData = await request.formData();
+    const response =
+      await fetch(
+        `${url}/auth/v1/token?grant_type=password`,
+        {
+          method: "POST",
 
-    const email = String(
-      formData.get("email") || ""
-    ).trim().toLowerCase();
+          headers: {
+            apikey:
+              anonKey,
 
-    const password = String(
-      formData.get("password") || ""
-    );
+            "Content-Type":
+              "application/json",
+          },
 
-    const next = safeNextPath(
-      String(formData.get("next") || "/")
-    );
+          body:
+            JSON.stringify({
+              email,
+              password,
+            }),
 
-    if (!email || !password) {
-      const url = new URL("/login", request.url);
-      url.searchParams.set(
-        "error",
-        "Email and password are required."
+          signal:
+            controller.signal,
+
+          cache:
+            "no-store",
+        }
       );
-      url.searchParams.set("next", next);
 
-      return NextResponse.redirect(url, { status: 303 });
+    const text =
+      await response.text();
+
+    let data: any = null;
+
+    try {
+      data =
+        text
+          ? JSON.parse(text)
+          : null;
+    } catch {
+      data = null;
     }
 
-    const supabase = await createAuthServerClient();
+    if (!response.ok) {
+      throw new Error(
+        data?.msg ||
+          data?.message ||
+          data?.error_description ||
+          "Invalid email or password."
+      );
+    }
 
-    const { error } =
-      await supabase.auth.signInWithPassword({
+    if (
+      !data?.user?.id ||
+      !data?.user?.email
+    ) {
+      throw new Error(
+        "Supabase verified the request but did not return a valid user."
+      );
+    }
+
+    return {
+      id:
+        String(
+          data.user.id
+        ),
+
+      email:
+        String(
+          data.user.email
+        ),
+    };
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.name ===
+        "AbortError"
+    ) {
+      throw new Error(
+        "Supabase Auth took too long to respond. Please try again."
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(
+      timeout
+    );
+  }
+}
+
+export async function POST(
+  request: NextRequest
+) {
+  try {
+    const body =
+      await request.json();
+
+    const email =
+      String(
+        body?.email || ""
+      )
+        .trim()
+        .toLowerCase();
+
+    const password =
+      String(
+        body?.password || ""
+      );
+
+    const next =
+      safeNextPath(
+        String(
+          body?.next || "/"
+        )
+      );
+
+    if (
+      !email ||
+      !password
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Email and password are required.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const user =
+      await verifyWithSupabase(
         email,
-        password,
+        password
+      );
+
+    const token =
+      await createCanoSessionToken({
+        sub:
+          user.id,
+
+        email:
+          user.email,
       });
 
-    if (error) {
-      const url = new URL("/login", request.url);
-      url.searchParams.set(
-        "error",
-        "Invalid email or password."
-      );
-      url.searchParams.set("next", next);
+    const response =
+      NextResponse.json({
+        ok: true,
+        next,
+        email:
+          user.email,
+      });
 
-      return NextResponse.redirect(url, { status: 303 });
-    }
-
-    return NextResponse.redirect(
-      new URL(next, request.url),
-      { status: 303 }
+    response.cookies.set(
+      CANO_SESSION_COOKIE,
+      token,
+      {
+        httpOnly: true,
+        secure:
+          process.env.NODE_ENV ===
+          "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge:
+          CANO_SESSION_MAX_AGE,
+      }
     );
+
+    return response;
   } catch (error) {
-    const url = new URL("/login", request.url);
-    url.searchParams.set(
-      "error",
-      error instanceof Error
-        ? error.message
-        : "Unable to sign in."
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to sign in.",
+      },
+      {
+        status: 401,
+      }
     );
-
-    return NextResponse.redirect(url, { status: 303 });
   }
 }

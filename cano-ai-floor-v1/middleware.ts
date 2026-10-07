@@ -1,169 +1,108 @@
 import {
-  createServerClient,
-} from "@supabase/ssr";
-
-import {
   NextResponse,
   type NextRequest,
 } from "next/server";
 
-function getSupabaseConfig() {
-  const url =
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.SUPABASE_URL;
+import {
+  CANO_SESSION_COOKIE,
+  verifyCanoSessionToken,
+} from "./lib/auth/session";
 
-  const anonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !anonKey) return null;
-
-  return {
-    url: url.replace(/\/$/, ""),
-    anonKey,
-  };
-}
-
-function safeNextPath(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+function safeNextPath(
+  value: string | null
+) {
+  if (
+    !value ||
+    !value.startsWith("/") ||
+    value.startsWith("//")
+  ) {
     return "/";
   }
 
   return value;
 }
 
-type CookieToSet = {
-  name: string;
-  value: string;
-  options?: any;
-};
-
-function applyCookies(
-  response: NextResponse,
-  cookiesToSet: CookieToSet[]
+export async function middleware(
+  request: NextRequest
 ) {
-  cookiesToSet.forEach(({ name, value, options }) => {
-    response.cookies.set(name, value, options);
-  });
+  const pathname =
+    request.nextUrl.pathname;
 
-  return response;
-}
+  const token =
+    request.cookies.get(
+      CANO_SESSION_COOKIE
+    )?.value || null;
 
-export async function middleware(request: NextRequest) {
-  const config = getSupabaseConfig();
-
-  if (!config) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
-    loginUrl.searchParams.set(
-      "error",
-      "Cano AI login is not configured. Check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel."
+  const session =
+    await verifyCanoSessionToken(
+      token
     );
-    return NextResponse.redirect(loginUrl);
-  }
 
-  const refreshedCookies: CookieToSet[] = [];
+  if (!session) {
+    const loginUrl =
+      request.nextUrl.clone();
 
-  const supabase = createServerClient(
-    config.url,
-    config.anonKey,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
+    loginUrl.pathname =
+      "/login";
 
-        setAll(cookiesToSet) {
-          refreshedCookies.push(...cookiesToSet);
-
-          cookiesToSet.forEach(({ name, value }) => {
-            request.cookies.set(name, value);
-          });
-        },
-      },
-    }
-  );
-
-  /*
-  |--------------------------------------------------------------------------
-  | FAST AUTH FIRST, SECURE FALLBACK SECOND
-  |--------------------------------------------------------------------------
-  |
-  | Modern Supabase projects can validate JWT claims locally through
-  | getClaims(), which is much faster than a full Auth-server getUser() call.
-  |
-  | IMPORTANT: if getClaims() is unavailable OR returns an error (legacy
-  | signing setup, stale JWKS, client-version mismatch, etc.), we immediately
-  | fall back to getUser(). That prevents the "fast" path from locking users
-  | out.
-  |--------------------------------------------------------------------------
-  */
-
-  let authenticated = false;
-  let userEmail = "";
-
-  try {
-    const authAny = supabase.auth as any;
-
-    if (typeof authAny.getClaims === "function") {
-      const { data, error } = await authAny.getClaims();
-
-      const claims = data?.claims || null;
-
-      if (!error && claims?.sub) {
-        authenticated = true;
-        userEmail = String(claims.email || "");
-      }
-    }
-  } catch {
-    // Fall through to getUser().
-  }
-
-  if (!authenticated) {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        authenticated = true;
-        userEmail = user.email || "";
-      }
-    } catch {
-      authenticated = false;
-    }
-  }
-
-  if (!authenticated) {
-    const loginUrl = request.nextUrl.clone();
-
-    loginUrl.pathname = "/login";
     loginUrl.searchParams.set(
       "next",
       safeNextPath(
-        `${request.nextUrl.pathname}${request.nextUrl.search}`
+        `${pathname}${request.nextUrl.search}`
       )
     );
 
-    return applyCookies(
-      NextResponse.redirect(loginUrl),
-      refreshedCookies
+    const response =
+      NextResponse.redirect(
+        loginUrl
+      );
+
+    if (token) {
+      response.cookies.delete(
+        CANO_SESSION_COOKIE
+      );
+    }
+
+    return response;
+  }
+
+  const requestHeaders =
+    new Headers(
+      request.headers
     );
-  }
 
-  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(
+    "x-cano-user-email",
+    session.email
+  );
 
-  if (userEmail) {
-    requestHeaders.set("x-cano-user-email", userEmail);
-  }
+  requestHeaders.set(
+    "x-cano-user-id",
+    session.sub
+  );
 
-  const response = NextResponse.next({
+  return NextResponse.next({
     request: {
-      headers: requestHeaders,
+      headers:
+        requestHeaders,
     },
   });
-
-  return applyCookies(response, refreshedCookies);
 }
+
+/*
+|--------------------------------------------------------------------------
+| FAST LOCAL PAGE AUTH
+|--------------------------------------------------------------------------
+|
+| This middleware does ZERO Supabase/network calls.
+|
+| Login credentials are verified against Supabase Auth once at sign-in.
+| After successful login, Cano issues its own short signed HttpOnly session
+| cookie and middleware validates that signature locally using HMAC SHA-256.
+|
+| /api stays excluded so existing n8n -> Cano callbacks keep working.
+|--------------------------------------------------------------------------
+*/
 
 export const config = {
   matcher: [
