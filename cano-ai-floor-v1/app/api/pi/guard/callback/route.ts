@@ -187,15 +187,42 @@ export async function POST(
           "needs_review"
         ).toLowerCase();
 
-      const status =
-        recommendation === "approve"
-          ? "ai_review_approve"
-          : recommendation === "block"
-          ? "ai_review_block"
-          : "ai_review_needs_review";
+      const normalizedRecommendation =
+        recommendation === "approve" ||
+        recommendation === "block" ||
+        recommendation === "needs_review"
+          ? recommendation
+          : "needs_review";
 
       const generatedAt =
         new Date().toISOString();
+
+      /*
+      |--------------------------------------------------------------------------
+      | IMPORTANT: COMPLIANCE REVIEW STATUS
+      |--------------------------------------------------------------------------
+      |
+      | pi_compliance_reviews has a database CHECK constraint on status.
+      | The prior version attempted to save custom values like:
+      |
+      |   ai_review_approve
+      |   ai_review_block
+      |   ai_review_needs_review
+      |
+      | Those values are NOT part of the table's allowed status set, so
+      | Supabase correctly rejected the insert.
+      |
+      | Guard AI is advisory only. Therefore every AI review is stored using
+      | the existing valid workflow status:
+      |
+      |   needs_review
+      |
+      | The AI's actual recommendation is preserved separately in metadata:
+      |   approve | needs_review | block
+      |
+      | Human Approve/Reject remains a separate action.
+      |--------------------------------------------------------------------------
+      */
 
       const rows =
         await supabaseInsert(
@@ -207,51 +234,69 @@ export async function POST(
               "outreach_event",
             subject_id:
               outreachEventId,
-            status,
+
+            status:
+              "needs_review",
+
             notes:
               clean(
                 review.summary ||
                 review.notes
               ),
+
             reviewed_by:
               "Guard AI",
+
             reviewed_at:
               generatedAt,
+
             metadata: {
               agent:
                 "guard",
-              recommendation,
+
+              recommendation:
+                normalizedRecommendation,
+
               confidence:
                 Number(
                   review.confidence || 0
                 ),
+
               flags:
                 Array.isArray(
                   review.flags
                 )
                   ? review.flags
                   : [],
+
               required_edits:
                 Array.isArray(
                   review.required_edits
                 )
                   ? review.required_edits
                   : [],
+
               checks:
                 review.checks &&
                 typeof review.checks ===
                   "object"
                   ? review.checks
                   : {},
+
               summary:
                 clean(
                   review.summary ||
                   review.notes
                 ),
+
               generated_at:
                 generatedAt,
+
               human_approval_required:
                 true,
+
+              ai_review_status:
+                "complete",
             },
           }
         );
