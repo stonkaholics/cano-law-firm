@@ -1,5 +1,6 @@
 import {
   supabaseInsert,
+  supabaseRpc,
   supabaseSelect,
   supabaseUpdate,
 } from "./rest";
@@ -38,6 +39,13 @@ export type DbAgentOutput = {
   schema_version: string;
   output: Record<string, any>;
   created_at: string;
+};
+
+type LatestSpecialistStateRow = {
+  matter_id: string;
+  agent_id: string;
+  run: DbAgentRun | null;
+  output_record: DbAgentOutput | null;
 };
 
 export const SPECIALIST_AGENTS: Record<
@@ -142,21 +150,18 @@ export async function getLatestRunForAgent(
 
 /*
 |--------------------------------------------------------------------------
-| BATCHED SPECIALIST STATE
+| LATEST SPECIALIST STATE VIA DATABASE RPC
 |--------------------------------------------------------------------------
 |
-| Old behavior:
-|   8 agents x (1 agent_runs query + 1 agent_outputs query)
-|   = 16 PostgREST requests PER MATTER.
+| The previous implementation selected up to 250 historical agent_runs and
+| agent_outputs rows and sorted them for every active matter.
 |
-| /api/matters loads many matters at once, so this could explode into hundreds
-| or thousands of simultaneous Supabase requests and trigger intermittent
-| transaction/connection failures.
+| On a mature matter, agent_runs can be large because input_payload contains
+| Case Brain + prior specialist context. PostgreSQL was timing out while
+| scanning/sorting that history.
 |
-| New behavior:
-|   1 agent_runs query + 1 agent_outputs query PER MATTER.
-|
-| We sort descending, then take the first row for each agent.
+| The RPC uses DISTINCT ON + composite indexes inside Postgres and returns
+| exactly ONE latest run and ONE latest output per specialist.
 |--------------------------------------------------------------------------
 */
 
@@ -171,61 +176,36 @@ export async function getLatestSpecialistState(matterId: string) {
     };
   }
 
-  let runs: DbAgentRun[] = [];
-  let outputs: DbAgentOutput[] = [];
-
   try {
-    [runs, outputs] = await Promise.all([
-      supabaseSelect<DbAgentRun>("agent_runs", {
-        select: "*",
-        matter_id: `eq.${matterId}`,
-        order: "started_at.desc",
-        limit: 250,
-      }),
+    const rows =
+      await supabaseRpc<LatestSpecialistStateRow>(
+        "get_latest_specialist_states",
+        {
+          p_matter_ids: [matterId],
+        }
+      );
 
-      supabaseSelect<DbAgentOutput>("agent_outputs", {
-        select: "*",
-        matter_id: `eq.${matterId}`,
-        order: "created_at.desc",
-        limit: 250,
-      }),
-    ]);
+    for (const row of rows) {
+      if (!isSpecialistAgentId(String(row.agent_id || ""))) {
+        continue;
+      }
+
+      const agentId = row.agent_id as SpecialistAgentId;
+
+      result[agentId] = {
+        run: row.run || null,
+        output: row.output_record?.output || null,
+        outputRecord: row.output_record || null,
+      };
+    }
+
+    return result;
   } catch (error) {
-    /*
-    | Do not let specialist-history failure take down the entire Matter Center.
-    | The matter itself is still usable; agents can be refreshed after the
-    | database recovers.
-    */
     console.error(
-      `Unable to load specialist history for matter ${matterId}:`,
+      `Unable to load latest specialist state for matter ${matterId}:`,
       error
     );
 
     return result;
   }
-
-  for (const run of runs) {
-    const agentId = run?.agent_id;
-
-    if (
-      isSpecialistAgentId(agentId) &&
-      !result[agentId].run
-    ) {
-      result[agentId].run = run;
-    }
-  }
-
-  for (const outputRecord of outputs) {
-    const agentId = outputRecord?.agent_id;
-
-    if (
-      isSpecialistAgentId(agentId) &&
-      !result[agentId].outputRecord
-    ) {
-      result[agentId].outputRecord = outputRecord;
-      result[agentId].output = outputRecord?.output || null;
-    }
-  }
-
-  return result;
 }

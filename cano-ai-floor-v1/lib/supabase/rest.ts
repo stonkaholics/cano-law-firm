@@ -795,3 +795,30 @@ export async function supabaseDelete<
     ? (data as T[])
     : [];
 }
+
+
+export async function supabaseRpc<T = any>(
+  functionName: string,
+  args: Record<string, any> = {}
+): Promise<T[]> {
+  const client = getClient();
+
+  const {
+    data,
+    error,
+  } = await client.rpc(
+    functionName,
+    args
+  );
+
+  if (error) {
+    throwSupabaseError(
+      `rpc ${functionName}`,
+      error
+    );
+  }
+
+  return Array.isArray(data)
+    ? (data as T[])
+    : [];
+}

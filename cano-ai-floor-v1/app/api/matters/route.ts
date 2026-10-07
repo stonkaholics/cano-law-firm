@@ -18,8 +18,16 @@ import {
 } from "../../../lib/supabase/agents";
 
 import {
+  supabaseRpc,
   supabaseSelect,
 } from "../../../lib/supabase/rest";
+
+type LatestSpecialistStateRow = {
+  matter_id: string;
+  agent_id: string;
+  run: DbAgentRun | null;
+  output_record: DbAgentOutput | null;
+};
 
 function postgrestIn(values: string[]) {
   const clean = Array.from(
@@ -65,11 +73,6 @@ export async function GET(
       ) || 100
     );
 
-  /*
-  | 150 hydrated matters was causing a fan-out explosion.
-  | We still allow a large list, but all related records are now fetched
-  | in four batched queries instead of several queries PER MATTER.
-  */
   const limit =
     Math.max(
       1,
@@ -116,31 +119,21 @@ export async function GET(
 
     /*
     |--------------------------------------------------------------------------
-    | BATCH RELATED DATA
+    | FAST HYDRATION
     |--------------------------------------------------------------------------
     |
-    | Old route:
-    |   For each matter:
-    |     snapshot + assignment + runs + outputs
+    | Critical change:
+    | We NEVER scan/sort thousands of agent_runs rows from the API route.
     |
-    | With many matters that could become hundreds of simultaneous requests.
-    |
-    | New route:
-    |   1 ai_matters query
-    |   1 snapshots query
-    |   1 assignments query
-    |   1 runs query
-    |   1 outputs query
-    |
-    | Total: 5 database requests for the whole page.
+    | get_latest_specialist_states() returns only the newest run/output for
+    | each matter + agent pair using database indexes.
     |--------------------------------------------------------------------------
     */
 
     const [
       snapshots,
       assignments,
-      runs,
-      outputs,
+      specialistRows,
     ] =
       await Promise.all([
         snapshotIds.length
@@ -172,31 +165,11 @@ export async function GET(
           }
         ),
 
-        supabaseSelect<DbAgentRun>(
-          "agent_runs",
+        supabaseRpc<LatestSpecialistStateRow>(
+          "get_latest_specialist_states",
           {
-            select: "*",
-            matter_id:
-              postgrestIn(
-                matterIds
-              ),
-            order:
-              "started_at.desc",
-            limit: 3000,
-          }
-        ),
-
-        supabaseSelect<DbAgentOutput>(
-          "agent_outputs",
-          {
-            select: "*",
-            matter_id:
-              postgrestIn(
-                matterIds
-              ),
-            order:
-              "created_at.desc",
-            limit: 3000,
+            p_matter_ids:
+              matterIds,
           }
         ),
       ]);
@@ -232,66 +205,63 @@ export async function GET(
       }
     }
 
-    const latestRunByMatterAgent =
+    const specialistByMatter =
       new Map<
         string,
-        DbAgentRun
-      >();
-
-    for (const run of runs) {
-      if (
-        !isSpecialistAgentId(
-          run.agent_id
-        )
-      ) {
-        continue;
-      }
-
-      const key =
-        `${run.matter_id}:${run.agent_id}`;
-
-      if (
-        !latestRunByMatterAgent.has(
-          key
-        )
-      ) {
-        latestRunByMatterAgent.set(
-          key,
-          run
-        );
-      }
-    }
-
-    const latestOutputByMatterAgent =
-      new Map<
-        string,
-        DbAgentOutput
+        Record<string, any>
       >();
 
     for (
-      const outputRecord of outputs
+      const matterId of matterIds
     ) {
+      specialistByMatter.set(
+        matterId,
+        emptySpecialistState()
+      );
+    }
+
+    for (
+      const stateRow of specialistRows
+    ) {
+      const agentId =
+        String(
+          stateRow.agent_id ||
+            ""
+        );
+
       if (
         !isSpecialistAgentId(
-          outputRecord.agent_id
+          agentId
         )
       ) {
         continue;
       }
 
-      const key =
-        `${outputRecord.matter_id}:${outputRecord.agent_id}`;
-
-      if (
-        !latestOutputByMatterAgent.has(
-          key
-        )
-      ) {
-        latestOutputByMatterAgent.set(
-          key,
-          outputRecord
+      const specialists =
+        specialistByMatter.get(
+          stateRow.matter_id
         );
+
+      if (!specialists) {
+        continue;
       }
+
+      specialists[agentId] = {
+        run:
+          stateRow.run ||
+          null,
+
+        output:
+          stateRow
+            .output_record
+            ?.output ||
+          null,
+
+        outputRecord:
+          stateRow
+            .output_record ||
+          null,
+      };
     }
 
     const matters =
@@ -307,36 +277,6 @@ export async function GET(
           latestAssignmentByMatter.get(
             row.id
           ) || null;
-
-        const specialists =
-          emptySpecialistState();
-
-        for (
-          const agentId of Object.keys(
-            SPECIALIST_AGENTS
-          ) as SpecialistAgentId[]
-        ) {
-          const key =
-            `${row.id}:${agentId}`;
-
-          const run =
-            latestRunByMatterAgent.get(
-              key
-            ) || null;
-
-          const outputRecord =
-            latestOutputByMatterAgent.get(
-              key
-            ) || null;
-
-          specialists[agentId] = {
-            run,
-            output:
-              outputRecord?.output ||
-              null,
-            outputRecord,
-          };
-        }
 
         return {
           databaseId:
@@ -359,7 +299,8 @@ export async function GET(
             found: true,
             preview:
               row.monday_data
-                ?.preview || null,
+                ?.preview ||
+              null,
             raw:
               row.monday_data ||
               null,
@@ -446,7 +387,11 @@ export async function GET(
               row.created_at,
           },
 
-          specialists,
+          specialists:
+            specialistByMatter.get(
+              row.id
+            ) ||
+            emptySpecialistState(),
         };
       });
 
