@@ -1,271 +1,797 @@
-type QueryValue = string | number | boolean | null | undefined;
+import {
+  createClient,
+  type SupabaseClient,
+} from "@supabase/supabase-js";
 
-function getConfig() {
-  const url = process.env.SUPABASE_URL?.replace(/\/$/, "");
-  const secret = process.env.SUPABASE_SECRET_KEY;
+type QueryValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined;
 
-  if (!url) throw new Error("Missing SUPABASE_URL");
-  if (!secret) throw new Error("Missing SUPABASE_SECRET_KEY");
+let adminClient:
+  SupabaseClient | null = null;
 
-  return { url, secret };
-}
+function decodeJwtRole(
+  token: string
+) {
+  try {
+    const parts =
+      token.split(".");
 
-function authHeaders(secret: string) {
-  /*
-  |--------------------------------------------------------------------------
-  | SUPPORT BOTH SUPABASE KEY GENERATIONS CORRECTLY
-  |--------------------------------------------------------------------------
-  |
-  | New secret keys look like:
-  |   sb_secret_...
-  |
-  | Those are opaque API keys, NOT JWTs. They belong in `apikey` only.
-  |
-  | Legacy service_role keys look like JWTs:
-  |   eyJ...
-  |
-  | Those can be used as both `apikey` and `Authorization: Bearer ...`.
-  |
-  | The previous patch sent `Authorization: Bearer sb_secret_...`, which is
-  | invalid for the new key format and can break PostgREST authentication.
-  |--------------------------------------------------------------------------
-  */
+    if (
+      parts.length !== 3
+    ) {
+      return null;
+    }
 
-  const result: Record<string, string> = {
-    apikey: secret,
-  };
+    const payload =
+      parts[1]
+        .replace(/-/g, "+")
+        .replace(/_/g, "/");
 
-  const looksLikeJwt =
-    secret.startsWith("eyJ") &&
-    secret.split(".").length === 3;
+    const padded =
+      payload +
+      "=".repeat(
+        (4 -
+          (payload.length %
+            4)) %
+          4
+      );
 
-  if (looksLikeJwt) {
-    result.Authorization = `Bearer ${secret}`;
+    const parsed =
+      JSON.parse(
+        Buffer.from(
+          padded,
+          "base64"
+        ).toString("utf8")
+      );
+
+    return typeof parsed?.role ===
+      "string"
+      ? parsed.role
+      : null;
+  } catch {
+    return null;
   }
-
-  return result;
 }
 
-function headers(extra?: Record<string, string>) {
-  const { secret } = getConfig();
+export function getSupabaseServerKeyInfo() {
+  const secret =
+    process.env
+      .SUPABASE_SECRET_KEY ||
+    process.env
+      .SUPABASE_SERVICE_ROLE_KEY ||
+    "";
+
+  let type =
+    "unknown";
+
+  let role:
+    string | null = null;
+
+  if (
+    secret.startsWith(
+      "sb_secret_"
+    )
+  ) {
+    type =
+      "secret";
+    role =
+      "service_role";
+  } else if (
+    secret.startsWith(
+      "sb_publishable_"
+    )
+  ) {
+    type =
+      "publishable";
+    role =
+      "anon";
+  } else if (
+    secret.startsWith(
+      "eyJ"
+    )
+  ) {
+    type =
+      "legacy_jwt";
+    role =
+      decodeJwtRole(
+        secret
+      );
+  }
 
   return {
-    ...authHeaders(secret),
-    "Content-Type": "application/json",
-    ...extra,
+    configured:
+      Boolean(secret),
+    type,
+    role,
   };
 }
 
-function buildQuery(params?: Record<string, QueryValue>) {
-  const search = new URLSearchParams();
+function getConfig() {
+  const url =
+    (
+      process.env
+        .SUPABASE_URL ||
+      process.env
+        .NEXT_PUBLIC_SUPABASE_URL ||
+      ""
+    ).replace(
+      /\/$/,
+      ""
+    );
 
-  for (const [key, value] of Object.entries(params || {})) {
-    if (value === undefined || value === null || value === "") continue;
-    search.set(key, String(value));
+  const secret =
+    process.env
+      .SUPABASE_SECRET_KEY ||
+    process.env
+      .SUPABASE_SERVICE_ROLE_KEY ||
+    "";
+
+  if (!url) {
+    throw new Error(
+      "Missing SUPABASE_URL."
+    );
   }
 
-  const qs = search.toString();
-  return qs ? `?${qs}` : "";
+  if (!secret) {
+    throw new Error(
+      "Missing SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY."
+    );
+  }
+
+  const info =
+    getSupabaseServerKeyInfo();
+
+  /*
+  |--------------------------------------------------------------------------
+  | FAIL LOUDLY ON A PUBLIC KEY
+  |--------------------------------------------------------------------------
+  |
+  | A publishable/anon key can legitimately return [] when RLS blocks access.
+  | That looks exactly like "0 shared matters" even though the table contains
+  | data. Do not silently allow that on the trusted Cano server layer.
+  |--------------------------------------------------------------------------
+  */
+  if (
+    info.type ===
+      "publishable" ||
+    info.role ===
+      "anon" ||
+    info.role ===
+      "authenticated"
+  ) {
+    throw new Error(
+      "SUPABASE_SECRET_KEY is not an elevated server key. Use the project's sb_secret_... key or legacy service_role key."
+    );
+  }
+
+  return {
+    url,
+    secret,
+  };
 }
 
-function isTransientDatabaseError(status: number, body: string) {
-  if (status < 500) return false;
+function getClient() {
+  if (
+    adminClient
+  ) {
+    return adminClient;
+  }
 
-  const value = String(body || "").toLowerCase();
+  const {
+    url,
+    secret,
+  } =
+    getConfig();
 
-  return (
-    value.includes("current transaction is aborted") ||
-    value.includes("commands ignored until end of transaction block") ||
-    value.includes("connection") ||
-    value.includes("timeout") ||
-    value.includes("temporarily unavailable") ||
-    status === 502 ||
-    status === 503 ||
-    status === 504
+  /*
+  |--------------------------------------------------------------------------
+  | USE THE OFFICIAL SUPABASE CLIENT
+  |--------------------------------------------------------------------------
+  |
+  | This avoids hand-rolling API-key header behavior across old service_role
+  | JWTs and the newer sb_secret_* keys.
+  |--------------------------------------------------------------------------
+  */
+  adminClient =
+    createClient(
+      url,
+      secret,
+      {
+        auth: {
+          persistSession:
+            false,
+          autoRefreshToken:
+            false,
+          detectSessionInUrl:
+            false,
+        },
+        global: {
+          headers: {
+            "X-Client-Info":
+              "cano-ai-floor-server",
+          },
+        },
+      }
+    );
+
+  return adminClient;
+}
+
+function parseOrder(
+  value: string
+) {
+  const [
+    column,
+    direction,
+  ] =
+    String(
+      value || ""
+    ).split(".");
+
+  return {
+    column,
+    ascending:
+      direction !==
+      "desc",
+  };
+}
+
+function parseInValue(
+  raw: string
+) {
+  const inner =
+    raw
+      .replace(
+        /^in\.\(/,
+        ""
+      )
+      .replace(
+        /\)$/,
+        ""
+      );
+
+  if (!inner) {
+    return [];
+  }
+
+  return inner
+    .split(",")
+    .map(
+      (item) =>
+        item
+          .trim()
+          .replace(
+            /^"(.*)"$/,
+            "$1"
+          )
+    )
+    .filter(Boolean);
+}
+
+function applyFilter(
+  query: any,
+  column: string,
+  expression: QueryValue
+) {
+  if (
+    expression ===
+      undefined ||
+    expression ===
+      null ||
+    expression ===
+      ""
+  ) {
+    return query;
+  }
+
+  if (
+    typeof expression !==
+      "string"
+  ) {
+    return query.eq(
+      column,
+      expression
+    );
+  }
+
+  const operators = [
+    "eq",
+    "neq",
+    "gt",
+    "gte",
+    "lt",
+    "lte",
+    "like",
+    "ilike",
+    "is",
+  ];
+
+  for (
+    const op of operators
+  ) {
+    const prefix =
+      `${op}.`;
+
+    if (
+      expression.startsWith(
+        prefix
+      )
+    ) {
+      const value =
+        expression.slice(
+          prefix.length
+        );
+
+      if (
+        op === "eq"
+      ) {
+        return query.eq(
+          column,
+          value
+        );
+      }
+
+      if (
+        op === "neq"
+      ) {
+        return query.neq(
+          column,
+          value
+        );
+      }
+
+      if (
+        op === "gt"
+      ) {
+        return query.gt(
+          column,
+          value
+        );
+      }
+
+      if (
+        op === "gte"
+      ) {
+        return query.gte(
+          column,
+          value
+        );
+      }
+
+      if (
+        op === "lt"
+      ) {
+        return query.lt(
+          column,
+          value
+        );
+      }
+
+      if (
+        op === "lte"
+      ) {
+        return query.lte(
+          column,
+          value
+        );
+      }
+
+      if (
+        op === "like"
+      ) {
+        return query.like(
+          column,
+          value
+        );
+      }
+
+      if (
+        op === "ilike"
+      ) {
+        return query.ilike(
+          column,
+          value
+        );
+      }
+
+      if (
+        op === "is"
+      ) {
+        const normalized =
+          value ===
+          "null"
+            ? null
+            : value ===
+              "true"
+            ? true
+            : value ===
+              "false"
+            ? false
+            : value;
+
+        return query.is(
+          column,
+          normalized
+        );
+      }
+    }
+  }
+
+  if (
+    expression.startsWith(
+      "in.("
+    )
+  ) {
+    return query.in(
+      column,
+      parseInValue(
+        expression
+      )
+    );
+  }
+
+  /*
+  | Safe fallback for any PostgREST operator expression not explicitly mapped.
+  */
+  const dot =
+    expression.indexOf(
+      "."
+    );
+
+  if (
+    dot > 0
+  ) {
+    return query.filter(
+      column,
+      expression.slice(
+        0,
+        dot
+      ),
+      expression.slice(
+        dot + 1
+      )
+    );
+  }
+
+  return query.eq(
+    column,
+    expression
   );
 }
 
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function throwSupabaseError(
+  context: string,
+  error: any
+): never {
+  const detail =
+    error?.message ||
+    error?.details ||
+    error?.hint ||
+    error?.code ||
+    "Unknown Supabase error.";
+
+  throw new Error(
+    `Supabase ${context}: ${detail}`
+  );
 }
 
-async function requestSupabase(
-  url: string,
-  init: RequestInit,
-  context?: string
-) {
-  const delays = [0, 180, 500];
+export async function supabaseSelect<
+  T = any
+>(
+  table: string,
+  params?: Record<
+    string,
+    QueryValue
+  >
+): Promise<T[]> {
+  const client =
+    getClient();
 
-  let lastResponse: Response | null = null;
-  let lastText = "";
+  const select =
+    String(
+      params?.select ||
+      "*"
+    );
 
-  for (let attempt = 0; attempt < delays.length; attempt += 1) {
-    if (delays[attempt] > 0) {
-      await wait(delays[attempt]);
-    }
+  let query: any =
+    client
+      .from(table)
+      .select(select);
 
-    const response = await fetch(url, {
-      ...init,
-      cache: "no-store",
-    });
-
-    const text = await response.text();
-
-    lastResponse = response;
-    lastText = text;
-
-    if (response.ok) {
-      if (!text) return null;
-
-      try {
-        return JSON.parse(text);
-      } catch {
-        return text;
-      }
-    }
-
+  for (
+    const [
+      key,
+      value,
+    ] of Object.entries(
+      params || {}
+    )
+  ) {
     if (
-      attempt < delays.length - 1 &&
-      isTransientDatabaseError(response.status, text)
+      key ===
+        "select" ||
+      key ===
+        "order" ||
+      key ===
+        "limit"
     ) {
       continue;
     }
 
-    let detail = text || response.statusText;
+    if (
+      key === "or" &&
+      typeof value ===
+        "string"
+    ) {
+      query =
+        query.or(
+          value
+        );
 
-    try {
-      const parsed = JSON.parse(text);
-      detail =
-        parsed?.message ||
-        parsed?.details ||
-        parsed?.hint ||
-        parsed?.code ||
-        detail;
-    } catch {}
+      continue;
+    }
 
-    throw new Error(
-      `Supabase ${context ? `${context} ` : ""}${response.status}: ${detail}`
+    query =
+      applyFilter(
+        query,
+        key,
+        value
+      );
+  }
+
+  if (
+    params?.order
+  ) {
+    const order =
+      parseOrder(
+        String(
+          params.order
+        )
+      );
+
+    if (
+      order.column
+    ) {
+      query =
+        query.order(
+          order.column,
+          {
+            ascending:
+              order.ascending,
+          }
+        );
+    }
+  }
+
+  if (
+    params?.limit !==
+      undefined &&
+    params?.limit !==
+      null
+  ) {
+    query =
+      query.limit(
+        Number(
+          params.limit
+        )
+      );
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await query;
+
+  if (error) {
+    throwSupabaseError(
+      `select ${table}`,
+      error
     );
   }
 
-  throw new Error(
-    `Supabase ${context ? `${context} ` : ""}${
-      lastResponse?.status || 500
-    }: ${lastText || "Unknown database error"}`
-  );
+  return Array.isArray(
+    data
+  )
+    ? (data as T[])
+    : [];
 }
 
-export async function supabaseSelect<T = any>(
+export async function supabaseInsert<
+  T = any
+>(
   table: string,
-  params?: Record<string, QueryValue>
+  payload:
+    | Record<
+        string,
+        any
+      >
+    | Record<
+        string,
+        any
+      >[]
 ): Promise<T[]> {
-  const { url } = getConfig();
+  const client =
+    getClient();
 
-  const data = await requestSupabase(
-    `${url}/rest/v1/${table}${buildQuery(params)}`,
-    {
-      method: "GET",
-      headers: headers(),
-    },
-    `select ${table}`
-  );
+  const {
+    data,
+    error,
+  } =
+    await client
+      .from(table)
+      .insert(payload)
+      .select();
 
-  return Array.isArray(data) ? data : [];
+  if (error) {
+    throwSupabaseError(
+      `insert ${table}`,
+      error
+    );
+  }
+
+  return Array.isArray(
+    data
+  )
+    ? (data as T[])
+    : [];
 }
 
-export async function supabaseInsert<T = any>(
+export async function supabaseUpsert<
+  T = any
+>(
   table: string,
-  payload: Record<string, any> | Record<string, any>[]
-): Promise<T[]> {
-  const { url } = getConfig();
-
-  const data = await requestSupabase(
-    `${url}/rest/v1/${table}`,
-    {
-      method: "POST",
-      headers: headers({
-        Prefer: "return=representation",
-      }),
-      body: JSON.stringify(payload),
-    },
-    `insert ${table}`
-  );
-
-  return Array.isArray(data) ? data : [];
-}
-
-export async function supabaseUpsert<T = any>(
-  table: string,
-  payload: Record<string, any> | Record<string, any>[],
+  payload:
+    | Record<
+        string,
+        any
+      >
+    | Record<
+        string,
+        any
+      >[],
   onConflict: string
 ): Promise<T[]> {
-  const { url } = getConfig();
+  const client =
+    getClient();
 
-  const data = await requestSupabase(
-    `${url}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`,
-    {
-      method: "POST",
-      headers: headers({
-        Prefer: "resolution=merge-duplicates,return=representation",
-      }),
-      body: JSON.stringify(payload),
-    },
-    `upsert ${table}`
-  );
+  const {
+    data,
+    error,
+  } =
+    await client
+      .from(table)
+      .upsert(
+        payload,
+        {
+          onConflict,
+        }
+      )
+      .select();
 
-  return Array.isArray(data) ? data : [];
-}
-
-export async function supabaseUpdate<T = any>(
-  table: string,
-  filters: Record<string, string>,
-  payload: Record<string, any>
-): Promise<T[]> {
-  const { url } = getConfig();
-
-  const search = new URLSearchParams();
-
-  for (const [column, expression] of Object.entries(filters)) {
-    search.set(column, expression);
+  if (error) {
+    throwSupabaseError(
+      `upsert ${table}`,
+      error
+    );
   }
 
-  const data = await requestSupabase(
-    `${url}/rest/v1/${table}?${search.toString()}`,
-    {
-      method: "PATCH",
-      headers: headers({
-        Prefer: "return=representation",
-      }),
-      body: JSON.stringify(payload),
-    },
-    `update ${table}`
-  );
-
-  return Array.isArray(data) ? data : [];
+  return Array.isArray(
+    data
+  )
+    ? (data as T[])
+    : [];
 }
 
-export async function supabaseDelete<T = any>(
+export async function supabaseUpdate<
+  T = any
+>(
   table: string,
-  filters: Record<string, string>
+  filters: Record<
+    string,
+    string
+  >,
+  payload: Record<
+    string,
+    any
+  >
 ): Promise<T[]> {
-  const { url } = getConfig();
+  const client =
+    getClient();
 
-  const search = new URLSearchParams();
+  let query: any =
+    client
+      .from(table)
+      .update(payload);
 
-  for (const [column, expression] of Object.entries(filters)) {
-    search.set(column, expression);
+  for (
+    const [
+      column,
+      expression,
+    ] of Object.entries(
+      filters
+    )
+  ) {
+    query =
+      applyFilter(
+        query,
+        column,
+        expression
+      );
   }
 
-  const data = await requestSupabase(
-    `${url}/rest/v1/${table}?${search.toString()}`,
-    {
-      method: "DELETE",
-      headers: headers({
-        Prefer: "return=representation",
-      }),
-    },
-    `delete ${table}`
-  );
+  const {
+    data,
+    error,
+  } =
+    await query.select();
 
-  return Array.isArray(data) ? data : [];
+  if (error) {
+    throwSupabaseError(
+      `update ${table}`,
+      error
+    );
+  }
+
+  return Array.isArray(
+    data
+  )
+    ? (data as T[])
+    : [];
+}
+
+export async function supabaseDelete<
+  T = any
+>(
+  table: string,
+  filters: Record<
+    string,
+    string
+  >
+): Promise<T[]> {
+  const client =
+    getClient();
+
+  let query: any =
+    client
+      .from(table)
+      .delete();
+
+  for (
+    const [
+      column,
+      expression,
+    ] of Object.entries(
+      filters
+    )
+  ) {
+    query =
+      applyFilter(
+        query,
+        column,
+        expression
+      );
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await query.select();
+
+  if (error) {
+    throwSupabaseError(
+      `delete ${table}`,
+      error
+    );
+  }
+
+  return Array.isArray(
+    data
+  )
+    ? (data as T[])
+    : [];
 }

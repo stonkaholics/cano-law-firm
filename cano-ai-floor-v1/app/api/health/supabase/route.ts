@@ -1,49 +1,90 @@
-import { NextResponse } from "next/server";
-import { supabaseSelect } from "../../../../lib/supabase/rest";
+import {
+  NextResponse,
+} from "next/server";
+
+import {
+  getSupabaseServerKeyInfo,
+  supabaseSelect,
+} from "../../../../lib/supabase/rest";
 
 export async function GET() {
-  const hasUrl = Boolean(process.env.SUPABASE_URL);
-  const hasSecret = Boolean(process.env.SUPABASE_SECRET_KEY);
+  const hasUrl =
+    Boolean(
+      process.env
+        .SUPABASE_URL ||
+      process.env
+        .NEXT_PUBLIC_SUPABASE_URL
+    );
 
-  if (!hasUrl || !hasSecret) {
+  const keyInfo =
+    getSupabaseServerKeyInfo();
+
+  if (
+    !hasUrl ||
+    !keyInfo.configured
+  ) {
     return NextResponse.json(
       {
         ok: false,
-        stage: "environment",
+        stage:
+          "environment",
         hasUrl,
-        hasSecret,
+        keyInfo,
         error:
-          "Supabase environment variables are missing from this Vercel deployment.",
+          "Supabase server environment variables are missing.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 
   try {
-    const rows = await supabaseSelect("ai_matters", {
-      select: "id,monday_item_id,status",
-      limit: 1,
-    });
+    const rows =
+      await supabaseSelect(
+        "ai_matters",
+        {
+          select:
+            "id,monday_item_id,status",
+          order:
+            "updated_at.desc",
+          limit: 5,
+        }
+      );
 
     return NextResponse.json({
       ok: true,
-      stage: "database",
-      message: "Supabase connection is working.",
-      sampleRowCount: rows.length,
+      stage:
+        "database",
+      keyInfo,
+      sampleRowCount:
+        rows.length,
+      sampleMatterIds:
+        rows.map(
+          (row: any) =>
+            row.monday_item_id
+        ),
+      message:
+        rows.length
+          ? "Supabase server connection is working and ai_matters is visible."
+          : "Supabase connection succeeded but ai_matters returned zero visible rows.",
     });
   } catch (error) {
     return NextResponse.json(
       {
         ok: false,
-        stage: "database",
+        stage:
+          "database",
         hasUrl,
-        hasSecret,
+        keyInfo,
         error:
           error instanceof Error
             ? error.message
             : "Unknown Supabase connection error.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
