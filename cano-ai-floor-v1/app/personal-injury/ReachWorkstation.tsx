@@ -223,12 +223,12 @@ export default function ReachWorkstationBridge() {
         );
       }
 
-      const next = {
+      const next: Workspace = {
         referrals: Array.isArray(data.referrals)
-          ? data.referrals
+          ? (data.referrals as ReferralProspect[])
           : [],
         outreach: Array.isArray(data.outreach)
-          ? data.outreach
+          ? (data.outreach as OutreachEvent[])
           : [],
       };
 
