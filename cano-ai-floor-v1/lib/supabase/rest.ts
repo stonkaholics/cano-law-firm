@@ -10,27 +10,47 @@ function getConfig() {
   return { url, secret };
 }
 
+function authHeaders(secret: string) {
+  /*
+  |--------------------------------------------------------------------------
+  | SUPPORT BOTH SUPABASE KEY GENERATIONS CORRECTLY
+  |--------------------------------------------------------------------------
+  |
+  | New secret keys look like:
+  |   sb_secret_...
+  |
+  | Those are opaque API keys, NOT JWTs. They belong in `apikey` only.
+  |
+  | Legacy service_role keys look like JWTs:
+  |   eyJ...
+  |
+  | Those can be used as both `apikey` and `Authorization: Bearer ...`.
+  |
+  | The previous patch sent `Authorization: Bearer sb_secret_...`, which is
+  | invalid for the new key format and can break PostgREST authentication.
+  |--------------------------------------------------------------------------
+  */
+
+  const result: Record<string, string> = {
+    apikey: secret,
+  };
+
+  const looksLikeJwt =
+    secret.startsWith("eyJ") &&
+    secret.split(".").length === 3;
+
+  if (looksLikeJwt) {
+    result.Authorization = `Bearer ${secret}`;
+  }
+
+  return result;
+}
+
 function headers(extra?: Record<string, string>) {
   const { secret } = getConfig();
 
   return {
-    apikey: secret,
-
-    /*
-    |--------------------------------------------------------------------------
-    | IMPORTANT
-    |--------------------------------------------------------------------------
-    |
-    | PostgREST expects the JWT in Authorization when using a service-role /
-    | secret key for server-side access. apikey alone is not sufficient for
-    | every configuration/policy path.
-    |
-    | This stays server-only because SUPABASE_SECRET_KEY is never exposed to
-    | browser code.
-    |--------------------------------------------------------------------------
-    */
-    Authorization: `Bearer ${secret}`,
-
+    ...authHeaders(secret),
     "Content-Type": "application/json",
     ...extra,
   };
@@ -48,10 +68,69 @@ function buildQuery(params?: Record<string, QueryValue>) {
   return qs ? `?${qs}` : "";
 }
 
-async function parseResponse(response: Response, context?: string) {
-  const text = await response.text();
+function isTransientDatabaseError(status: number, body: string) {
+  if (status < 500) return false;
 
-  if (!response.ok) {
+  const value = String(body || "").toLowerCase();
+
+  return (
+    value.includes("current transaction is aborted") ||
+    value.includes("commands ignored until end of transaction block") ||
+    value.includes("connection") ||
+    value.includes("timeout") ||
+    value.includes("temporarily unavailable") ||
+    status === 502 ||
+    status === 503 ||
+    status === 504
+  );
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function requestSupabase(
+  url: string,
+  init: RequestInit,
+  context?: string
+) {
+  const delays = [0, 180, 500];
+
+  let lastResponse: Response | null = null;
+  let lastText = "";
+
+  for (let attempt = 0; attempt < delays.length; attempt += 1) {
+    if (delays[attempt] > 0) {
+      await wait(delays[attempt]);
+    }
+
+    const response = await fetch(url, {
+      ...init,
+      cache: "no-store",
+    });
+
+    const text = await response.text();
+
+    lastResponse = response;
+    lastText = text;
+
+    if (response.ok) {
+      if (!text) return null;
+
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    }
+
+    if (
+      attempt < delays.length - 1 &&
+      isTransientDatabaseError(response.status, text)
+    ) {
+      continue;
+    }
+
     let detail = text || response.statusText;
 
     try {
@@ -69,13 +148,11 @@ async function parseResponse(response: Response, context?: string) {
     );
   }
 
-  if (!text) return null;
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
+  throw new Error(
+    `Supabase ${context ? `${context} ` : ""}${
+      lastResponse?.status || 500
+    }: ${lastText || "Unknown database error"}`
+  );
 }
 
 export async function supabaseSelect<T = any>(
@@ -84,16 +161,15 @@ export async function supabaseSelect<T = any>(
 ): Promise<T[]> {
   const { url } = getConfig();
 
-  const response = await fetch(
+  const data = await requestSupabase(
     `${url}/rest/v1/${table}${buildQuery(params)}`,
     {
       method: "GET",
       headers: headers(),
-      cache: "no-store",
-    }
+    },
+    `select ${table}`
   );
 
-  const data = await parseResponse(response, `select ${table}`);
   return Array.isArray(data) ? data : [];
 }
 
@@ -103,16 +179,18 @@ export async function supabaseInsert<T = any>(
 ): Promise<T[]> {
   const { url } = getConfig();
 
-  const response = await fetch(`${url}/rest/v1/${table}`, {
-    method: "POST",
-    headers: headers({
-      Prefer: "return=representation",
-    }),
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  });
+  const data = await requestSupabase(
+    `${url}/rest/v1/${table}`,
+    {
+      method: "POST",
+      headers: headers({
+        Prefer: "return=representation",
+      }),
+      body: JSON.stringify(payload),
+    },
+    `insert ${table}`
+  );
 
-  const data = await parseResponse(response, `insert ${table}`);
   return Array.isArray(data) ? data : [];
 }
 
@@ -123,7 +201,7 @@ export async function supabaseUpsert<T = any>(
 ): Promise<T[]> {
   const { url } = getConfig();
 
-  const response = await fetch(
+  const data = await requestSupabase(
     `${url}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`,
     {
       method: "POST",
@@ -131,11 +209,10 @@ export async function supabaseUpsert<T = any>(
         Prefer: "resolution=merge-duplicates,return=representation",
       }),
       body: JSON.stringify(payload),
-      cache: "no-store",
-    }
+    },
+    `upsert ${table}`
   );
 
-  const data = await parseResponse(response, `upsert ${table}`);
   return Array.isArray(data) ? data : [];
 }
 
@@ -152,7 +229,7 @@ export async function supabaseUpdate<T = any>(
     search.set(column, expression);
   }
 
-  const response = await fetch(
+  const data = await requestSupabase(
     `${url}/rest/v1/${table}?${search.toString()}`,
     {
       method: "PATCH",
@@ -160,11 +237,10 @@ export async function supabaseUpdate<T = any>(
         Prefer: "return=representation",
       }),
       body: JSON.stringify(payload),
-      cache: "no-store",
-    }
+    },
+    `update ${table}`
   );
 
-  const data = await parseResponse(response, `update ${table}`);
   return Array.isArray(data) ? data : [];
 }
 
@@ -180,17 +256,16 @@ export async function supabaseDelete<T = any>(
     search.set(column, expression);
   }
 
-  const response = await fetch(
+  const data = await requestSupabase(
     `${url}/rest/v1/${table}?${search.toString()}`,
     {
       method: "DELETE",
       headers: headers({
         Prefer: "return=representation",
       }),
-      cache: "no-store",
-    }
+    },
+    `delete ${table}`
   );
 
-  const data = await parseResponse(response, `delete ${table}`);
   return Array.isArray(data) ? data : [];
 }
