@@ -2,13 +2,12 @@
 
 import {
   FormEvent,
-  useMemo,
+  useEffect,
   useState,
 } from "react";
 
 import {
   useRouter,
-  useSearchParams,
 } from "next/navigation";
 
 import {
@@ -41,21 +40,8 @@ export default function LoginPage() {
   const router =
     useRouter();
 
-  const searchParams =
-    useSearchParams();
-
-  const next =
-    useMemo(
-      () =>
-        safeNextPath(
-          searchParams.get("next")
-        ),
-      [searchParams]
-    );
-
-  const initialError =
-    searchParams.get("error") ||
-    "";
+  const [nextPath, setNextPath] =
+    useState("/");
 
   const [email, setEmail] =
     useState("");
@@ -64,13 +50,52 @@ export default function LoginPage() {
     useState("");
 
   const [error, setError] =
-    useState(initialError);
+    useState("");
 
   const [submitting, setSubmitting] =
     useState(false);
 
+  /*
+  |--------------------------------------------------------------------------
+  | READ QUERY PARAMS IN THE BROWSER
+  |--------------------------------------------------------------------------
+  |
+  | Do not use useSearchParams() here.
+  |
+  | Next.js can require a Suspense boundary around useSearchParams during
+  | static prerendering. Vercel was failing the build while prerendering
+  | /login. Reading window.location after mount avoids that build-time
+  | dependency entirely.
+  |--------------------------------------------------------------------------
+  */
+  useEffect(() => {
+    if (
+      typeof window ===
+      "undefined"
+    ) {
+      return;
+    }
+
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    setNextPath(
+      safeNextPath(
+        params.get("next")
+      )
+    );
+
+    setError(
+      params.get("error") ||
+        ""
+    );
+  }, []);
+
   async function handleSubmit(
-    event: FormEvent<HTMLFormElement>
+    event:
+      FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
@@ -109,12 +134,13 @@ export default function LoginPage() {
       }
 
       /*
-      | @supabase/ssr writes the auth cookies in the browser.
-      | Refreshing after router replacement makes middleware validate the
-      | freshly-created session on the protected destination.
+      | @supabase/ssr stores the authenticated session in cookies.
+      | A full location replacement guarantees the middleware sees the
+      | brand-new session on the next protected request.
       */
-      router.replace(next);
-      router.refresh();
+      window.location.replace(
+        nextPath
+      );
     } catch (loginError) {
       const message =
         loginError instanceof Error
