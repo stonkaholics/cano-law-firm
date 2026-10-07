@@ -55,7 +55,7 @@ function normalizeUrl(
     .toLowerCase();
 }
 
-function escEq(
+function eq(
   value: string
 ) {
   return `eq.${value}`;
@@ -68,10 +68,21 @@ export async function POST(
     const body =
       await request.json();
 
+    const requestedProspectId =
+      clean(
+        body?.prospectId ||
+        body?.prospect_id
+      );
+
+    const requestedContactId =
+      clean(
+        body?.contactId ||
+        body?.contact_id
+      );
+
     const organizationName =
       clean(
-        body
-          ?.organizationName
+        body?.organizationName
       );
 
     const website =
@@ -79,61 +90,94 @@ export async function POST(
         body?.website
       );
 
-    if (!organizationName) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "organizationName is required.",
-        },
-        {
-          status: 400,
-        }
-      );
+    let prospect:
+      | Prospect
+      | null =
+      null;
+
+    /*
+    |--------------------------------------------------------------------------
+    | PRIMARY LOOKUP: DATABASE ID
+    |--------------------------------------------------------------------------
+    |
+    | The dedicated Reach Workstation sends the exact Scout prospect ID.
+    | Keep organization-name fallback for compatibility with the earlier
+    | Draft Outreach bridge.
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      requestedProspectId
+    ) {
+      const rows =
+        await supabaseSelect<Prospect>(
+          "pi_referral_prospects",
+          {
+            select:
+              "id,organization_name,website,relationship_status",
+            id:
+              eq(
+                requestedProspectId
+              ),
+            limit:
+              1,
+          }
+        );
+
+      prospect =
+        rows[0] ||
+        null;
     }
 
-    const prospects =
-      await supabaseSelect<Prospect>(
-        "pi_referral_prospects",
-        {
-          select:
-            "id,organization_name,website,relationship_status",
-          organization_name:
-            escEq(
-              organizationName
-            ),
-          limit: 20,
-        }
-      );
+    if (
+      !prospect &&
+      organizationName
+    ) {
+      const prospects =
+        await supabaseSelect<Prospect>(
+          "pi_referral_prospects",
+          {
+            select:
+              "id,organization_name,website,relationship_status",
+            organization_name:
+              eq(
+                organizationName
+              ),
+            limit:
+              20,
+          }
+        );
 
-    if (!prospects.length) {
+      const normalizedWebsite =
+        normalizeUrl(
+          website
+        );
+
+      prospect =
+        prospects.find(
+          (candidate) =>
+            normalizedWebsite &&
+            normalizeUrl(
+              candidate.website
+            ) ===
+              normalizedWebsite
+        ) ||
+        prospects[0] ||
+        null;
+    }
+
+    if (!prospect) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            `No saved Scout prospect was found for ${organizationName}.`,
+            "No saved Scout referral prospect matched this Reach request.",
         },
         {
           status: 404,
         }
       );
     }
-
-    const normalizedWebsite =
-      normalizeUrl(
-        website
-      );
-
-    const prospect =
-      prospects.find(
-        (candidate) =>
-          normalizedWebsite &&
-          normalizeUrl(
-            candidate.website
-          ) ===
-            normalizedWebsite
-      ) ||
-      prospects[0];
 
     const contacts =
       await supabaseSelect<Contact>(
@@ -142,55 +186,75 @@ export async function POST(
           select:
             "id,prospect_id,full_name,first_name,last_name,email,priority,selected_for_outreach",
           prospect_id:
-            escEq(
+            eq(
               prospect.id
             ),
           order:
             "priority.asc",
-          limit: 20,
+          limit:
+            25,
         }
       );
 
-    const selected =
-      contacts
-        .filter(
-          (contact) =>
-            contact
-              .selected_for_outreach
-        )
-        .sort(
-          (a, b) =>
-            Number(
-              a.priority ||
-              99
-            ) -
-            Number(
-              b.priority ||
-              99
-            )
-        );
-
-    const candidates =
-      selected.length
-        ? selected
-        : contacts;
-
-    const contact =
-      candidates.find(
-        (candidate) =>
-          clean(
-            candidate.email
-          )
-      ) ||
-      candidates[0] ||
+    let contact:
+      | Contact
+      | null =
       null;
+
+    if (
+      requestedContactId
+    ) {
+      contact =
+        contacts.find(
+          (candidate) =>
+            candidate.id ===
+            requestedContactId
+        ) ||
+        null;
+    }
+
+    if (!contact) {
+      const selected =
+        contacts
+          .filter(
+            (candidate) =>
+              candidate
+                .selected_for_outreach
+          )
+          .sort(
+            (a, b) =>
+              Number(
+                a.priority ||
+                99
+              ) -
+              Number(
+                b.priority ||
+                99
+              )
+          );
+
+      const candidates =
+        selected.length
+          ? selected
+          : contacts;
+
+      contact =
+        candidates.find(
+          (candidate) =>
+            clean(
+              candidate.email
+            )
+        ) ||
+        candidates[0] ||
+        null;
+    }
 
     if (!contact) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            "This firm does not have an enriched referral contact yet.",
+            "This Scout prospect does not have an enriched contact yet.",
         },
         {
           status: 400,
@@ -208,6 +272,34 @@ export async function POST(
           ok: false,
           error:
             "The selected referral contact does not have an enriched email address yet.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const allowedStages =
+      new Set([
+        "approved",
+        "contacted",
+        "replied",
+        "meeting",
+        "partner",
+      ]);
+
+    if (
+      !allowedStages.has(
+        clean(
+          prospect.relationship_status
+        ).toLowerCase()
+      )
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            `Move ${prospect.organization_name} to Approved before Reach drafts external outreach.`,
         },
         {
           status: 400,
@@ -304,9 +396,7 @@ export async function POST(
     const text =
       await response.text();
 
-    if (
-      !response.ok
-    ) {
+    if (!response.ok) {
       throw new Error(
         `Reach n8n workflow could not accept the draft request (${response.status}): ${
           text ||
@@ -351,7 +441,7 @@ export async function POST(
         startedAt,
 
         message:
-          "Reach accepted the prospect and is drafting referral outreach.",
+          "Reach accepted the referral prospect and is drafting the outreach email.",
       },
       {
         status: 202,

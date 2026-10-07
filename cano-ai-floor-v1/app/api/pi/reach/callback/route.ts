@@ -290,17 +290,6 @@ export async function POST(
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | EXISTING PI WORKSPACE ACTIONS
-    |--------------------------------------------------------------------------
-    |
-    | Reach's Save Reach Draft node calls create_outreach_event.
-    | Forward it to the already-tested PI workspace action so there is one
-    | source of truth for creating outreach records.
-    |--------------------------------------------------------------------------
-    */
-
     if (
       action ===
       "create_outreach_event"

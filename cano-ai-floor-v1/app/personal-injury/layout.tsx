@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import ReferralOutreachEnhancer from "./ReferralOutreachEnhancer";
+import ReachWorkstationBridge from "./ReachWorkstation";
 
 export default function PersonalInjuryLayout({
   children,
@@ -9,7 +9,7 @@ export default function PersonalInjuryLayout({
   return (
     <>
       {children}
-      <ReferralOutreachEnhancer />
+      <ReachWorkstationBridge />
     </>
   );
 }
