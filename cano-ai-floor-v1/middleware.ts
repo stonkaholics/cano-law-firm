@@ -9,34 +9,22 @@ import {
 
 function getSupabaseConfig() {
   const url =
-    process.env
-      .NEXT_PUBLIC_SUPABASE_URL ||
-    process.env
-      .SUPABASE_URL;
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL;
 
   const anonKey =
-    process.env
-      .NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!url || !anonKey) {
-    return null;
-  }
+  if (!url || !anonKey) return null;
 
   return {
-    url:
-      url.replace(/\/$/, ""),
+    url: url.replace(/\/$/, ""),
     anonKey,
   };
 }
 
-function safeNextPath(
-  value: string | null
-) {
-  if (
-    !value ||
-    !value.startsWith("/") ||
-    value.startsWith("//")
-  ) {
+function safeNextPath(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
     return "/";
   }
 
@@ -53,226 +41,129 @@ function applyCookies(
   response: NextResponse,
   cookiesToSet: CookieToSet[]
 ) {
-  cookiesToSet.forEach(
-    ({
-      name,
-      value,
-      options,
-    }) => {
-      response.cookies.set(
-        name,
-        value,
-        options
-      );
-    }
-  );
+  cookiesToSet.forEach(({ name, value, options }) => {
+    response.cookies.set(name, value, options);
+  });
 
   return response;
 }
 
-export async function middleware(
-  request: NextRequest
-) {
-  const config =
-    getSupabaseConfig();
+export async function middleware(request: NextRequest) {
+  const config = getSupabaseConfig();
 
-  const pathname =
-    request.nextUrl.pathname;
-
-  const isLoginPage =
-    pathname === "/login";
-
-  /*
-  |--------------------------------------------------------------------------
-  | FAIL CLOSED IF AUTH IS NOT CONFIGURED
-  |--------------------------------------------------------------------------
-  */
   if (!config) {
-    if (isLoginPage) {
-      return NextResponse.next();
-    }
-
-    const loginUrl =
-      request.nextUrl.clone();
-
-    loginUrl.pathname =
-      "/login";
-
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
     loginUrl.searchParams.set(
       "error",
-      "Cano AI login is not configured yet. Add NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel."
+      "Cano AI login is not configured. Check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel."
     );
-
-    return NextResponse.redirect(
-      loginUrl
-    );
+    return NextResponse.redirect(loginUrl);
   }
 
+  const refreshedCookies: CookieToSet[] = [];
+
+  const supabase = createServerClient(
+    config.url,
+    config.anonKey,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+
+        setAll(cookiesToSet) {
+          refreshedCookies.push(...cookiesToSet);
+
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value);
+          });
+        },
+      },
+    }
+  );
+
   /*
   |--------------------------------------------------------------------------
-  | VALIDATE SESSION ONCE
+  | FAST AUTH FIRST, SECURE FALLBACK SECOND
   |--------------------------------------------------------------------------
   |
-  | This is the only server-side getUser() call needed for a page request.
-  | The old layout performed a second getUser() call after middleware, which
-  | added another Supabase network round-trip to every protected page load.
+  | Modern Supabase projects can validate JWT claims locally through
+  | getClaims(), which is much faster than a full Auth-server getUser() call.
+  |
+  | IMPORTANT: if getClaims() is unavailable OR returns an error (legacy
+  | signing setup, stale JWKS, client-version mismatch, etc.), we immediately
+  | fall back to getUser(). That prevents the "fast" path from locking users
+  | out.
   |--------------------------------------------------------------------------
   */
 
-  const refreshedCookies:
-    CookieToSet[] = [];
+  let authenticated = false;
+  let userEmail = "";
 
-  const supabase =
-    createServerClient(
-      config.url,
-      config.anonKey,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
+  try {
+    const authAny = supabase.auth as any;
 
-          setAll(
-            cookiesToSet
-          ) {
-            refreshedCookies.push(
-              ...cookiesToSet
-            );
+    if (typeof authAny.getClaims === "function") {
+      const { data, error } = await authAny.getClaims();
 
-            /*
-            | Keep request cookies synchronized while Supabase refreshes a
-            | session. We apply the same cookies to the outgoing response below.
-            */
-            cookiesToSet.forEach(
-              ({
-                name,
-                value,
-              }) => {
-                request.cookies.set(
-                  name,
-                  value
-                );
-              }
-            );
-          },
-        },
+      const claims = data?.claims || null;
+
+      if (!error && claims?.sub) {
+        authenticated = true;
+        userEmail = String(claims.email || "");
       }
-    );
+    }
+  } catch {
+    // Fall through to getUser().
+  }
 
-  const {
-    data: {
-      user,
-    },
-  } =
-    await supabase.auth.getUser();
+  if (!authenticated) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-  /*
-  |--------------------------------------------------------------------------
-  | LOGGED OUT
-  |--------------------------------------------------------------------------
-  */
-  if (
-    !user &&
-    !isLoginPage
-  ) {
-    const loginUrl =
-      request.nextUrl.clone();
+      if (user) {
+        authenticated = true;
+        userEmail = user.email || "";
+      }
+    } catch {
+      authenticated = false;
+    }
+  }
 
-    loginUrl.pathname =
-      "/login";
+  if (!authenticated) {
+    const loginUrl = request.nextUrl.clone();
 
+    loginUrl.pathname = "/login";
     loginUrl.searchParams.set(
       "next",
       safeNextPath(
-        `${pathname}${request.nextUrl.search}`
+        `${request.nextUrl.pathname}${request.nextUrl.search}`
       )
     );
 
     return applyCookies(
-      NextResponse.redirect(
-        loginUrl
-      ),
+      NextResponse.redirect(loginUrl),
       refreshedCookies
     );
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | ALREADY LOGGED IN
-  |--------------------------------------------------------------------------
-  */
-  if (
-    user &&
-    isLoginPage
-  ) {
-    const next =
-      safeNextPath(
-        request.nextUrl.searchParams.get(
-          "next"
-        )
-      );
+  const requestHeaders = new Headers(request.headers);
 
-    return applyCookies(
-      NextResponse.redirect(
-        new URL(
-          next,
-          request.url
-        )
-      ),
-      refreshedCookies
-    );
+  if (userEmail) {
+    requestHeaders.set("x-cano-user-email", userEmail);
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | PASS VERIFIED USER TO THE SERVER LAYOUT
-  |--------------------------------------------------------------------------
-  |
-  | The layout reads this internal request header instead of making a second
-  | Supabase auth request just to display the user's email.
-  |--------------------------------------------------------------------------
-  */
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 
-  const requestHeaders =
-    new Headers(
-      request.headers
-    );
-
-  if (user?.email) {
-    requestHeaders.set(
-      "x-cano-user-email",
-      user.email
-    );
-  } else {
-    requestHeaders.delete(
-      "x-cano-user-email"
-    );
-  }
-
-  const response =
-    NextResponse.next({
-      request: {
-        headers:
-          requestHeaders,
-      },
-    });
-
-  return applyCookies(
-    response,
-    refreshedCookies
-  );
+  return applyCookies(response, refreshedCookies);
 }
-
-/*
-|--------------------------------------------------------------------------
-| PAGE AUTH ONLY
-|--------------------------------------------------------------------------
-|
-| /api remains excluded because the existing Cano AI workflows include
-| trusted n8n -> Vercel server-to-server callbacks. Those API routes should be
-| hardened separately to accept either a user session or N8N_SHARED_SECRET.
-|--------------------------------------------------------------------------
-*/
 
 export const config = {
   matcher: [

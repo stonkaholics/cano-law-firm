@@ -7,10 +7,6 @@ import {
 } from "react";
 
 import {
-  useRouter,
-} from "next/navigation";
-
-import {
   Loader2,
   LockKeyhole,
   ShieldCheck,
@@ -22,14 +18,8 @@ import {
   createAuthBrowserClient,
 } from "../../lib/supabase/auth-browser";
 
-function safeNextPath(
-  value: string | null
-) {
-  if (
-    !value ||
-    !value.startsWith("/") ||
-    value.startsWith("//")
-  ) {
+function safeNextPath(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
     return "/";
   }
 
@@ -37,65 +27,28 @@ function safeNextPath(
 }
 
 export default function LoginPage() {
-  const router =
-    useRouter();
+  const [nextPath, setNextPath] = useState("/");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const [nextPath, setNextPath] =
-    useState("/");
-
-  const [email, setEmail] =
-    useState("");
-
-  const [password, setPassword] =
-    useState("");
-
-  const [error, setError] =
-    useState("");
-
-  const [submitting, setSubmitting] =
-    useState(false);
-
-  /*
-  |--------------------------------------------------------------------------
-  | READ QUERY PARAMS IN THE BROWSER
-  |--------------------------------------------------------------------------
-  |
-  | Do not use useSearchParams() here.
-  |
-  | Next.js can require a Suspense boundary around useSearchParams during
-  | static prerendering. Vercel was failing the build while prerendering
-  | /login. Reading window.location after mount avoids that build-time
-  | dependency entirely.
-  |--------------------------------------------------------------------------
-  */
   useEffect(() => {
-    if (
-      typeof window ===
-      "undefined"
-    ) {
-      return;
-    }
+    if (typeof window === "undefined") return;
 
-    const params =
-      new URLSearchParams(
-        window.location.search
-      );
+    const params = new URLSearchParams(window.location.search);
 
     setNextPath(
-      safeNextPath(
-        params.get("next")
-      )
+      safeNextPath(params.get("next"))
     );
 
     setError(
-      params.get("error") ||
-        ""
+      params.get("error") || ""
     );
   }, []);
 
   async function handleSubmit(
-    event:
-      FormEvent<HTMLFormElement>
+    event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
@@ -105,23 +58,36 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const supabase =
-        createAuthBrowserClient();
+      const supabase = createAuthBrowserClient();
+
+      /*
+      | Fail with a useful message instead of leaving the button spinning
+      | forever if the Auth endpoint stalls.
+      */
+      const loginPromise =
+        supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
+        });
+
+      const timeoutPromise =
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => {
+            reject(
+              new Error(
+                "Login timed out while contacting Supabase Auth. Please try again."
+              )
+            );
+          }, 15000);
+        });
 
       const {
         data,
-        error:
-          signInError,
-      } =
-        await supabase.auth
-          .signInWithPassword({
-            email:
-              email
-                .trim()
-                .toLowerCase(),
-
-            password,
-          });
+        error: signInError,
+      } = await Promise.race([
+        loginPromise,
+        timeoutPromise,
+      ]);
 
       if (signInError) {
         throw signInError;
@@ -129,27 +95,21 @@ export default function LoginPage() {
 
       if (!data?.session) {
         throw new Error(
-          "Supabase did not return a login session."
+          "Supabase did not return an authenticated session."
         );
       }
 
       /*
-      | @supabase/ssr stores the authenticated session in cookies.
-      | A full location replacement guarantees the middleware sees the
-      | brand-new session on the next protected request.
+      | createBrowserClient writes the Supabase SSR auth cookies.
+      | Use a full navigation so middleware receives those cookies on the
+      | protected request.
       */
-      window.location.replace(
-        nextPath
-      );
+      window.location.assign(nextPath);
     } catch (loginError) {
-      const message =
+      setError(
         loginError instanceof Error
           ? loginError.message
-          : "Unable to sign in.";
-
-      setError(
-        message ||
-          "Unable to sign in."
+          : "Unable to sign in."
       );
 
       setSubmitting(false);
@@ -157,114 +117,50 @@ export default function LoginPage() {
   }
 
   return (
-    <main
-      className={
-        styles.shell
-      }
-    >
-      <div
-        className={
-          styles.glow
-        }
-      />
+    <main className={styles.shell}>
+      <div className={styles.glow} />
 
-      <section
-        className={
-          styles.card
-        }
-      >
-        <div
-          className={
-            styles.brand
-          }
-        >
-          <div
-            className={
-              styles.mark
-            }
-          >
-            C
-          </div>
+      <section className={styles.card}>
+        <div className={styles.brand}>
+          <div className={styles.mark}>C</div>
 
           <div>
-            <span>
-              CANO LAW FIRM
-            </span>
-
-            <strong>
-              AI Legal Operations
-            </strong>
+            <span>CANO LAW FIRM</span>
+            <strong>AI Legal Operations</strong>
           </div>
         </div>
 
-        <div
-          className={
-            styles.security
-          }
-        >
-          <ShieldCheck
-            size={17}
-          />
-
-          <span>
-            Secure internal access
-          </span>
+        <div className={styles.security}>
+          <ShieldCheck size={17} />
+          <span>Secure internal access</span>
         </div>
 
-        <div
-          className={
-            styles.heading
-          }
-        >
-          <div
-            className={
-              styles.icon
-            }
-          >
-            <LockKeyhole
-              size={22}
-            />
+        <div className={styles.heading}>
+          <div className={styles.icon}>
+            <LockKeyhole size={22} />
           </div>
 
           <div>
-            <span>
-              AUTHENTICATION REQUIRED
-            </span>
-
-            <h1>
-              Sign in to Cano AI
-            </h1>
-
+            <span>AUTHENTICATION REQUIRED</span>
+            <h1>Sign in to Cano AI</h1>
             <p>
-              Access is limited to
-              authorized Cano Law Firm
-              personnel.
+              Access is limited to authorized Cano Law Firm personnel.
             </p>
           </div>
         </div>
 
         {error ? (
-          <div
-            className={
-              styles.error
-            }
-          >
+          <div className={styles.error}>
             {error}
           </div>
         ) : null}
 
         <form
-          className={
-            styles.form
-          }
-          onSubmit={
-            handleSubmit
-          }
+          className={styles.form}
+          onSubmit={handleSubmit}
         >
           <label>
-            <span>
-              Email
-            </span>
+            <span>Email</span>
 
             <input
               name="email"
@@ -273,21 +169,15 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(event) =>
-                setEmail(
-                  event.target.value
-                )
+                setEmail(event.target.value)
               }
-              disabled={
-                submitting
-              }
+              disabled={submitting}
               placeholder="name@canolawfirm.com"
             />
           </label>
 
           <label>
-            <span>
-              Password
-            </span>
+            <span>Password</span>
 
             <input
               name="password"
@@ -296,22 +186,16 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(event) =>
-                setPassword(
-                  event.target.value
-                )
+                setPassword(event.target.value)
               }
-              disabled={
-                submitting
-              }
+              disabled={submitting}
               placeholder="••••••••••••"
             />
           </label>
 
           <button
             type="submit"
-            disabled={
-              submitting
-            }
+            disabled={submitting}
           >
             {submitting ? (
               <>
@@ -323,31 +207,20 @@ export default function LoginPage() {
               </>
             ) : (
               <>
-                <LockKeyhole
-                  size={15}
-                />
+                <LockKeyhole size={15} />
                 Sign In
               </>
             )}
           </button>
         </form>
 
-        <div
-          className={
-            styles.notice
-          }
-        >
-          <strong>
-            Confidential system
-          </strong>
+        <div className={styles.notice}>
+          <strong>Confidential system</strong>
 
           <p>
-            Client and matter information
-            may be privileged or otherwise
-            confidential. Do not share
-            account credentials or leave
-            an authenticated session
-            unattended.
+            Client and matter information may be privileged or otherwise
+            confidential. Do not share account credentials or leave an
+            authenticated session unattended.
           </p>
         </div>
       </section>
