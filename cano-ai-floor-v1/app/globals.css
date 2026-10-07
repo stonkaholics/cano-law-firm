@@ -5920,3 +5920,70 @@ button { font: inherit; }
     transform: none !important;
   }
 }
+
+/* CANO AI AUTH USER MENU */
+.cano-auth-user {
+  position: fixed;
+  top: 10px;
+  right: 16px;
+  z-index: 125;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px;
+  border: 1px solid rgba(173,194,206,.1);
+  border-radius: 10px;
+  background: rgba(7,19,28,.94);
+  box-shadow: 0 10px 28px rgba(0,0,0,.18);
+  backdrop-filter: blur(14px);
+}
+.cano-auth-user-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #76d7a8;
+  font-size: 6px;
+  font-weight: 800;
+  letter-spacing: .07em;
+}
+.cano-auth-user-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 210px;
+  padding-left: 7px;
+  border-left: 1px solid rgba(173,194,206,.09);
+  color: #8ea4af;
+  font-size: 7px;
+}
+.cano-auth-user-identity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cano-auth-user form { margin: 0; }
+.cano-auth-user button {
+  min-height: 27px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 7px;
+  border: 1px solid rgba(224,191,133,.15);
+  border-radius: 7px;
+  background: rgba(201,165,104,.035);
+  color: #c9ad78;
+  cursor: pointer;
+  font-size: 7px;
+  font-weight: 800;
+}
+.cano-auth-user button:hover {
+  border-color: rgba(224,191,133,.34);
+  background: rgba(201,165,104,.075);
+  color: #e4c58d;
+}
+@media(max-width:760px) {
+  .cano-auth-user { top: 7px; right: 8px; }
+  .cano-auth-user-status,
+  .cano-auth-user-identity { display: none; }
+  .cano-auth-user button span { display: none; }
+}
