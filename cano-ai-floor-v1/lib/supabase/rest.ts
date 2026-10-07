@@ -15,6 +15,22 @@ function headers(extra?: Record<string, string>) {
 
   return {
     apikey: secret,
+
+    /*
+    |--------------------------------------------------------------------------
+    | IMPORTANT
+    |--------------------------------------------------------------------------
+    |
+    | PostgREST expects the JWT in Authorization when using a service-role /
+    | secret key for server-side access. apikey alone is not sufficient for
+    | every configuration/policy path.
+    |
+    | This stays server-only because SUPABASE_SECRET_KEY is never exposed to
+    | browser code.
+    |--------------------------------------------------------------------------
+    */
+    Authorization: `Bearer ${secret}`,
+
     "Content-Type": "application/json",
     ...extra,
   };
@@ -131,6 +147,7 @@ export async function supabaseUpdate<T = any>(
   const { url } = getConfig();
 
   const search = new URLSearchParams();
+
   for (const [column, expression] of Object.entries(filters)) {
     search.set(column, expression);
   }
@@ -151,7 +168,6 @@ export async function supabaseUpdate<T = any>(
   return Array.isArray(data) ? data : [];
 }
 
-
 export async function supabaseDelete<T = any>(
   table: string,
   filters: Record<string, string>
@@ -159,6 +175,7 @@ export async function supabaseDelete<T = any>(
   const { url } = getConfig();
 
   const search = new URLSearchParams();
+
   for (const [column, expression] of Object.entries(filters)) {
     search.set(column, expression);
   }

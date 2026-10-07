@@ -87,7 +87,6 @@ export async function getLatestMatter() {
   return rows[0] || null;
 }
 
-
 export async function getAllMatters(limit = 100) {
   return supabaseSelect<DbMatter>("ai_matters", {
     select: "*",
@@ -165,23 +164,58 @@ export async function insertAssignment(payload: Record<string, any>) {
   return rows[0] || null;
 }
 
-
 export async function insertPipelineEvent(payload: Record<string, any>) {
   const rows = await supabaseInsert(
     "matter_pipeline_events",
     payload
   );
+
   return rows[0] || null;
 }
+
+/*
+|--------------------------------------------------------------------------
+| RESILIENT MATTER BUILD
+|--------------------------------------------------------------------------
+|
+| Assignment metadata is helpful, but it is not required to open Case Brain,
+| Scribe, or specialist workstations.
+|
+| Previously one failing agent_assignments query caused the entire /api/matters
+| response to fail, which cleared the active matter in the browser. Because
+| Scribe requires caseBrainMatter, that made Draft Manager look "locked".
+|
+| Snapshot remains the authoritative Case Brain record.
+|--------------------------------------------------------------------------
+*/
 
 export async function buildStoredMatter(matter: DbMatter | null) {
   if (!matter) return null;
 
-  const snapshot = await getSnapshotById(
-    matter.latest_case_brain_snapshot_id
-  );
+  let snapshot: DbSnapshot | null = null;
+  let assignment: DbAssignment | null = null;
 
-  const assignment = await getLatestAssignment(matter.id);
+  try {
+    snapshot = await getSnapshotById(
+      matter.latest_case_brain_snapshot_id
+    );
+  } catch (error) {
+    console.error(
+      `Unable to load Case Brain snapshot for matter ${matter.id}:`,
+      error
+    );
+  }
+
+  try {
+    assignment = await getLatestAssignment(
+      matter.id
+    );
+  } catch (error) {
+    console.error(
+      `Unable to load latest assignment for matter ${matter.id}:`,
+      error
+    );
+  }
 
   return {
     databaseId: matter.id,
@@ -189,26 +223,55 @@ export async function buildStoredMatter(matter: DbMatter | null) {
     mondayItemId: matter.monday_item_id,
     caseBrainStatus: matter.status,
     savedAt: snapshot?.created_at || matter.updated_at,
+
     monday: {
       found: true,
       preview: matter.monday_data?.preview || null,
       raw: matter.monday_data || null,
     },
-    caseBrain: snapshot?.analysis || {},
+
+    caseBrain:
+      snapshot?.analysis || {},
+
     routing: matter.current_route
       ? {
-          target: matter.current_route,
-          routedBy: matter.routed_by || "Santiago",
-          routedAt: matter.routed_at || matter.updated_at,
-          assignmentId: assignment?.id || null,
-          status: assignment?.status || "assigned",
+          target:
+            matter.current_route,
+
+          routedBy:
+            matter.routed_by ||
+            "Santiago",
+
+          routedAt:
+            matter.routed_at ||
+            matter.updated_at,
+
+          assignmentId:
+            assignment?.id ||
+            null,
+
+          status:
+            assignment?.status ||
+            "assigned",
         }
       : null,
+
     pipeline: {
-      status: matter.pipeline_status || "idle",
-      stage: matter.pipeline_stage || null,
-      nextAgent: matter.pipeline_next_agent || null,
-      autoEnabled: matter.pipeline_auto_enabled !== false,
+      status:
+        matter.pipeline_status ||
+        "idle",
+
+      stage:
+        matter.pipeline_stage ||
+        null,
+
+      nextAgent:
+        matter.pipeline_next_agent ||
+        null,
+
+      autoEnabled:
+        matter.pipeline_auto_enabled !==
+        false,
     },
   };
 }
