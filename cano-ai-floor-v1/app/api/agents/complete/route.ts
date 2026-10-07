@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getAgentRun,
+  getOutputForRun,
   insertAgentOutput,
   isSpecialistAgentId,
   updateAgentRun,
@@ -25,9 +26,13 @@ export async function POST(request: NextRequest) {
 
   if (expectedSecret) {
     const supplied = request.headers.get("x-cano-secret");
+
     if (!supplied || supplied !== expectedSecret) {
       return NextResponse.json(
-        { ok: false, error: "Unauthorized specialist callback." },
+        {
+          ok: false,
+          error: "Unauthorized specialist callback.",
+        },
         { status: 401 }
       );
     }
@@ -40,7 +45,10 @@ export async function POST(request: NextRequest) {
 
   if (!runId || !agentId || !isSpecialistAgentId(agentId)) {
     return NextResponse.json(
-      { ok: false, error: "Valid runId and agentId are required." },
+      {
+        ok: false,
+        error: "Valid runId and agentId are required.",
+      },
       { status: 400 }
     );
   }
@@ -50,7 +58,10 @@ export async function POST(request: NextRequest) {
 
     if (!run) {
       return NextResponse.json(
-        { ok: false, error: "Agent run not found." },
+        {
+          ok: false,
+          error: "Agent run not found.",
+        },
         { status: 404 }
       );
     }
@@ -59,9 +70,59 @@ export async function POST(request: NextRequest) {
 
     if (!matter) {
       return NextResponse.json(
-        { ok: false, error: "Matter not found." },
+        {
+          ok: false,
+          error: "Matter not found.",
+        },
         { status: 404 }
       );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | IDEMPOTENT CALLBACK GUARD
+    |--------------------------------------------------------------------------
+    |
+    | n8n can legitimately retry an HTTP Request after a network timeout,
+    | manual execution retry, or connection abort.
+    |
+    | agent_outputs has a UNIQUE constraint on run_id, so a second callback
+    | for the same run previously caused:
+    |
+    |   duplicate key value violates unique constraint
+    |   "agent_outputs_run_id_key"
+    |
+    | If this run already has an output AND the run itself is already in a
+    | terminal completion state, acknowledge the retry as success and stop.
+    |
+    | This prevents:
+    | - duplicate output inserts
+    | - duplicate completion activities
+    | - duplicate Atlas refreshes
+    | - duplicate auto-pipeline starts
+    |--------------------------------------------------------------------------
+    */
+
+    const existingOutput =
+      await getOutputForRun(run.id);
+
+    const terminalStatuses =
+      new Set([
+        "review_ready",
+        "needs_review",
+      ]);
+
+    if (
+      existingOutput &&
+      terminalStatuses.has(run.status)
+    ) {
+      return NextResponse.json({
+        ok: true,
+        saved: "already_completed",
+        duplicateCallback: true,
+        runId: run.id,
+        outputId: existingOutput.id,
+      });
     }
 
     if (body?.ok === false) {
@@ -84,27 +145,51 @@ export async function POST(request: NextRequest) {
         actor: run.agent_name,
         title: `${run.agent_name} encountered an error`,
         detail: errorMessage,
-        metadata: { run_id: runId },
+        metadata: {
+          run_id: runId,
+        },
       });
 
-      return NextResponse.json({ ok: true, saved: "error" });
+      return NextResponse.json({
+        ok: true,
+        saved: "error",
+      });
     }
 
-    const output = body?.output || body?.result || null;
+    const output =
+      body?.output ||
+      body?.result ||
+      null;
 
     if (!output) {
-      throw new Error("Specialist callback did not include output.");
+      throw new Error(
+        "Specialist callback did not include output."
+      );
     }
 
-    const outputRecord = await insertAgentOutput({
-      run_id: run.id,
-      matter_id: matter.id,
-      monday_item_id: matter.monday_item_id,
-      agent_id: agentId,
-      schema_version:
-        output?.schema_version || "specialist_output_v1",
-      output,
-    });
+    /*
+    |--------------------------------------------------------------------------
+    | PARTIAL-RETRY RECOVERY
+    |--------------------------------------------------------------------------
+    |
+    | If the first callback successfully inserted agent_outputs but failed
+    | later before the run was marked review_ready/needs_review, re-use the
+    | existing output record rather than trying to insert it again.
+    |--------------------------------------------------------------------------
+    */
+
+    const outputRecord =
+      existingOutput ||
+      (await insertAgentOutput({
+        run_id: run.id,
+        matter_id: matter.id,
+        monday_item_id: matter.monday_item_id,
+        agent_id: agentId,
+        schema_version:
+          output?.schema_version ||
+          "specialist_output_v1",
+        output,
+      }));
 
     await updateAgentRun(run.id, {
       status:
@@ -129,175 +214,274 @@ export async function POST(request: NextRequest) {
       metadata: {
         run_id: run.id,
         output_id: outputRecord?.id || null,
-        readiness: output?.readiness?.status || "review_ready",
+        readiness:
+          output?.readiness?.status ||
+          "review_ready",
+        recovered_existing_output:
+          Boolean(existingOutput),
       },
     });
 
-    // Only core analysis specialists refresh Atlas. Drafting is downstream
-    // work product and should not unexpectedly replace the intelligence
-    // dossier while an attorney is reading it.
-    const atlasRefreshSources = new Set([
-      "research",
-      "habeas",
-      "bond",
-      "timeline",
-      "hearing",
-      "qa",
-    ]);
+    /*
+    |--------------------------------------------------------------------------
+    | ATLAS REFRESH
+    |--------------------------------------------------------------------------
+    */
 
-    if (atlasRefreshSources.has(agentId)) {
-      const atlasResponse = await fetch(
-        new URL(
-          "/api/pipeline/start-agent",
-          request.nextUrl.origin
-        ),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mondayItemId: matter.monday_item_id,
-            agentId: "synthesis",
-          }),
-          cache: "no-store",
-        }
-      );
+    const atlasRefreshSources =
+      new Set([
+        "research",
+        "habeas",
+        "bond",
+        "timeline",
+        "hearing",
+        "qa",
+      ]);
+
+    if (
+      atlasRefreshSources.has(agentId)
+    ) {
+      const atlasResponse =
+        await fetch(
+          new URL(
+            "/api/pipeline/start-agent",
+            request.nextUrl.origin
+          ),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              mondayItemId:
+                matter.monday_item_id,
+              agentId:
+                "synthesis",
+            }),
+            cache: "no-store",
+          }
+        );
 
       if (!atlasResponse.ok) {
         await insertActivity({
           matter_id: matter.id,
-          monday_item_id: matter.monday_item_id,
-          event_type: "intelligence_manager_start_error",
-          agent_id: "synthesis",
-          actor: run.agent_name,
-          title: "Atlas refresh could not start",
-          detail: await atlasResponse.text(),
+          monday_item_id:
+            matter.monday_item_id,
+          event_type:
+            "intelligence_manager_start_error",
+          agent_id:
+            "synthesis",
+          actor:
+            run.agent_name,
+          title:
+            "Atlas refresh could not start",
+          detail:
+            await atlasResponse.text(),
           metadata: {
-            source_agent: agentId,
-            source_run_id: run.id,
+            source_agent:
+              agentId,
+            source_run_id:
+              run.id,
           },
         });
       }
     }
 
-    const latestMatter = await getMatterByMondayId(
-      matter.monday_item_id
-    );
+    const latestMatter =
+      await getMatterByMondayId(
+        matter.monday_item_id
+      );
 
     if (
       agentId !== "synthesis" &&
-      latestMatter?.pipeline_auto_enabled !== false
+      latestMatter
+        ?.pipeline_auto_enabled !==
+        false
     ) {
       const caseBrainSnapshotId =
-        latestMatter?.latest_case_brain_snapshot_id;
+        latestMatter
+          ?.latest_case_brain_snapshot_id;
 
-      const caseBrainSnapshot = caseBrainSnapshotId
-        ? await getSnapshotById(caseBrainSnapshotId)
-        : null;
+      const caseBrainSnapshot =
+        caseBrainSnapshotId
+          ? await getSnapshotById(
+              caseBrainSnapshotId
+            )
+          : null;
 
-      const caseBrain = caseBrainSnapshot?.analysis || null;
-      const compatibilityRecommendation = String(
-        caseBrain?.agent_id || ""
-      ).toLowerCase();
+      const caseBrain =
+        caseBrainSnapshot?.analysis ||
+        null;
+
+      const compatibilityRecommendation =
+        String(
+          caseBrain?.agent_id ||
+          ""
+        ).toLowerCase();
 
       const persistedRecommendation =
         String(
-          caseBrainSnapshot?.recommended_specialist ||
-          caseBrain?.routing?.recommended_specialist ||
-          (["habeas", "bond", "timeline"].includes(
-            compatibilityRecommendation
-          )
-            ? compatibilityRecommendation
-            : "")
+          caseBrainSnapshot
+            ?.recommended_specialist ||
+            caseBrain?.routing
+              ?.recommended_specialist ||
+            ([
+              "habeas",
+              "bond",
+              "timeline",
+            ].includes(
+              compatibilityRecommendation
+            )
+              ? compatibilityRecommendation
+              : "")
         )
           .trim()
-          .toLowerCase() || null;
+          .toLowerCase() ||
+        null;
 
-      let decision: any = null;
+      let decision: any =
+        null;
 
-      if (agentId === "research") {
-        decision = chooseAfterResearch(
-          caseBrain,
-          output,
-          persistedRecommendation
-        );
+      if (
+        agentId === "research"
+      ) {
+        decision =
+          chooseAfterResearch(
+            caseBrain,
+            output,
+            persistedRecommendation
+          );
       } else if (
         agentId === "habeas" ||
         agentId === "bond"
       ) {
-        decision = chooseAfterPrimarySpecialist(
-          agentId,
-          output
-        );
-      } else if (agentId === "timeline") {
-        decision = chooseAfterTimeline(output);
-      } else if (agentId === "hearing") {
-        decision = chooseAfterHearing();
+        decision =
+          chooseAfterPrimarySpecialist(
+            agentId,
+            output
+          );
+      } else if (
+        agentId === "timeline"
+      ) {
+        decision =
+          chooseAfterTimeline(
+            output
+          );
+      } else if (
+        agentId === "hearing"
+      ) {
+        decision =
+          chooseAfterHearing();
       }
 
       if (decision) {
-        // Important: only advance the visible pipeline AFTER the next agent
-        // has actually been accepted. This prevents the UI from saying
-        // "Elena next/running" when no Elena run was created.
-        if (decision.nextAgent) {
-          const pipelineResponse = await fetch(
-            new URL(
-              "/api/pipeline/start-agent",
-              request.nextUrl.origin
-            ),
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                mondayItemId: matter.monday_item_id,
-                agentId: decision.nextAgent,
-              }),
-              cache: "no-store",
-            }
-          );
+        /*
+        | Only advance the visible pipeline AFTER the next agent has actually
+        | been accepted. This prevents UI state from getting ahead of n8n.
+        */
+        if (
+          decision.nextAgent
+        ) {
+          const pipelineResponse =
+            await fetch(
+              new URL(
+                "/api/pipeline/start-agent",
+                request.nextUrl.origin
+              ),
+              {
+                method:
+                  "POST",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    mondayItemId:
+                      matter
+                        .monday_item_id,
+                    agentId:
+                      decision.nextAgent,
+                  }),
+                cache:
+                  "no-store",
+              }
+            );
 
-          const pipelineText = await pipelineResponse.text();
+          const pipelineText =
+            await pipelineResponse.text();
 
-          if (!pipelineResponse.ok) {
-            await updateMatter(matter.id, {
-              pipeline_status: "paused",
-              pipeline_stage: agentId,
-              pipeline_next_agent: decision.nextAgent,
-              current_route: decision.routeLabel,
-              routed_by: "Santiago Auto-Pipeline",
-              routed_at: new Date().toISOString(),
-            });
+          if (
+            !pipelineResponse.ok
+          ) {
+            await updateMatter(
+              matter.id,
+              {
+                pipeline_status:
+                  "paused",
+                pipeline_stage:
+                  agentId,
+                pipeline_next_agent:
+                  decision.nextAgent,
+                current_route:
+                  decision.routeLabel,
+                routed_by:
+                  "Santiago Auto-Pipeline",
+                routed_at:
+                  new Date()
+                    .toISOString(),
+              }
+            );
 
             await insertActivity({
-              matter_id: matter.id,
-              monday_item_id: matter.monday_item_id,
-              event_type: "pipeline_start_error",
-              agent_id: decision.nextAgent,
-              actor: "Santiago Auto-Pipeline",
-              title: `${decision.routeLabel} could not start automatically`,
+              matter_id:
+                matter.id,
+              monday_item_id:
+                matter.monday_item_id,
+              event_type:
+                "pipeline_start_error",
+              agent_id:
+                decision.nextAgent,
+              actor:
+                "Santiago Auto-Pipeline",
+              title:
+                `${decision.routeLabel} could not start automatically`,
               detail:
                 pipelineText ||
                 "The next specialist was selected but the run could not be created.",
               metadata: {
-                attempted_agent: decision.nextAgent,
-                from_agent: agentId,
-                retry_available: true,
+                attempted_agent:
+                  decision.nextAgent,
+                from_agent:
+                  agentId,
+                retry_available:
+                  true,
               },
             });
 
             return NextResponse.json({
               ok: true,
-              saved: "output",
-              pipeline: "paused_start_error",
-              retryAgent: decision.nextAgent,
-              runId: run.id,
-              outputId: outputRecord?.id || null,
+              saved:
+                "output",
+              pipeline:
+                "paused_start_error",
+              retryAgent:
+                decision.nextAgent,
+              runId:
+                run.id,
+              outputId:
+                outputRecord?.id ||
+                null,
             });
           }
         }
 
         await recordPipelineTransition({
-          mondayItemId: matter.monday_item_id,
-          fromStage: agentId,
+          mondayItemId:
+            matter.monday_item_id,
+          fromStage:
+            agentId,
           decision,
         });
       }
@@ -305,9 +489,19 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      saved: "output",
-      runId: run.id,
-      outputId: outputRecord?.id || null,
+      saved:
+        existingOutput
+          ? "output_recovered"
+          : "output",
+      runId:
+        run.id,
+      outputId:
+        outputRecord?.id ||
+        null,
+      recoveredExistingOutput:
+        Boolean(
+          existingOutput
+        ),
     });
   } catch (error) {
     return NextResponse.json(
@@ -318,7 +512,9 @@ export async function POST(request: NextRequest) {
             ? error.message
             : "Unable to save specialist output.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
