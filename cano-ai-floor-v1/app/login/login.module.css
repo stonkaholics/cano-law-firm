@@ -1,0 +1,198 @@
+.shell {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(201,165,104,.12), transparent 36%),
+    linear-gradient(180deg, #07121b 0%, #091923 48%, #07131c 100%);
+  color: #edf4f7;
+}
+.glow {
+  position: absolute;
+  width: 620px;
+  height: 620px;
+  border-radius: 50%;
+  background: rgba(201,165,104,.035);
+  filter: blur(90px);
+  pointer-events: none;
+}
+.card {
+  width: min(470px, 100%);
+  position: relative;
+  z-index: 1;
+  padding: 26px;
+  border: 1px solid rgba(224,191,133,.16);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(14,31,43,.98), rgba(8,22,32,.98));
+  box-shadow: 0 30px 90px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.025);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding-bottom: 19px;
+  border-bottom: 1px solid rgba(173,194,206,.08);
+}
+.mark {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(224,191,133,.34);
+  border-radius: 11px;
+  background: rgba(201,165,104,.07);
+  color: #e4c58d;
+  font-family: Georgia, serif;
+  font-size: 21px;
+  font-weight: 700;
+}
+.brand > div:last-child {
+  display: flex;
+  flex-direction: column;
+}
+.brand span {
+  color: #d8b877;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .13em;
+}
+.brand strong {
+  margin-top: 3px;
+  color: #edf3f6;
+  font-family: Georgia, serif;
+  font-size: 16px;
+  font-weight: 500;
+}
+.security {
+  width: max-content;
+  margin-top: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border: 1px solid rgba(100,215,160,.16);
+  border-radius: 999px;
+  background: rgba(100,215,160,.04);
+  color: #82dcb1;
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+.heading {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 12px;
+}
+.icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(224,191,133,.18);
+  border-radius: 11px;
+  background: rgba(201,165,104,.04);
+  color: #d8b877;
+}
+.heading span {
+  color: #7f96a2;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .1em;
+}
+.heading h1 {
+  margin: 4px 0 0;
+  font-family: Georgia, serif;
+  font-size: 25px;
+  font-weight: 500;
+  color: #f0f5f7;
+}
+.heading p {
+  margin: 6px 0 0;
+  color: #8095a0;
+  font-size: 9px;
+  line-height: 1.55;
+}
+.error {
+  margin-top: 18px;
+  padding: 10px 12px;
+  border: 1px solid rgba(239,112,112,.2);
+  border-radius: 9px;
+  background: rgba(239,112,112,.045);
+  color: #efa1a1;
+  font-size: 9px;
+  line-height: 1.45;
+}
+.form {
+  margin-top: 21px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form label > span {
+  color: #a9bbc4;
+  font-size: 8px;
+  font-weight: 800;
+}
+.form input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  outline: none;
+  border: 1px solid rgba(173,194,206,.13);
+  border-radius: 10px;
+  background: #08151e;
+  color: #edf4f7;
+  font: inherit;
+  font-size: 11px;
+}
+.form input:focus {
+  border-color: rgba(224,191,133,.44);
+  box-shadow: 0 0 0 3px rgba(201,165,104,.055);
+}
+.form input::placeholder { color: #4f6570; }
+.form button {
+  height: 43px;
+  margin-top: 3px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(224,191,133,.38);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(201,165,104,.22), rgba(168,129,72,.14));
+  color: #edd29d;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.form button:hover {
+  border-color: rgba(224,191,133,.58);
+  background: linear-gradient(180deg, rgba(201,165,104,.3), rgba(168,129,72,.18));
+}
+.notice {
+  margin-top: 21px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(173,194,206,.08);
+}
+.notice strong {
+  color: #aabcc5;
+  font-size: 8px;
+}
+.notice p {
+  margin: 5px 0 0;
+  color: #607783;
+  font-size: 8px;
+  line-height: 1.55;
+}
