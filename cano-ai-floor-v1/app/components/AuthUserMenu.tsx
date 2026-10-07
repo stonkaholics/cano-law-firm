@@ -1,4 +1,10 @@
-import { LogOut, ShieldCheck, UserRound } from "lucide-react";
+import {
+  LogOut,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
+
+import styles from "./AuthUserMenu.module.css";
 
 export default function AuthUserMenu({
   email,
@@ -6,26 +12,62 @@ export default function AuthUserMenu({
   email: string;
 }) {
   return (
-    <div className="cano-auth-user">
+    <aside
+      className={
+        styles.menu
+      }
+      aria-label="Authenticated Cano AI session"
+    >
       <div
-        className="cano-auth-user-status"
+        className={
+          styles.secure
+        }
         title="Authenticated Cano AI session"
       >
-        <ShieldCheck size={13} />
-        <span>SECURE SESSION</span>
+        <ShieldCheck
+          size={13}
+        />
+
+        <span>
+          Secure Session
+        </span>
       </div>
 
-      <div className="cano-auth-user-identity">
-        <UserRound size={14} />
-        <span>{email}</span>
+      <div
+        className={
+          styles.identity
+        }
+        title={email}
+      >
+        <UserRound
+          size={14}
+        />
+
+        <span>
+          {email}
+        </span>
       </div>
 
-      <form action="/api/auth/logout" method="post">
-        <button type="submit" title="Sign out">
-          <LogOut size={14} />
-          <span>Sign Out</span>
+      <form
+        action="/api/auth/logout"
+        method="post"
+      >
+        <button
+          className={
+            styles.logout
+          }
+          type="submit"
+          title="Sign out of Cano AI"
+        >
+          <LogOut
+            size={14}
+          />
+
+          <span>
+            Sign Out
+          </span>
         </button>
       </form>
-    </div>
+    </aside>
   );
 }

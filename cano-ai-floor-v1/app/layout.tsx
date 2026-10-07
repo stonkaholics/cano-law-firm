@@ -1,12 +1,23 @@
-import type { Metadata } from "next";
+import type {
+  Metadata,
+} from "next";
+
+import {
+  headers,
+} from "next/headers";
+
 import "./globals.css";
+
 import FloorSwitcher from "./components/FloorSwitcher";
+
 import AuthUserMenu from "./components/AuthUserMenu";
-import { createAuthServerClient } from "../lib/supabase/auth-server";
 
 export const metadata: Metadata = {
-  title: "Cano Law Firm | AI Legal Operations Floor",
-  description: "Cano Law Firm AI legal operations command center",
+  title:
+    "Cano Law Firm | AI Legal Operations Floor",
+
+  description:
+    "Cano Law Firm AI legal operations command center",
 };
 
 export default async function RootLayout({
@@ -14,19 +25,18 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  let userEmail = "";
+  /*
+  | Middleware already validated the Supabase session.
+  | Read the verified identity it forwarded instead of calling
+  | supabase.auth.getUser() a second time.
+  */
+  const requestHeaders =
+    await headers();
 
-  try {
-    const supabase = await createAuthServerClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    userEmail = user?.email || "";
-  } catch {
-    // Middleware handles missing/incomplete auth configuration.
-  }
+  const userEmail =
+    requestHeaders.get(
+      "x-cano-user-email"
+    ) || "";
 
   return (
     <html lang="en">
@@ -34,7 +44,12 @@ export default async function RootLayout({
         {userEmail ? (
           <>
             <FloorSwitcher />
-            <AuthUserMenu email={userEmail} />
+
+            <AuthUserMenu
+              email={
+                userEmail
+              }
+            />
           </>
         ) : null}
 
