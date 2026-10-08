@@ -13,7 +13,8 @@ export type SpecialistAgentId =
   | "qa"
   | "hearing"
   | "synthesis"
-  | "drafting";
+  | "drafting"
+  | "rebuttal";
 
 export type DbAgentRun = {
   id: string;
@@ -68,6 +69,10 @@ export const SPECIALIST_AGENTS: Record<
   drafting: {
     name: "Scribe",
     routeLabel: "Scribe · Legal Drafting",
+  },
+  rebuttal: {
+    name: "Rhea",
+    routeLabel: "Rhea · Government Response",
   },
 };
 

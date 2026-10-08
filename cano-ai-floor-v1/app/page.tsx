@@ -32,6 +32,7 @@ import MatterCenter, {
 } from "./components/MatterCenter";
 import IntelligenceManagerWorkstation from "./components/IntelligenceManagerWorkstation";
 import DraftManagerWorkstation from "./components/DraftManagerWorkstation";
+import GovernmentResponseWorkstation from "./components/GovernmentResponseWorkstation";
 import OperationsCenterDashboard from "./components/OperationsCenterDashboard";
 
 type AgentStatus = "Ready" | "Working" | "Needs Review" | "Review Ready";
@@ -331,6 +332,31 @@ const baseAgents: Agent[] = [
       "Upcoming actions",
     ],
   },
+  {
+    id: "rebuttal",
+    name: "Rhea",
+    role: "Government Response & Rebuttal Specialist",
+    shortRole: "Gov Response",
+    description:
+      "Analyzes a government response, opposition, or motion and prepares an attorney-review reply grounded in Case Brain, prior drafting work, and verified legal research.",
+    status: "Ready",
+    icon: FilePenLine,
+    zone: "Case Operations",
+    capabilities: [
+      "Analyze government returns and opposition filings",
+      "Map every material government argument",
+      "Compare government assertions against Case Brain",
+      "Review government-cited authority",
+      "Draft a complete attorney-review response",
+    ],
+    output: [
+      "Government argument map",
+      "Fact-dispute list",
+      "Authority response checklist",
+      "Attorney working reply",
+      "DOCX / PDF export",
+    ],
+  },
 ];
 
 function statusClass(status: AgentStatus) {
@@ -361,6 +387,7 @@ export default function Home() {
   const [intelligenceManagerOpen, setIntelligenceManagerOpen] =
     useState(false);
   const [draftManagerOpen, setDraftManagerOpen] = useState(false);
+  const [governmentResponseOpen, setGovernmentResponseOpen] = useState(false);
   const [matters, setMatters] = useState<MatterQueueItem[]>([]);
   const [mattersLoading, setMattersLoading] = useState(false);
   const [resettingMatter, setResettingMatter] = useState(false);
@@ -615,6 +642,7 @@ export default function Home() {
         "Chronos · Timeline": "timeline",
         "Veritas · Filing QA": "qa",
         "Avery · Hearing Prep": "hearing",
+        "Rhea · Government Response": "rebuttal",
       };
 
       const routedAgentId = routeMap[routedTarget];
@@ -1158,6 +1186,7 @@ export default function Home() {
                 className="primary-btn"
                 disabled={
                   selected.id === "documents" ||
+                  (selected.id === "rebuttal" && !caseBrainMatter) ||
                   (isBuiltSpecialist(selected.id) && !caseBrainMatter)
                 }
                 onClick={() => {
@@ -1172,6 +1201,9 @@ export default function Home() {
                   } else if (selected.id === "drafting") {
                     setSelectedId(null);
                     setDraftManagerOpen(true);
+                  } else if (selected.id === "rebuttal") {
+                    setSelectedId(null);
+                    setGovernmentResponseOpen(true);
                   } else if (isBuiltSpecialist(selected.id)) {
                     openSpecialist(selected.id);
                   }
@@ -1227,6 +1259,17 @@ export default function Home() {
                 <button className="secondary-btn" disabled>
                   Documents V2
                 </button>
+              ) : selected.id === "rebuttal" ? (
+                <button
+                  className="secondary-btn"
+                  disabled={!caseBrainMatter}
+                  onClick={() => {
+                    setSelectedId(null);
+                    setGovernmentResponseOpen(true);
+                  }}
+                >
+                  Paste Government Response
+                </button>
               ) : isBuiltSpecialist(selected.id) ? (
                 <button
                   className="secondary-btn"
@@ -1259,6 +1302,10 @@ export default function Home() {
                 ? "Atlas compiles the live matter dossier while preserving every agent's individual output."
                 : selected.id === "documents"
                 ? "Docket/Documents is intentionally not connected in this build."
+                : selected.id === "rebuttal"
+                ? caseBrainMatter
+                  ? "Paste the government's filing. Rhea compares it to Case Brain, prior specialist work, and the existing draft before preparing an attorney-review reply."
+                  : "Complete Case Brain first."
                 : isBuiltSpecialist(selected.id)
                 ? caseBrainMatter
                   ? "This specialist runs asynchronously and saves every result to Supabase."
@@ -1370,6 +1417,13 @@ export default function Home() {
             }
           }}
           onClose={() => setDraftManagerOpen(false)}
+        />
+      )}
+
+      {governmentResponseOpen && (
+        <GovernmentResponseWorkstation
+          matter={caseBrainMatter}
+          onClose={() => setGovernmentResponseOpen(false)}
         />
       )}
 
