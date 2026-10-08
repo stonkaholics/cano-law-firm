@@ -156,7 +156,7 @@ export async function POST(
           decision,
         notes:
           decision === "approved"
-            ? "Human reviewer approved the Reach draft. External sending remains disabled until the send workflow is connected."
+            ? "Human reviewer approved the Reach draft. It is now Ready to Send in Reach; external delivery still requires a separate explicit Send Email action."
             : "Human reviewer rejected the Reach draft.",
         reviewed_by:
           reviewer,
@@ -167,7 +167,7 @@ export async function POST(
             "human_guard",
           decision,
           external_send_enabled:
-            false,
+            decision === "approved",
         },
       }
     );
