@@ -11,7 +11,6 @@ import {
 
 import {
   buildCanoReferralEmail,
-  CANO_EMAIL_LOGO_BASE64,
 } from "../../../../../lib/email/cano-referral-email";
 
 import {
@@ -111,17 +110,6 @@ export async function POST(
         draft.status
       ).toLowerCase();
 
-    /*
-    |--------------------------------------------------------------------------
-    | APPROVAL GATE
-    |--------------------------------------------------------------------------
-    |
-    | Both test and official delivery require the exact draft to have already
-    | passed Guard + explicit human approval. This ensures the test email is an
-    | exact preview of something that is actually eligible to be sent.
-    |--------------------------------------------------------------------------
-    */
-
     if (status !== "approved") {
       return NextResponse.json(
         {
@@ -189,6 +177,17 @@ export async function POST(
           draftBody,
       });
 
+    /*
+    |--------------------------------------------------------------------------
+    | TITAN DELIVERY
+    |--------------------------------------------------------------------------
+    |
+    | The branded Reach template is intentionally text/CSS based and does not
+    | rely on CID images. That removes the broken-logo behavior some Gmail
+    | clients showed in test sends.
+    |--------------------------------------------------------------------------
+    */
+
     const delivery =
       await sendTitanMail({
         to:
@@ -207,41 +206,10 @@ export async function POST(
 
         replyTo:
           "contact@canolawfirm.com",
-
-        attachments: [
-          {
-            filename:
-              "cano-law-firm-logo.png",
-
-            content:
-              Buffer.from(
-                CANO_EMAIL_LOGO_BASE64,
-                "base64"
-              ),
-
-            cid:
-              "cano-law-logo",
-
-            contentType:
-              "image/png",
-          },
-        ],
       });
 
     const now =
       new Date().toISOString();
-
-    /*
-    |--------------------------------------------------------------------------
-    | TEST SEND
-    |--------------------------------------------------------------------------
-    |
-    | A test delivery is logged, but intentionally does NOT change:
-    | - draft status
-    | - referral relationship status
-    | - Orbit handoff
-    |--------------------------------------------------------------------------
-    */
 
     if (mode === "test") {
       await supabaseInsert(
@@ -312,12 +280,6 @@ export async function POST(
           false,
       });
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | OFFICIAL SEND
-    |--------------------------------------------------------------------------
-    */
 
     const metadata = {
       ...(draft.metadata &&
