@@ -7,6 +7,8 @@ import {
   ClipboardPaste,
   FileDown,
   FilePenLine,
+  ExternalLink,
+  Landmark,
   Loader2,
   RefreshCw,
   Save,
@@ -27,16 +29,22 @@ type ResponseType =
   | "bond_opposition"
   | "other";
 
-type DraftingSource = {
-  id?: string;
-  exampleId?: string;
+type LegalAuthority = {
+  kind?: string;
   title?: string;
-  originalFilename?: string;
-  sectionOrder?: number;
-  sectionType?: string;
-  heading?: string;
-  content?: string;
-  similarity?: number;
+  citation?: string | null;
+  court?: string | null;
+  date?: string | null;
+  binding_status?: "binding" | "persuasive" | "unknown" | string;
+  precedential_status?: string | null;
+  url?: string;
+  proposition?: string;
+  quote?: string | null;
+  quote_status?: string;
+  relevance?: string;
+  source_provider?: string;
+  citator_status?: string;
+  _sourceAgent?: string;
 };
 
 type RebuttalState = {
@@ -59,6 +67,13 @@ type RebuttalState = {
     warnings?: string[];
     next_actions?: string[];
     open_questions?: string[];
+    jurisdiction?: {
+      circuit?: string | null;
+      district?: string | null;
+      basis?: string;
+      confidence?: string;
+    } | null;
+    authorities?: LegalAuthority[];
     draft?: {
       document_type?: string;
       title?: string;
@@ -284,20 +299,133 @@ export default function GovernmentResponseWorkstation({
 
   const draftingRunInput = state.run?.input_payload || null;
 
-  const firmDraftingSources = useMemo<DraftingSource[]>(() => {
-    const direct =
-      draftingRunInput?.request?.firmDraftingSources ??
-      draftingRunInput?.options?.firmDraftingSources ??
-      draftingRunInput?.firmDraftingSources;
+  const authorityPool = useMemo<LegalAuthority[]>(() => {
+    const candidates: LegalAuthority[] = [];
+    const seen = new Set<string>();
 
-    return Array.isArray(direct) ? direct : [];
-  }, [draftingRunInput]);
+    function addMany(
+      values: unknown,
+      sourceAgent: string
+    ) {
+      if (!Array.isArray(values)) return;
 
-  const firmDraftingRetrieval =
-    draftingRunInput?.request?.firmDraftingRetrieval ??
-    draftingRunInput?.options?.firmDraftingRetrieval ??
-    draftingRunInput?.firmDraftingRetrieval ??
-    null;
+      for (const raw of values) {
+        if (!raw || typeof raw !== "object") continue;
+
+        const authority = raw as LegalAuthority;
+
+        const key =
+          clean(authority.citation).toLowerCase() ||
+          clean(authority.url).toLowerCase() ||
+          clean(authority.title).toLowerCase();
+
+        if (!key || seen.has(key)) continue;
+
+        seen.add(key);
+
+        candidates.push({
+          ...authority,
+          _sourceAgent: sourceAgent,
+        });
+      }
+    }
+
+    /*
+    | Current Rhea output comes first because these are the authorities the
+    | response agent expressly selected for this reply.
+    */
+    addMany(output?.authorities, "Rhea");
+
+    const prior =
+      draftingRunInput?.prior_specialists &&
+      typeof draftingRunInput.prior_specialists === "object"
+        ? draftingRunInput.prior_specialists
+        : {};
+
+    /*
+    | Elena is the primary habeas authority source. Lex remains useful for
+    | additional verified research. Atlas/Scribe may also preserve authority
+    | records from the matter pipeline, so include them as lower-priority
+    | deduplicated fallbacks.
+    */
+    addMany(prior?.habeas?.authorities, "Elena");
+    addMany(prior?.research?.authorities, "Lex");
+    addMany(prior?.synthesis?.authorities, "Atlas");
+    addMany(prior?.drafting?.authorities, "Scribe");
+
+    return candidates;
+  }, [draftingRunInput, output?.authorities]);
+
+  const citedAuthorities = useMemo(() => {
+    const markdown =
+      String(draft?.markdown || "").toLowerCase();
+
+    const checklist =
+      Array.isArray(draft?.authority_checklist)
+        ? draft.authority_checklist
+            .map((item) =>
+              `${clean(item?.authority)} ${clean(item?.note)}`
+                .toLowerCase()
+            )
+            .join(" ")
+        : "";
+
+    function normalizedTitle(value: unknown) {
+      return clean(value)
+        .toLowerCase()
+        .replace(/\bet al\.?/g, "")
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function titleSignals(value: unknown) {
+      const normalized = normalizedTitle(value);
+
+      if (!normalized) return [];
+
+      const pieces = normalized
+        .split(/\s+v\s+|\s+vs\s+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      return [
+        normalized,
+        ...pieces.filter((item) => item.length >= 5),
+      ];
+    }
+
+    return authorityPool.filter((authority) => {
+      const citation =
+        clean(authority.citation).toLowerCase();
+
+      if (
+        citation &&
+        (
+          markdown.includes(citation) ||
+          checklist.includes(citation)
+        )
+      ) {
+        return true;
+      }
+
+      const signals =
+        titleSignals(authority.title);
+
+      return signals.some(
+        (signal) =>
+          signal.length >= 5 &&
+          (
+            markdown.includes(signal) ||
+            checklist.includes(signal)
+          )
+      );
+    });
+  }, [
+    authorityPool,
+    draft?.markdown,
+    draft?.authority_checklist,
+  ]);
 
   const detaineeName = useMemo(
     () =>
@@ -674,6 +802,11 @@ export default function GovernmentResponseWorkstation({
                 "Compare the filing against Case Brain and prior specialist work, including the original Scribe draft.",
                 "Identify concessions, factual disputes, procedural defenses, cited authority, adverse points, and unanswered original arguments.",
                 "Do not invent facts, holdings, citations, quotations, deadlines, docket events, or procedural history.",
+                "Review prior_specialists.habeas.authorities from Elena first, then prior_specialists.research.authorities from Lex, before selecting case law for the reply.",
+                "Prefer binding Supreme Court and controlling circuit authority when it directly supports the proposition; use persuasive district or out-of-circuit authority only when useful and clearly identified.",
+                "Integrate relevant verified authorities into the body of the response where they strengthen an actual rebuttal point. Do not add cases merely to make the brief look researched.",
+                "Every case, statute, regulation, or constitutional authority actually relied on in the draft must also be returned in output.authorities with title, citation, court, date, binding_status, proposition, relevance, URL when available, quote_status, and citator_status.",
+                "Do not use a citation from a Cano drafting exemplar unless the same authority is independently present in verified authority research or a prior verified specialist authority record.",
                 "Use verified authority research for independent legal propositions and preserve citator-review warnings.",
                 "Draft a complete attorney-editable response/reply, not an outline.",
                 "Use ATTORNEY INPUT NEEDED or compact TBD placeholders only for genuinely missing filing information.",
@@ -1499,168 +1632,238 @@ export default function GovernmentResponseWorkstation({
 
                   <section
                     className={
-                      styles.sourcesCard
+                      styles.caseLawCard
                     }
                   >
                     <div
                       className={
-                        styles.sourcesHead
+                        styles.caseLawHead
                       }
                     >
                       <div>
                         <span>
-                          CANO RESPONSE
-                          SOURCES
+                          CASE LAW USED IN RESPONSE
                         </span>
+
                         <h4>
-                          Matter-specific
-                          drafting
-                          context
+                          Citations tied back to verified specialist research
                         </h4>
+
+                        <p>
+                          Rhea cross-checks the reply against Elena and Lex authority
+                          records. Only authorities actually cited or identified in
+                          this response are shown here. Binding status is
+                          jurisdictional analysis only; attorney citator review is
+                          still required before filing.
+                        </p>
                       </div>
 
-                      <strong>
-                        {
-                          firmDraftingSources.length
-                        }{" "}
-                        supplied
-                      </strong>
+                      <div
+                        className={
+                          styles.caseLawCount
+                        }
+                      >
+                        <Landmark
+                          size={15}
+                        />
+                        {citedAuthorities.length} cited
+                      </div>
                     </div>
 
-                    <p
-                      className={
-                        styles.sourcesIntro
-                      }
-                    >
-                      These are the
-                      Cano Law Firm
-                      response
-                      exemplars
-                      retrieved for
-                      this Rhea run.
-                      They guide
-                      structure and
-                      style only;
-                      Case Brain
-                      controls facts
-                      and verified
-                      authority
-                      controls legal
-                      propositions.
-                    </p>
-
-                    {firmDraftingRetrieval?.warning ? (
+                    {citedAuthorities.length ? (
                       <div
                         className={
-                          styles.sourcesWarning
+                          styles.caseLawGrid
                         }
                       >
-                        <AlertTriangle
-                          size={14}
-                        />
-                        {
-                          firmDraftingRetrieval.warning
-                        }
-                      </div>
-                    ) : null}
-
-                    {firmDraftingSources.length ? (
-                      <div
-                        className={
-                          styles.sourcesGrid
-                        }
-                      >
-                        {firmDraftingSources.map(
+                        {citedAuthorities.map(
                           (
-                            source,
+                            authority,
                             index
                           ) => (
                             <article
                               className={
-                                styles.sourceItem
+                                styles.caseLawItem
                               }
-                              key={
-                                source.id ||
-                                `${source.exampleId}-${source.sectionOrder}-${index}`
-                              }
+                              key={`${clean(
+                                authority.citation
+                              )}-${clean(
+                                authority.url
+                              )}-${index}`}
                             >
                               <div
                                 className={
-                                  styles.sourceTop
+                                  styles.caseLawTop
                                 }
                               >
-                                <div>
+                                <div
+                                  className={
+                                    styles.caseLawKind
+                                  }
+                                >
+                                  <Scale
+                                    size={14}
+                                  />
+                                  {clean(
+                                    authority.kind ||
+                                      "case"
+                                  ).replaceAll(
+                                    "_",
+                                    " "
+                                  )}
                                   <span>
-                                    FIRM
-                                    EXEMPLAR
-                                    · #
-                                    {index +
-                                      1}
+                                    {authority._sourceAgent ||
+                                      "Verified Research"}
                                   </span>
-                                  <strong>
-                                    {source.title ||
-                                      source.originalFilename ||
-                                      "Cano drafting example"}
-                                  </strong>
                                 </div>
 
-                                {Number(
-                                  source.similarity ||
-                                    0
-                                ) >
-                                0 ? (
-                                  <em>
-                                    {(
-                                      Number(
-                                        source.similarity
-                                      ) *
-                                      100
-                                    ).toFixed(
-                                      1
-                                    )}
-                                    % match
-                                  </em>
-                                ) : null}
+                                <div
+                                  className={`${styles.caseLawBinding} ${
+                                    styles[
+                                      `caseLawBinding_${clean(
+                                        authority.binding_status ||
+                                          "unknown"
+                                      ).toLowerCase()}`
+                                    ] || ""
+                                  }`}
+                                >
+                                  {clean(
+                                    authority.binding_status ||
+                                      "unknown"
+                                  )}
+                                </div>
                               </div>
+
+                              <h5>
+                                {authority.title ||
+                                  "Legal authority"}
+                              </h5>
 
                               <div
                                 className={
-                                  styles.sourceTags
+                                  styles.caseLawMeta
+                                }
+                              >
+                                {authority.citation ? (
+                                  <span>
+                                    {
+                                      authority.citation
+                                    }
+                                  </span>
+                                ) : null}
+
+                                {authority.court ? (
+                                  <span>
+                                    {
+                                      authority.court
+                                    }
+                                  </span>
+                                ) : null}
+
+                                {authority.date ? (
+                                  <span>
+                                    {
+                                      authority.date
+                                    }
+                                  </span>
+                                ) : null}
+
+                                {authority.precedential_status ? (
+                                  <span>
+                                    {
+                                      authority.precedential_status
+                                    }
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              {authority.proposition ? (
+                                <div
+                                  className={
+                                    styles.caseLawProposition
+                                  }
+                                >
+                                  <strong>
+                                    Relevant proposition
+                                  </strong>
+
+                                  <p>
+                                    {
+                                      authority.proposition
+                                    }
+                                  </p>
+                                </div>
+                              ) : null}
+
+                              {authority.quote ? (
+                                <blockquote
+                                  className={
+                                    styles.caseLawQuote
+                                  }
+                                >
+                                  “
+                                  {
+                                    authority.quote
+                                  }
+                                  ”
+                                </blockquote>
+                              ) : null}
+
+                              <div
+                                className={
+                                  styles.caseLawValidation
                                 }
                               >
                                 <span>
                                   {clean(
-                                    source.sectionType ||
-                                      "section"
+                                    authority.quote_status ||
+                                      "quote not supplied"
                                   ).replaceAll(
                                     "_",
                                     " "
                                   )}
                                 </span>
 
-                                {source.heading ? (
-                                  <span>
-                                    {
-                                      source.heading
-                                    }
-                                  </span>
-                                ) : null}
+                                <span>
+                                  {clean(
+                                    authority.citator_status ||
+                                      "needs_citator_review"
+                                  ).replaceAll(
+                                    "_",
+                                    " "
+                                  )}
+                                </span>
                               </div>
 
-                              <p>
-                                {clean(
-                                  source.content
-                                ).slice(
-                                  0,
-                                  650
-                                )}
-                                {clean(
-                                  source.content
-                                ).length >
-                                650
-                                  ? "…"
-                                  : ""}
-                              </p>
+                              {authority.relevance ? (
+                                <p
+                                  className={
+                                    styles.caseLawRelevance
+                                  }
+                                >
+                                  {
+                                    authority.relevance
+                                  }
+                                </p>
+                              ) : null}
+
+                              {authority.url ? (
+                                <a
+                                  href={
+                                    authority.url
+                                  }
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={
+                                    styles.caseLawLink
+                                  }
+                                >
+                                  Open source
+                                  <ExternalLink
+                                    size={12}
+                                  />
+                                </a>
+                              ) : null}
                             </article>
                           )
                         )}
@@ -1668,22 +1871,27 @@ export default function GovernmentResponseWorkstation({
                     ) : (
                       <div
                         className={
-                          styles.sourcesEmpty
+                          styles.caseLawEmpty
                         }
                       >
                         <AlertTriangle
                           size={15}
                         />
-                        No Cano response
-                        exemplar sections
-                        were recorded on
-                        this saved run.
-                        Regenerate Rhea
-                        after the response
-                        library has been
-                        ingested to capture
-                        the retrieved
-                        source set.
+
+                        <div>
+                          <strong>
+                            No verified case citation was matched in this saved
+                            reply.
+                          </strong>
+
+                          <p>
+                            Regenerate Rhea after the latest Elena/Lex research
+                            is available. Rhea is now instructed to review those
+                            authority records, use only genuinely relevant cases
+                            in the response, and return every relied-on authority
+                            for this case-law panel.
+                          </p>
+                        </div>
                       </div>
                     )}
                   </section>
