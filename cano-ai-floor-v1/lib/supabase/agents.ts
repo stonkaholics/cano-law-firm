@@ -155,18 +155,14 @@ export async function getLatestRunForAgent(
 
 /*
 |--------------------------------------------------------------------------
-| LATEST SPECIALIST STATE VIA DATABASE RPC
+| LATEST SPECIALIST STATE VIA DATABASE RPC + SAFE BACKFILL
 |--------------------------------------------------------------------------
 |
-| The previous implementation selected up to 250 historical agent_runs and
-| agent_outputs rows and sorted them for every active matter.
+| Keep the optimized RPC as the primary path.
 |
-| On a mature matter, agent_runs can be large because input_payload contains
-| Case Brain + prior specialist context. PostgreSQL was timing out while
-| scanning/sorting that history.
-|
-| The RPC uses DISTINCT ON + composite indexes inside Postgres and returns
-| exactly ONE latest run and ONE latest output per specialist.
+| If a new specialist ID has not yet been added to the database RPC,
+| backfill ONLY the missing agent from agent_runs + agent_outputs.
+| This is what lets Rhea ("rebuttal") appear immediately after n8n saves it.
 |--------------------------------------------------------------------------
 */
 
@@ -203,14 +199,60 @@ export async function getLatestSpecialistState(matterId: string) {
         outputRecord: row.output_record || null,
       };
     }
-
-    return result;
   } catch (error) {
     console.error(
-      `Unable to load latest specialist state for matter ${matterId}:`,
+      `Unable to load specialist state RPC for matter ${matterId}:`,
       error
     );
-
-    return result;
   }
+
+  const missingAgents =
+    (Object.keys(SPECIALIST_AGENTS) as SpecialistAgentId[]).filter(
+      (agentId) =>
+        !result[agentId]?.run &&
+        !result[agentId]?.outputRecord
+    );
+
+  if (missingAgents.length) {
+    await Promise.all(
+      missingAgents.map(async (agentId) => {
+        try {
+          const [run, outputRecord] =
+            await Promise.all([
+              getLatestRunForAgent(
+                matterId,
+                agentId
+              ),
+              getLatestOutputForAgent(
+                matterId,
+                agentId
+              ),
+            ]);
+
+          if (!run && !outputRecord) {
+            return;
+          }
+
+          result[agentId] = {
+            run:
+              run || null,
+
+            output:
+              outputRecord?.output ||
+              null,
+
+            outputRecord:
+              outputRecord || null,
+          };
+        } catch (error) {
+          console.error(
+            `Unable to backfill specialist state for ${agentId} on matter ${matterId}:`,
+            error
+          );
+        }
+      })
+    );
+  }
+
+  return result;
 }
