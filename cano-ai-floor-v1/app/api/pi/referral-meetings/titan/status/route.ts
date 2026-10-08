@@ -28,8 +28,6 @@ export async function GET(
     return NextResponse.json(
       {
         ok: false,
-        configured:
-          false,
         ...config,
         required: [
           "TITAN_CALDAV_USERNAME",

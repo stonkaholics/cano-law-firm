@@ -478,8 +478,6 @@ export async function verifyTitanCalendar() {
   ) {
     return {
       ok: false,
-      configured:
-        false,
       error:
         "Titan CalDAV is not fully configured.",
       ...config,
@@ -512,8 +510,6 @@ export async function verifyTitanCalendar() {
 
     return {
       ok: true,
-      configured:
-        true,
       status:
         result.response.status,
       ...config,
@@ -521,8 +517,6 @@ export async function verifyTitanCalendar() {
   } catch (error) {
     return {
       ok: false,
-      configured:
-        true,
       error:
         error instanceof Error
           ? error.message

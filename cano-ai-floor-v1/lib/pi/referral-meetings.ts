@@ -171,7 +171,7 @@ function answerByKeywords(
 
   const match =
     rows.find(
-      (row) => {
+      (row: any) => {
         const question =
           lower(
             row.question
