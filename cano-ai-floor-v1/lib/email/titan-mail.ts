@@ -1,7 +1,5 @@
 import nodemailer from "nodemailer";
 
-export const runtime = "nodejs";
-
 export type TitanSendInput = {
   to: string;
   subject: string;
@@ -16,11 +14,20 @@ export type TitanSendInput = {
   }>;
 };
 
+type TitanConfig = {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  fromName: string;
+  replyTo: string;
+};
+
 function clean(value: unknown) {
   return String(value || "").trim();
 }
 
-function getTitanConfig() {
+export function getTitanPublicStatus() {
   const host =
     clean(process.env.TITAN_SMTP_HOST) ||
     "smtp.titan.email";
@@ -38,11 +45,6 @@ function getTitanConfig() {
     ) ||
     "contact@canolawfirm.com";
 
-  const password =
-    clean(
-      process.env.TITAN_SMTP_PASSWORD
-    );
-
   const fromName =
     clean(
       process.env.TITAN_FROM_NAME
@@ -55,20 +57,167 @@ function getTitanConfig() {
     ) ||
     "contact@canolawfirm.com";
 
+  const hasPassword =
+    Boolean(
+      clean(
+        process.env.TITAN_SMTP_PASSWORD
+      )
+    );
+
+  return {
+    provider: "titan_mail",
+    configured: hasPassword,
+    host,
+    port,
+    secure: port === 465,
+    user,
+    fromName,
+    replyTo,
+    passwordConfigured: hasPassword,
+  };
+}
+
+function getTitanConfig(): TitanConfig {
+  const status =
+    getTitanPublicStatus();
+
+  const password =
+    clean(
+      process.env.TITAN_SMTP_PASSWORD
+    );
+
   if (!password) {
     throw new Error(
-      "Titan Mail is not configured. Add TITAN_SMTP_PASSWORD in Vercel Environment Variables."
+      "Titan Mail is not configured. Add TITAN_SMTP_PASSWORD in Vercel Environment Variables and redeploy."
     );
   }
 
   return {
-    host,
-    port,
-    user,
+    host: status.host,
+    port: status.port,
+    user: status.user,
     password,
-    fromName,
-    replyTo,
+    fromName: status.fromName,
+    replyTo: status.replyTo,
   };
+}
+
+function createTitanTransporter(
+  config: TitanConfig
+) {
+  const secure =
+    config.port === 465;
+
+  return nodemailer.createTransport({
+    host:
+      config.host,
+
+    port:
+      config.port,
+
+    secure,
+
+    requireTLS:
+      !secure,
+
+    auth: {
+      user:
+        config.user,
+
+      pass:
+        config.password,
+    },
+
+    tls: {
+      minVersion:
+        "TLSv1.2",
+    },
+
+    connectionTimeout:
+      15000,
+
+    greetingTimeout:
+      15000,
+
+    socketTimeout:
+      30000,
+  });
+}
+
+function friendlyTitanError(
+  error: unknown
+) {
+  const raw =
+    error instanceof Error
+      ? error.message
+      : String(error || "");
+
+  const lower =
+    raw.toLowerCase();
+
+  if (
+    lower.includes("invalid login") ||
+    lower.includes("authentication") ||
+    lower.includes("535") ||
+    lower.includes("ea uth")
+  ) {
+    return (
+      "Titan rejected the SMTP login. Confirm TITAN_SMTP_USER is the full mailbox address, " +
+      "TITAN_SMTP_PASSWORD is the correct mailbox/app password, and third-party email access is enabled in Titan."
+    );
+  }
+
+  if (
+    lower.includes("timeout") ||
+    lower.includes("etimedout") ||
+    lower.includes("econnrefused") ||
+    lower.includes("socket")
+  ) {
+    return (
+      "The app could not connect to Titan SMTP. Confirm smtp.titan.email with port 465 (SSL) or try port 587 (STARTTLS)."
+    );
+  }
+
+  return raw ||
+    "Titan Mail returned an unknown SMTP error.";
+}
+
+export async function verifyTitanMailConnection() {
+  try {
+    const config =
+      getTitanConfig();
+
+    const transporter =
+      createTitanTransporter(
+        config
+      );
+
+    await transporter.verify();
+
+    return {
+      ok: true,
+      provider:
+        "titan_mail",
+      sender:
+        config.user,
+      host:
+        config.host,
+      port:
+        config.port,
+      secure:
+        config.port === 465,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      provider:
+        "titan_mail",
+      error:
+        friendlyTitanError(
+          error
+        ),
+    };
+  }
 }
 
 export async function sendTitanMail(
@@ -77,91 +226,74 @@ export async function sendTitanMail(
   const config =
     getTitanConfig();
 
-  const secure =
-    config.port === 465;
-
   const transporter =
-    nodemailer.createTransport({
-      host:
-        config.host,
+    createTitanTransporter(
+      config
+    );
 
-      port:
-        config.port,
+  try {
+    const info =
+      await transporter.sendMail({
+        from: {
+          name:
+            config.fromName,
 
-      secure,
+          address:
+            config.user,
+        },
 
-      requireTLS:
-        !secure,
+        to:
+          input.to,
 
-      auth: {
-        user:
-          config.user,
+        replyTo:
+          input.replyTo ||
+          config.replyTo,
 
-        pass:
-          config.password,
-      },
+        subject:
+          input.subject,
 
-      tls: {
-        minVersion:
-          "TLSv1.2",
-      },
-    });
+        text:
+          input.text,
 
-  const info =
-    await transporter.sendMail({
-      from: {
-        name:
-          config.fromName,
+        html:
+          input.html,
 
-        address:
-          config.user,
-      },
+        attachments:
+          input.attachments || [],
+      });
 
-      to:
-        input.to,
+    return {
+      messageId:
+        clean(info.messageId),
 
-      replyTo:
-        input.replyTo ||
-        config.replyTo,
+      accepted:
+        Array.isArray(
+          info.accepted
+        )
+          ? info.accepted.map(String)
+          : [],
 
-      subject:
-        input.subject,
+      rejected:
+        Array.isArray(
+          info.rejected
+        )
+          ? info.rejected.map(String)
+          : [],
 
-      text:
-        input.text,
+      response:
+        clean(info.response),
 
-      html:
-        input.html,
+      envelope:
+        info.envelope || null,
 
-      attachments:
-        input.attachments || [],
-    });
-
-  return {
-    messageId:
-      clean(info.messageId),
-
-    accepted:
-      Array.isArray(
-        info.accepted
+      sender:
+        config.user,
+    };
+  } catch (error) {
+    throw new Error(
+      friendlyTitanError(
+        error
       )
-        ? info.accepted.map(String)
-        : [],
-
-    rejected:
-      Array.isArray(
-        info.rejected
-      )
-        ? info.rejected.map(String)
-        : [],
-
-    response:
-      clean(info.response),
-
-    envelope:
-      info.envelope || null,
-
-    sender:
-      config.user,
-  };
+    );
+  }
 }

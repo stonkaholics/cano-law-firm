@@ -19,6 +19,7 @@ import {
 } from "../../../../../lib/email/titan-mail";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type OutreachEvent = {
   id: string;
@@ -65,7 +66,8 @@ export async function POST(
     const testTo =
       clean(
         body?.testTo ||
-        body?.test_to
+        body?.test_to ||
+        "contact@canolawfirm.com"
       );
 
     if (!outreachEventId) {
@@ -108,6 +110,17 @@ export async function POST(
       clean(
         draft.status
       ).toLowerCase();
+
+    /*
+    |--------------------------------------------------------------------------
+    | APPROVAL GATE
+    |--------------------------------------------------------------------------
+    |
+    | Both test and official delivery require the exact draft to have already
+    | passed Guard + explicit human approval. This ensures the test email is an
+    | exact preview of something that is actually eligible to be sent.
+    |--------------------------------------------------------------------------
+    */
 
     if (status !== "approved") {
       return NextResponse.json(
@@ -218,6 +231,18 @@ export async function POST(
     const now =
       new Date().toISOString();
 
+    /*
+    |--------------------------------------------------------------------------
+    | TEST SEND
+    |--------------------------------------------------------------------------
+    |
+    | A test delivery is logged, but intentionally does NOT change:
+    | - draft status
+    | - referral relationship status
+    | - Orbit handoff
+    |--------------------------------------------------------------------------
+    */
+
     if (mode === "test") {
       await supabaseInsert(
         "pi_compliance_reviews",
@@ -260,6 +285,9 @@ export async function POST(
 
             official_send:
               false,
+
+            exact_approved_draft:
+              true,
           },
         }
       );
@@ -272,8 +300,24 @@ export async function POST(
           delivery.sender,
         messageId:
           delivery.messageId,
+        accepted:
+          delivery.accepted,
+        rejected:
+          delivery.rejected,
+        response:
+          delivery.response,
+        draftStatus:
+          status,
+        statusChanged:
+          false,
       });
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | OFFICIAL SEND
+    |--------------------------------------------------------------------------
+    */
 
     const metadata = {
       ...(draft.metadata &&
@@ -414,6 +458,12 @@ export async function POST(
         delivery.sender,
       messageId:
         delivery.messageId,
+      accepted:
+        delivery.accepted,
+      rejected:
+        delivery.rejected,
+      response:
+        delivery.response,
       row:
         updated[0] || null,
     });
