@@ -1,0 +1,305 @@
+/*
+|--------------------------------------------------------------------------
+| CANO GLOBAL READABILITY LAYER
+|--------------------------------------------------------------------------
+|
+| The original AI floor UI intentionally used many 6px–10px labels.
+| On real desktop screens that is simply too small for routine legal work.
+|
+| This layer is imported AFTER globals.css so we can improve readability
+| without rewriting hundreds of existing component rules one-by-one.
+|
+| Goals:
+| - preserve the existing visual design and spacing
+| - enlarge body copy, labels, controls, helper text, and legal drafts
+| - keep major headings/titles unchanged
+| - work across Immigration + Personal Injury + shared workstations
+|--------------------------------------------------------------------------
+*/
+
+:root {
+  --cano-readable-body: 13px;
+  --cano-readable-small: 11px;
+  --cano-readable-control: 12px;
+  --cano-readable-draft: 14px;
+  --cano-readable-line: 1.55;
+}
+
+/*
+|--------------------------------------------------------------------------
+| MAIN APPLICATION COPY
+|--------------------------------------------------------------------------
+*/
+
+body .app-shell :where(
+  p,
+  li,
+  td,
+  th,
+  label
+) {
+  font-size: var(--cano-readable-body) !important;
+  line-height: var(--cano-readable-line) !important;
+}
+
+body .app-shell small {
+  font-size: var(--cano-readable-small) !important;
+  line-height: 1.45 !important;
+}
+
+body .app-shell :where(
+  button,
+  input,
+  textarea,
+  select
+) {
+  font-size: var(--cano-readable-control) !important;
+  line-height: 1.45 !important;
+}
+
+/*
+|--------------------------------------------------------------------------
+| SMALL UI LABELS / BADGES / EYEBROWS
+|--------------------------------------------------------------------------
+|
+| These class-name patterns cover both normal global CSS classes and
+| Next.js CSS-module generated class names.
+|--------------------------------------------------------------------------
+*/
+
+body .app-shell :where(
+  [class*="kicker"],
+  [class*="Kicker"],
+  [class*="eyebrow"],
+  [class*="Eyebrow"],
+  [class*="subtitle"],
+  [class*="Subtitle"],
+  [class*="status"],
+  [class*="Status"],
+  [class*="label"],
+  [class*="Label"],
+  [class*="meta"],
+  [class*="Meta"],
+  [class*="helper"],
+  [class*="Helper"],
+  [class*="note"],
+  [class*="Note"],
+  [class*="caption"],
+  [class*="Caption"],
+  [class*="chip"],
+  [class*="Chip"],
+  [class*="badge"],
+  [class*="Badge"],
+  [class*="tag"],
+  [class*="Tag"]
+) {
+  font-size: var(--cano-readable-small) !important;
+  line-height: 1.45 !important;
+}
+
+/*
+|--------------------------------------------------------------------------
+| WORKSTATIONS / MODALS
+|--------------------------------------------------------------------------
+|
+| Most of the hardest-to-read screens are the workstation overlays.
+| Give ordinary text inside them a reliable floor.
+|--------------------------------------------------------------------------
+*/
+
+body .app-shell :where(
+  [class*="workstation"],
+  [class*="Workstation"],
+  [class*="workspace"],
+  [class*="Workspace"],
+  [class*="modal"],
+  [class*="Modal"],
+  [class*="panel"],
+  [class*="Panel"]
+) :where(
+  p,
+  li,
+  label,
+  small,
+  button,
+  input,
+  textarea,
+  select,
+  td,
+  th
+) {
+  font-size: var(--cano-readable-control) !important;
+  line-height: var(--cano-readable-line) !important;
+}
+
+/*
+|--------------------------------------------------------------------------
+| LEGAL DRAFT / LONG-FORM TEXT
+|--------------------------------------------------------------------------
+*/
+
+body .app-shell pre {
+  font-size: var(--cano-readable-draft) !important;
+  line-height: 1.75 !important;
+}
+
+body .app-shell :where(
+  [class*="draft-document"],
+  [class*="draftDocument"],
+  [class*="draftCard"],
+  [class*="DraftCard"],
+  [class*="working-draft"],
+  [class*="workingDraft"],
+  [class*="document-preview"],
+  [class*="documentPreview"],
+  [class*="response-preview"],
+  [class*="responsePreview"]
+) {
+  font-size: var(--cano-readable-draft) !important;
+  line-height: 1.75 !important;
+}
+
+/*
+|--------------------------------------------------------------------------
+| CARDS / SUMMARIES / SOURCE PREVIEWS
+|--------------------------------------------------------------------------
+*/
+
+body .app-shell :where(
+  [class*="summary"],
+  [class*="Summary"],
+  [class*="description"],
+  [class*="Description"],
+  [class*="preview"],
+  [class*="Preview"],
+  [class*="detail"],
+  [class*="Detail"],
+  [class*="source"],
+  [class*="Source"],
+  [class*="warning"],
+  [class*="Warning"],
+  [class*="blocker"],
+  [class*="Blocker"]
+) :where(
+  p,
+  li,
+  span,
+  small
+) {
+  font-size: var(--cano-readable-control) !important;
+  line-height: var(--cano-readable-line) !important;
+}
+
+/*
+|--------------------------------------------------------------------------
+| RHEA + SCRIBE ATTORNEY INPUTS
+|--------------------------------------------------------------------------
+*/
+
+body .app-shell :where(
+  [class*="inputEditor"],
+  [class*="input-editor"],
+  [class*="inputCard"],
+  [class*="input-card"],
+  [class*="quickInput"],
+  [class*="quick-input"]
+) :where(
+  p,
+  span,
+  label,
+  textarea,
+  button
+) {
+  font-size: var(--cano-readable-control) !important;
+  line-height: 1.5 !important;
+}
+
+/*
+|--------------------------------------------------------------------------
+| VISUAL FLOOR
+|--------------------------------------------------------------------------
+|
+| Keep the desks compact, but make their human-facing labels readable.
+|--------------------------------------------------------------------------
+*/
+
+body .app-shell .visual-floor-heading span,
+body .app-shell .floor-heading span,
+body .app-shell .visual-top-label,
+body .app-shell .visual-node-label,
+body .app-shell .visual-node-name,
+body .app-shell .desk-label span,
+body .app-shell .zone-title,
+body .app-shell .panel-title {
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+}
+
+body .app-shell .visual-floor-heading small,
+body .app-shell .floor-heading small,
+body .app-shell .status,
+body .app-shell .activity-row span,
+body .app-shell .activity-row small,
+body .app-shell .panel-note,
+body .app-shell .v1-note {
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+
+/*
+|--------------------------------------------------------------------------
+| BASE NAV / MATTER STRIPS / FORMS
+|--------------------------------------------------------------------------
+*/
+
+body .app-shell .brand-subtitle,
+body .app-shell .system-pill,
+body .app-shell .eyebrow,
+body .app-shell .ws-kicker,
+body .app-shell .ws-eyebrow,
+body .app-shell .ws-status,
+body .app-shell .matter-status-pill,
+body .app-shell .ws-help {
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+}
+
+body .app-shell .hero p,
+body .app-shell .agent-description {
+  font-size: 15px !important;
+  line-height: 1.65 !important;
+}
+
+/*
+|--------------------------------------------------------------------------
+| DESKTOP COMFORT PASS
+|--------------------------------------------------------------------------
+*/
+
+@media (min-width: 1200px) {
+  :root {
+    --cano-readable-body: 13px;
+    --cano-readable-small: 11px;
+    --cano-readable-control: 12px;
+    --cano-readable-draft: 14px;
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| LAPTOP / SMALLER VIEWPORTS
+|--------------------------------------------------------------------------
+|
+| Do NOT shrink text back down just to make the UI fit. Let the existing
+| responsive layout and scrolling handle the available space.
+|--------------------------------------------------------------------------
+*/
+
+@media (max-width: 1199px) {
+  :root {
+    --cano-readable-body: 13px;
+    --cano-readable-small: 11px;
+    --cano-readable-control: 12px;
+    --cano-readable-draft: 14px;
+  }
+}

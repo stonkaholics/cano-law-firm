@@ -7,6 +7,7 @@ import {
 } from "next/headers";
 
 import "./globals.css";
+import "./readability.css";
 
 import FloorSwitcher from "./components/FloorSwitcher";
 
