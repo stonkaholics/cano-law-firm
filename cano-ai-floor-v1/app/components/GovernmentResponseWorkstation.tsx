@@ -215,7 +215,7 @@ export default function GovernmentResponseWorkstation({
     setError("");
 
     try {
-      const res = await fetch("/api/agents/run", {
+      const res = await fetch("/api/rebuttal/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
