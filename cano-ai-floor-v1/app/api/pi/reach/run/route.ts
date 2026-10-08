@@ -54,7 +54,7 @@ const CANO_REFERRAL_SENDER = {
 
   calendlyUrl:
     process.env.CANO_REFERRAL_CALENDLY_URL ||
-    "https://calendly.com/eqtrades/discovery-call",
+    "https://canolawfirm.com/book/",
 };
 
 const VERIFIED_CANO_PROFILE = {
@@ -105,7 +105,7 @@ const REACH_DRAFTING_POLICY = {
     "95-150",
 
   approvedCallToAction:
-    "Invite the recipient to a brief 15-minute introductory call. Use the approved Calendly URL supplied in senderProfile.calendlyUrl.",
+    "Invite the recipient to a brief 15-minute introductory call to explore a potential professional referral/business relationship. Keep the framing non-exclusive, non-transactional, and do not promise reciprocal referrals. Use the approved booking URL supplied in senderProfile.calendlyUrl.",
 
   prohibitedClaims: [
     "Do not say Cano commonly serves as Florida referral counsel unless that exact capability is separately verified in the request.",
@@ -128,6 +128,8 @@ const REACH_DRAFTING_POLICY = {
     "Do not use phrases such as I hope this email finds you well.",
     "Keep the subject concise and human. Do not use a formula like reciprocal referral opportunity between Firm A and Firm B.",
     "The email should feel like Erik personally reviewed the firm and wrote a short introduction.",
+    "Briefly explain the business reason for connecting: a potential professional referral relationship where either firm may be a useful resource when a matter is a better fit for the other. Do not frame this as quid pro quo.",
+    "Prefer state-level framing such as Florida over city-level framing unless the city is specifically relevant.",
   ],
 
   evidenceRule:

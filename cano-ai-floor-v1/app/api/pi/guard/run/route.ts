@@ -29,7 +29,7 @@ const VERIFIED_GUARD_CONTEXT = {
       "https://www.canolawfirm.com/",
     calendlyUrl:
       process.env.CANO_REFERRAL_CALENDLY_URL ||
-      "https://calendly.com/eqtrades/discovery-call",
+      "https://canolawfirm.com/book/",
   },
 
   firm: {
@@ -51,6 +51,7 @@ const VERIFIED_GUARD_CONTEXT = {
     "Do flag any additional Cano capability claim that is not supported by supplied verified context.",
     "Do flag invented recipient facts, invented referral history, fee-split language, economics/case-value threshold language, promises of referrals, or claims that Cano is Florida referral counsel unless separately verified.",
     "Do flag any external-facing reference to Reach, Scout, Guard, AI, agents, automation, scoring, or internal systems.",
+    "A truthful, non-exclusive statement that Erik is exploring a potential professional business/referral relationship is allowed. Do not flag that by itself. Flag quid-pro-quo, guaranteed reciprocal referrals, required cross-referrals, fees, percentages, or compensation.",
     "A stylistic preference alone is not a material compliance issue. Recommend needs_review only for a concrete material issue that should be fixed before external sending.",
   ],
 };

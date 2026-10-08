@@ -32,7 +32,7 @@ const CANO_REFERRAL_SENDER = {
     "https://canolawfirm.com/wp-content/uploads/2026/01/CANO-2-e1769891371191.png",
   calendlyUrl:
     process.env.CANO_REFERRAL_CALENDLY_URL ||
-    "https://calendly.com/eqtrades/discovery-call",
+    "https://canolawfirm.com/book/",
 };
 
 const VERIFIED_CANO_PROFILE = {
@@ -63,7 +63,7 @@ const REACH_DRAFTING_POLICY = {
   maxBodyWordsBeforeSignature:
     170,
   approvedCallToAction:
-    "Invite the recipient to a brief 15-minute introductory call using senderProfile.calendlyUrl.",
+    "Invite the recipient to a brief 15-minute introductory call to explore a potential professional referral/business relationship using senderProfile.calendlyUrl. Do not promise or require reciprocal referrals.",
   prohibitedClaims: [
     "Do not say Cano commonly serves as Florida referral counsel unless separately verified.",
     "Do not state economics, case-value thresholds, profitability, capacity, or internal acceptance criteria.",
