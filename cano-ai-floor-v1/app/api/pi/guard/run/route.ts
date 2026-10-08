@@ -10,6 +10,51 @@ import {
 const PI_N8N_WEBHOOK =
   "https://epiq.app.n8n.cloud/webhook/cano-pi-agent";
 
+const VERIFIED_GUARD_CONTEXT = {
+  sender: {
+    name:
+      "Erik Quisenberry",
+    title:
+      "Chief Operating Officer",
+    titleShort:
+      "COO",
+    email:
+      process.env.CANO_REFERRAL_FROM_EMAIL ||
+      "intake@canolawfirm.com",
+    phone:
+      "(786) 673-0958",
+    address:
+      "9100 Coral Way, Suite 1, Miami, FL 33165",
+    website:
+      "https://www.canolawfirm.com/",
+    calendlyUrl:
+      process.env.CANO_REFERRAL_CALENDLY_URL ||
+      "https://calendly.com/eqtrades/discovery-call",
+  },
+
+  firm: {
+    name:
+      "CANO LAW FIRM, P.A.",
+    verifiedPracticeAreas: [
+      "Personal Injury",
+      "Property Damage",
+      "Immigration",
+    ],
+  },
+
+  reviewRules: [
+    "Erik Quisenberry is the verified human sender for this referral-development workflow.",
+    "Chief Operating Officer / COO is the verified sender title.",
+    "Personal Injury, Property Damage, and Immigration are verified Cano Law Firm practice-area statements for this workflow.",
+    "The approved Calendly URL is an allowed scheduling CTA.",
+    "Do not flag the verified sender identity, verified firm practice areas, or approved Calendly CTA as unsupported.",
+    "Do flag any additional Cano capability claim that is not supported by supplied verified context.",
+    "Do flag invented recipient facts, invented referral history, fee-split language, economics/case-value threshold language, promises of referrals, or claims that Cano is Florida referral counsel unless separately verified.",
+    "Do flag any external-facing reference to Reach, Scout, Guard, AI, agents, automation, scoring, or internal systems.",
+    "A stylistic preference alone is not a material compliance issue. Recommend needs_review only for a concrete material issue that should be fixed before external sending.",
+  ],
+};
+
 type Draft = {
   id: string;
   status: string;
@@ -113,24 +158,37 @@ export async function POST(
     const payload = {
       action:
         "run_pi_agent",
+
       floor:
         "personal_injury",
+
       workflowVersion:
-        "pi_growth_v4",
+        "pi_growth_v6",
+
       agentId:
         "guard",
+
       request: {
         mode:
           "review_referral_outreach",
+
         outreachEventId,
+
+        verifiedContext:
+          VERIFIED_GUARD_CONTEXT,
+
         humanApprovalRequired:
           true,
+
         sendEmail:
           false,
       },
+
       callbackUrl,
+
       requestedAt:
         startedAt,
+
       source: {
         application:
           "cano_ai_floor",
@@ -146,9 +204,11 @@ export async function POST(
         PI_N8N_WEBHOOK,
         {
           method: "POST",
+
           headers: {
             "Content-Type":
               "application/json",
+
             ...(process.env
               .N8N_SHARED_SECRET
               ? {
@@ -158,10 +218,12 @@ export async function POST(
                 }
               : {}),
           },
+
           body:
             JSON.stringify(
               payload
             ),
+
           cache:
             "no-store",
         }

@@ -10,6 +10,133 @@ import {
 const PI_N8N_WEBHOOK =
   "https://epiq.app.n8n.cloud/webhook/cano-pi-agent";
 
+/*
+|--------------------------------------------------------------------------
+| CANO REFERRAL OUTREACH PROFILE
+|--------------------------------------------------------------------------
+|
+| This is the verified human sender identity used by Reach.
+|
+| Reach is an internal drafting agent only. External email copy must always
+| be written from Erik's perspective and must never identify Reach, Scout,
+| Guard, AI, an agent, or an automated system as the sender.
+|--------------------------------------------------------------------------
+*/
+
+const CANO_REFERRAL_SENDER = {
+  name:
+    "Erik Quisenberry",
+
+  title:
+    "Chief Operating Officer",
+
+  titleShort:
+    "COO",
+
+  email:
+    process.env.CANO_REFERRAL_FROM_EMAIL ||
+    "intake@canolawfirm.com",
+
+  phone:
+    "(786) 673-0958",
+
+  phoneHref:
+    "+17866730958",
+
+  address:
+    "9100 Coral Way, Suite 1, Miami, FL 33165",
+
+  website:
+    "https://www.canolawfirm.com/",
+
+  logoUrl:
+    "https://canolawfirm.com/wp-content/uploads/2026/01/CANO-2-e1769891371191.png",
+
+  calendlyUrl:
+    process.env.CANO_REFERRAL_CALENDLY_URL ||
+    "https://calendly.com/eqtrades/discovery-call",
+};
+
+const VERIFIED_CANO_PROFILE = {
+  firmName:
+    "CANO LAW FIRM, P.A.",
+
+  practiceAreas: [
+    "Personal Injury",
+    "Property Damage",
+    "Immigration",
+  ],
+
+  sender:
+    CANO_REFERRAL_SENDER,
+
+  /*
+  | Do not let Reach infer additional firm capabilities from a prospect's
+  | referral-fit analysis. These are the only standing Cano capabilities
+  | this outreach workflow may state without additional verified context.
+  */
+  capabilityRule:
+    "Only state Cano Law Firm capabilities listed in verifiedFirmProfile.practiceAreas unless the request includes additional verified firm facts.",
+};
+
+const REACH_DRAFTING_POLICY = {
+  senderPerspective:
+    "Write as Erik Quisenberry, Chief Operating Officer of Cano Law Firm.",
+
+  humanTone:
+    true,
+
+  noInternalAgentIdentity:
+    true,
+
+  noAiLanguage:
+    true,
+
+  noDashSeparators:
+    true,
+
+  noEmDash:
+    true,
+
+  maxBodyWordsBeforeSignature:
+    170,
+
+  preferredBodyWordsBeforeSignature:
+    "95-150",
+
+  approvedCallToAction:
+    "Invite the recipient to a brief 15-minute introductory call. Use the approved Calendly URL supplied in senderProfile.calendlyUrl.",
+
+  prohibitedClaims: [
+    "Do not say Cano commonly serves as Florida referral counsel unless that exact capability is separately verified in the request.",
+    "Do not state that Cano accepts cases another firm rejects because of economics, case value, thresholds, capacity, or profitability.",
+    "Do not discuss referral fees, fee splits, percentages, settlement economics, or compensation in a first-touch email.",
+    "Do not promise referrals, case volume, outcomes, co-counsel work, or a reciprocal arrangement.",
+    "Do not invent the recipient firm's practice areas, locations, results, awards, capabilities, or preferences.",
+    "Do not describe Scout, Reach, Guard, AI, automation, research systems, databases, scoring, or internal workflow.",
+  ],
+
+  styleRules: [
+    "Use the recipient's first name when known.",
+    "Use short natural paragraphs.",
+    "Use first-person singular from Erik's perspective.",
+    "Mention one or two verified prospect-specific facts at most.",
+    "Use plain professional language. Avoid marketing jargon, hype, synergy, mutually beneficial, strategic partnership, and similar canned phrases.",
+    "Do not use em dashes or en dashes. Prefer periods, commas, or parentheses.",
+    "Do not use horizontal-rule-style dash lines or decorative separators.",
+    "Do not use bullet points in the actual first-touch email body.",
+    "Do not use phrases such as I hope this email finds you well.",
+    "Keep the subject concise and human. Do not use a formula like reciprocal referral opportunity between Firm A and Firm B.",
+    "The email should feel like Erik personally reviewed the firm and wrote a short introduction.",
+  ],
+
+  evidenceRule:
+    "Recipient-specific statements must be supported by the saved Scout prospect, verified_location, practice_evidence, practice_source_urls, or other supplied verified professional context.",
+
+  approvalRule:
+    "Human approval remains required before external sending.",
+};
+
 type Prospect = {
   id: string;
   organization_name: string;
@@ -94,17 +221,6 @@ export async function POST(
       | Prospect
       | null =
       null;
-
-    /*
-    |--------------------------------------------------------------------------
-    | PRIMARY LOOKUP: DATABASE ID
-    |--------------------------------------------------------------------------
-    |
-    | The dedicated Reach Workstation sends the exact Scout prospect ID.
-    | Keep organization-name fallback for compatibility with the earlier
-    | Draft Outreach bridge.
-    |--------------------------------------------------------------------------
-    */
 
     if (
       requestedProspectId
@@ -325,7 +441,7 @@ export async function POST(
         "personal_injury",
 
       workflowVersion:
-        "pi_growth_v3",
+        "pi_growth_v6",
 
       agentId:
         "reach",
@@ -339,6 +455,15 @@ export async function POST(
 
         contactId:
           contact.id,
+
+        senderProfile:
+          CANO_REFERRAL_SENDER,
+
+        verifiedFirmProfile:
+          VERIFIED_CANO_PROFILE,
+
+        draftingPolicy:
+          REACH_DRAFTING_POLICY,
 
         humanApprovalRequired:
           true,
@@ -438,10 +563,13 @@ export async function POST(
         recipientEmail:
           contact.email,
 
+        senderProfile:
+          CANO_REFERRAL_SENDER,
+
         startedAt,
 
         message:
-          "Reach accepted the referral prospect and is drafting the outreach email.",
+          "Reach accepted the referral prospect and is drafting the outreach email from Erik Quisenberry's perspective.",
       },
       {
         status: 202,

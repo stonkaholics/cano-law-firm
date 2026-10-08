@@ -10,10 +10,75 @@ import {
 const PI_N8N_WEBHOOK =
   "https://epiq.app.n8n.cloud/webhook/cano-pi-agent";
 
+const CANO_REFERRAL_SENDER = {
+  name:
+    "Erik Quisenberry",
+  title:
+    "Chief Operating Officer",
+  titleShort:
+    "COO",
+  email:
+    process.env.CANO_REFERRAL_FROM_EMAIL ||
+    "intake@canolawfirm.com",
+  phone:
+    "(786) 673-0958",
+  phoneHref:
+    "+17866730958",
+  address:
+    "9100 Coral Way, Suite 1, Miami, FL 33165",
+  website:
+    "https://www.canolawfirm.com/",
+  logoUrl:
+    "https://canolawfirm.com/wp-content/uploads/2026/01/CANO-2-e1769891371191.png",
+  calendlyUrl:
+    process.env.CANO_REFERRAL_CALENDLY_URL ||
+    "https://calendly.com/eqtrades/discovery-call",
+};
+
+const VERIFIED_CANO_PROFILE = {
+  firmName:
+    "CANO LAW FIRM, P.A.",
+  practiceAreas: [
+    "Personal Injury",
+    "Property Damage",
+    "Immigration",
+  ],
+  sender:
+    CANO_REFERRAL_SENDER,
+};
+
+const REACH_DRAFTING_POLICY = {
+  senderPerspective:
+    "Write as Erik Quisenberry, Chief Operating Officer of Cano Law Firm.",
+  humanTone:
+    true,
+  noInternalAgentIdentity:
+    true,
+  noAiLanguage:
+    true,
+  noDashSeparators:
+    true,
+  noEmDash:
+    true,
+  maxBodyWordsBeforeSignature:
+    170,
+  approvedCallToAction:
+    "Invite the recipient to a brief 15-minute introductory call using senderProfile.calendlyUrl.",
+  prohibitedClaims: [
+    "Do not say Cano commonly serves as Florida referral counsel unless separately verified.",
+    "Do not state economics, case-value thresholds, profitability, capacity, or internal acceptance criteria.",
+    "Do not discuss referral fees, fee splits, percentages, or compensation.",
+    "Do not promise referrals, outcomes, co-counsel work, or reciprocity.",
+    "Do not identify Reach, Scout, Guard, AI, automation, scoring, or internal systems.",
+  ],
+};
+
 type Draft = {
   id: string;
   referral_prospect_id: string | null;
   status: string;
+  subject: string;
+  message_summary: string;
   metadata: Record<string, any>;
 };
 
@@ -59,10 +124,11 @@ export async function POST(
         "pi_outreach_events",
         {
           select:
-            "id,referral_prospect_id,status,metadata",
+            "id,referral_prospect_id,status,subject,message_summary,metadata",
           id:
             `eq.${outreachEventId}`,
-          limit: 1,
+          limit:
+            1,
         }
       );
 
@@ -181,7 +247,7 @@ export async function POST(
         "personal_injury",
 
       workflowVersion:
-        "pi_growth_v5",
+        "pi_growth_v6",
 
       agentId:
         "reach",
@@ -200,14 +266,14 @@ export async function POST(
         originalDraft: {
           subject:
             clean(
-              draft.metadata?.subject ||
-              ""
+              draft.subject ||
+              draft.metadata?.subject
             ),
 
           body:
             clean(
               draft.metadata?.body ||
-              ""
+              draft.message_summary
             ),
         },
 
@@ -251,6 +317,15 @@ export async function POST(
                   .required_edits
               : [],
         },
+
+        senderProfile:
+          CANO_REFERRAL_SENDER,
+
+        verifiedFirmProfile:
+          VERIFIED_CANO_PROFILE,
+
+        draftingPolicy:
+          REACH_DRAFTING_POLICY,
 
         humanApprovalRequired:
           true,
