@@ -17,12 +17,13 @@ export async function GET() {
     const dashboard =
       await getOrbitCadenceDashboard();
 
-    return NextResponse.json({
-      ok:
-        true,
-
-      ...dashboard,
-    });
+    /*
+    | getOrbitCadenceDashboard already returns { ok: true, ... }.
+    | Return it directly so TypeScript does not see two `ok` properties.
+    */
+    return NextResponse.json(
+      dashboard
+    );
   } catch (
     error
   ) {

@@ -120,12 +120,9 @@ export async function POST(request: NextRequest) {
     );
 
     /*
-      The live pi_compliance_reviews table has a CHECK constraint on status.
-      "approved" / "rejected" are NOT valid values there.
-
-      The actual human decision already lives on pi_outreach_events.status,
-      so keep the compliance record on the known-valid workflow status
-      "needs_review" and preserve the final human decision in metadata.
+      The authoritative human decision lives on pi_outreach_events.
+      Keep the compliance audit row on the workflow status used by the
+      live table, while storing the final decision in metadata.
     */
     await supabaseInsert(
       "pi_compliance_reviews",
