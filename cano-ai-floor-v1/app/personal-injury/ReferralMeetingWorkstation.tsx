@@ -8,8 +8,12 @@ import {
   CheckCircle2,
   ExternalLink,
   FileText,
+  Link2,
   Mail,
+  Phone,
   RefreshCw,
+  Unlink2,
+  ClipboardList,
   Sparkles,
   UserRound,
 } from "lucide-react";
@@ -52,6 +56,19 @@ type Meeting = {
   conflict_email_body: string;
   conflict_outreach_event_id?: string | null;
   brief: Record<string, any>;
+  source_payload?: Record<string, any>;
+};
+
+type OutreachCandidate = {
+  id: string;
+  referral_prospect_id?: string | null;
+  organization_name: string;
+  recipient_name: string;
+  recipient_email: string;
+  subject: string;
+  status: string;
+  sent_at: string;
+  message_summary: string;
 };
 
 type Payload = {
@@ -67,6 +84,7 @@ type Payload = {
     titan: boolean;
     meeting_brief_ai: boolean;
   };
+  outreach_candidates: OutreachCandidate[];
   error?: string;
 };
 
@@ -177,6 +195,12 @@ export default function ReferralMeetingWorkstation() {
   const [
     message,
     setMessage,
+  ] =
+    useState("");
+
+  const [
+    outreachSelection,
+    setOutreachSelection,
   ] =
     useState("");
 
@@ -408,11 +432,192 @@ export default function ReferralMeetingWorkstation() {
       ]
     );
 
+  const calendlyIntake =
+    useMemo(
+      () => {
+        const source =
+          selected
+            ?.source_payload &&
+          typeof selected
+            .source_payload ===
+            "object"
+            ? selected
+                .source_payload
+            : {};
+
+        const intake =
+          source
+            ?.calendly_intake &&
+          typeof source
+            .calendly_intake ===
+            "object"
+            ? source
+                .calendly_intake
+            : {};
+
+        const invitee =
+          source
+            ?.calendly_invitee &&
+          typeof source
+            .calendly_invitee ===
+            "object"
+            ? source
+                .calendly_invitee
+            : {};
+
+        const questions =
+          Array.isArray(
+            intake
+              ?.questions_and_answers
+          )
+            ? intake
+                .questions_and_answers
+            : Array.isArray(
+                invitee
+                  ?.questions_and_answers
+              )
+            ? invitee
+                .questions_and_answers
+            : [];
+
+        return {
+          phone:
+            clean(
+              selected
+                ?.invitee_phone
+            ) ||
+            clean(
+              intake?.phone
+            ) ||
+            clean(
+              invitee
+                ?.text_reminder_number
+            ) ||
+            clean(
+              invitee
+                ?.phone_number
+            ) ||
+            clean(
+              invitee?.phone
+            ),
+
+          questions:
+            questions
+              .map(
+                (row: any) => ({
+                  question:
+                    clean(
+                      row?.question
+                    ),
+                  answer:
+                    clean(
+                      row?.answer
+                    ),
+                })
+              )
+              .filter(
+                (row: any) =>
+                  row.question &&
+                  row.answer
+              ),
+        };
+      },
+      [
+        selected,
+      ]
+    );
+
+  const outreachLink =
+    useMemo(
+      () => {
+        const source =
+          selected
+            ?.source_payload &&
+          typeof selected
+            .source_payload ===
+            "object"
+            ? selected
+                .source_payload
+            : {};
+
+        return source
+          ?.outreach_link &&
+          typeof source
+            .outreach_link ===
+            "object"
+            ? source
+                .outreach_link
+            : {};
+      },
+      [
+        selected,
+      ]
+    );
+
+  const outreachCandidates =
+    Array.isArray(
+      data
+        ?.outreach_candidates
+    )
+      ? data!
+          .outreach_candidates
+      : [];
+
+  const linkedOutreach =
+    outreachCandidates.find(
+      (row) =>
+        row.id ===
+        clean(
+          outreachLink
+            ?.outreach_event_id
+        )
+    ) ||
+    null;
+
+  const exactEmailCandidate =
+    outreachCandidates.find(
+      (row) =>
+        clean(
+          row.recipient_email
+        )
+          .toLowerCase() ===
+        clean(
+          selected
+            ?.invitee_email
+        )
+          .toLowerCase()
+    ) ||
+    null;
+
+  useEffect(() => {
+    if (!selected) {
+      setOutreachSelection("");
+      return;
+    }
+
+    setOutreachSelection(
+      clean(
+        outreachLink
+          ?.outreach_event_id
+      ) ||
+      exactEmailCandidate
+        ?.id ||
+      ""
+    );
+  }, [
+    selected?.id,
+    outreachLink
+      ?.outreach_event_id,
+    exactEmailCandidate
+      ?.id,
+  ]);
+
   async function runAction(
     name:
       | "regenerate_brief"
       | "recheck_calendar"
       | "create_conflict_reach_draft"
+      | "unlink_outreach"
   ) {
     if (!selected) {
       return;
@@ -464,6 +669,9 @@ export default function ReferralMeetingWorkstation() {
           : name ===
             "recheck_calendar"
           ? "Titan calendar rechecked."
+          : name ===
+            "unlink_outreach"
+          ? "Reach email connection removed."
           : "Conflict email draft is now in Reach for Guard + human review."
       );
 
@@ -473,6 +681,81 @@ export default function ReferralMeetingWorkstation() {
         error instanceof Error
           ? error.message
           : "Meeting action failed."
+      );
+    } finally {
+      setAction("");
+    }
+  }
+
+
+  async function connectOutreach() {
+    if (
+      !selected ||
+      !outreachSelection
+    ) {
+      setMessage(
+        "Choose a sent Reach email to connect first."
+      );
+      return;
+    }
+
+    setAction(
+      "link_outreach"
+    );
+    setMessage("");
+
+    try {
+      const response =
+        await fetch(
+          "/api/pi/referral-meetings",
+          {
+            method:
+              "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify({
+                action:
+                  "link_outreach",
+
+                meeting_id:
+                  selected.id,
+
+                outreach_event_id:
+                  outreachSelection,
+              }),
+          }
+        );
+
+      const result =
+        await response.json();
+
+      if (
+        !response.ok ||
+        result?.ok === false
+      ) {
+        throw new Error(
+          result?.error ||
+          "Unable to connect the Reach email."
+        );
+      }
+
+      setMessage(
+        "Reach email connected. Orbit refreshed the meeting with the Scout company record and outreach history."
+      );
+
+      await load(
+        true
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to connect the Reach email."
       );
     } finally {
       setAction("");
@@ -1020,6 +1303,30 @@ export default function ReferralMeetingWorkstation() {
 
                   <div>
                     <span>
+                      PHONE
+                    </span>
+                    <strong>
+                      {calendlyIntake.phone ||
+                        "Not provided"}
+                    </strong>
+
+                    {calendlyIntake.phone ? (
+                      <a
+                        className={
+                          styles.inlineContactLink
+                        }
+                        href={`tel:${calendlyIntake.phone}`}
+                      >
+                        <Phone
+                          size={12}
+                        />
+                        Call
+                      </a>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <span>
                       PRACTICE
                     </span>
                     <strong>
@@ -1071,6 +1378,254 @@ export default function ReferralMeetingWorkstation() {
                     />
                   </a>
                 ) : null}
+              </section>
+
+              <section
+                className={
+                  styles.outreachConnection
+                }
+              >
+                <div
+                  className={
+                    styles.connectionHeader
+                  }
+                >
+                  <div
+                    className={
+                      styles.sectionTitle
+                    }
+                  >
+                    <Link2
+                      size={15}
+                    />
+                    Reach Outreach Connection
+                  </div>
+
+                  {linkedOutreach ? (
+                    <span
+                      className={
+                        styles.connectedBadge
+                      }
+                    >
+                      CONNECTED
+                    </span>
+                  ) : exactEmailCandidate ? (
+                    <span
+                      className={
+                        styles.autoMatchBadge
+                      }
+                    >
+                      EMAIL MATCH FOUND
+                    </span>
+                  ) : null}
+                </div>
+
+                {linkedOutreach ? (
+                  <div
+                    className={
+                      styles.linkedEmailCard
+                    }
+                  >
+                    <strong>
+                      {linkedOutreach.organization_name ||
+                        selected.organization_name ||
+                        "Reach outreach"}
+                    </strong>
+
+                    <span>
+                      To:{" "}
+                      {linkedOutreach.recipient_name
+                        ? `${linkedOutreach.recipient_name} · `
+                        : ""}
+                      {linkedOutreach.recipient_email ||
+                        "recipient unavailable"}
+                    </span>
+
+                    <span>
+                      {linkedOutreach.subject ||
+                        "No subject"}
+                    </span>
+
+                    <small>
+                      Sent{" "}
+                      {linkedOutreach.sent_at
+                        ? formatTime(
+                            linkedOutreach.sent_at
+                          )
+                        : "date unavailable"}
+                      {" · "}
+                      {clean(
+                        outreachLink
+                          ?.match_method
+                      ) ===
+                        "manual"
+                        ? "manually connected"
+                        : "matched automatically"}
+                    </small>
+                  </div>
+                ) : (
+                  <p
+                    className={
+                      styles.connectionHint
+                    }
+                  >
+                    Orbit first tries to match the Calendly invitee to the exact email address Reach contacted. If that does not resolve the firm, choose the original sent email manually below.
+                  </p>
+                )}
+
+                <div
+                  className={
+                    styles.connectionControls
+                  }
+                >
+                  <select
+                    value={
+                      outreachSelection
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setOutreachSelection(
+                        event
+                          .target
+                          .value
+                      )
+                    }
+                  >
+                    <option
+                      value=""
+                    >
+                      Select a sent Reach email…
+                    </option>
+
+                    {outreachCandidates.map(
+                      (
+                        candidate
+                      ) => (
+                        <option
+                          key={
+                            candidate.id
+                          }
+                          value={
+                            candidate.id
+                          }
+                        >
+                          {[
+                            candidate.organization_name ||
+                              "Unknown firm",
+                            candidate.recipient_email ||
+                              candidate.recipient_name ||
+                              "Unknown recipient",
+                            candidate.subject ||
+                              "No subject",
+                          ]
+                            .filter(
+                              Boolean
+                            )
+                            .join(
+                              " — "
+                            )}
+                        </option>
+                      )
+                    )}
+                  </select>
+
+                  <button
+                    type="button"
+                    disabled={
+                      Boolean(
+                        action
+                      ) ||
+                      !outreachSelection
+                    }
+                    onClick={() =>
+                      void connectOutreach()
+                    }
+                  >
+                    <Link2
+                      size={13}
+                    />
+                    Connect & Refresh Brief
+                  </button>
+
+                  {linkedOutreach ? (
+                    <button
+                      type="button"
+                      className={
+                        styles.unlinkButton
+                      }
+                      disabled={
+                        Boolean(
+                          action
+                        )
+                      }
+                      onClick={() =>
+                        void runAction(
+                          "unlink_outreach"
+                        )
+                      }
+                    >
+                      <Unlink2
+                        size={13}
+                      />
+                      Unlink
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+
+              <section
+                className={
+                  styles.calendlyIntake
+                }
+              >
+                <div
+                  className={
+                    styles.sectionTitle
+                  }
+                >
+                  <ClipboardList
+                    size={15}
+                  />
+                  Calendly Intake
+                </div>
+
+                {calendlyIntake.questions.length ? (
+                  <div
+                    className={
+                      styles.intakeGrid
+                    }
+                  >
+                    {calendlyIntake.questions.map(
+                      (
+                        row: any,
+                        index: number
+                      ) => (
+                        <div
+                          key={`calendly-intake-${index}`}
+                          className={
+                            styles.intakeCard
+                          }
+                        >
+                          <span>
+                            {row.question}
+                          </span>
+                          <strong>
+                            {row.answer}
+                          </strong>
+                        </div>
+                      )
+                    )}
+                  </div>
+                ) : (
+                  <p
+                    className={
+                      styles.intakeEmpty
+                    }
+                  >
+                    No custom Calendly answers are stored on this meeting yet. Click Sync Calendly once after this deploy to pull the complete invitee record.
+                  </p>
+                )}
               </section>
 
               {brief?.why_this_meeting ? (

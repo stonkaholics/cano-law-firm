@@ -134,6 +134,31 @@ type Contact = {
   metadata?: Record<string, any>;
 };
 
+type OutreachEvent = {
+  id: string;
+  referral_prospect_id?: string | null;
+  channel?: string;
+  direction?: string;
+  status?: string;
+  subject?: string;
+  message_summary?: string;
+  occurred_at?: string | null;
+  created_at?: string;
+  metadata?: Record<string, any>;
+};
+
+export type ReferralOutreachCandidate = {
+  id: string;
+  referral_prospect_id?: string | null;
+  organization_name: string;
+  recipient_name: string;
+  recipient_email: string;
+  subject: string;
+  status: string;
+  sent_at: string;
+  message_summary: string;
+};
+
 function questionAnswerMap(
   invitee: any
 ) {
@@ -146,18 +171,24 @@ function questionAnswerMap(
           .questions_and_answers
       : [];
 
-  return rows.map(
-    (row: any) => ({
-      question:
-        clean(
-          row?.question
-        ),
-      answer:
-        clean(
-          row?.answer
-        ),
-    })
-  );
+  return rows
+    .map(
+      (row: any) => ({
+        question:
+          clean(
+            row?.question
+          ),
+        answer:
+          clean(
+            row?.answer
+          ),
+      })
+    )
+    .filter(
+      (row: any) =>
+        row.question ||
+        row.answer
+    );
 }
 
 function answerByKeywords(
@@ -180,7 +211,9 @@ function answerByKeywords(
         return keywords.some(
           (keyword) =>
             question.includes(
-              keyword
+              lower(
+                keyword
+              )
             )
         );
       }
@@ -191,23 +224,146 @@ function answerByKeywords(
   );
 }
 
+function answerByQuestionPriority(
+  invitee: any,
+  patterns: RegExp[],
+  fallbackKeywords: string[] = []
+) {
+  const rows =
+    questionAnswerMap(
+      invitee
+    );
+
+  for (
+    const pattern of
+    patterns
+  ) {
+    const match =
+      rows.find(
+        (row: any) =>
+          pattern.test(
+            clean(
+              row.question
+            )
+          )
+      );
+
+    if (
+      clean(
+        match?.answer
+      )
+    ) {
+      return clean(
+        match.answer
+      );
+    }
+  }
+
+  return fallbackKeywords.length
+    ? answerByKeywords(
+        invitee,
+        fallbackKeywords
+      )
+    : "";
+}
+
+function looksLikePhone(
+  value: unknown
+) {
+  const digits =
+    clean(value)
+      .replace(
+        /\D/g,
+        ""
+      );
+
+  return digits.length >= 7;
+}
+
+function extractInviteePhone(
+  invitee: any,
+  event: any
+) {
+  const direct =
+    [
+      invitee
+        ?.text_reminder_number,
+      invitee
+        ?.phone_number,
+      invitee
+        ?.phone,
+      invitee
+        ?.mobile_number,
+      invitee
+        ?.mobile,
+      invitee
+        ?.sms_reminder_number,
+      invitee
+        ?.location
+        ?.location,
+      event
+        ?.location
+        ?.location,
+    ]
+      .map(clean)
+      .filter(Boolean)
+      .find(
+        looksLikePhone
+      );
+
+  if (direct) {
+    return direct;
+  }
+
+  return answerByQuestionPriority(
+    invitee,
+    [
+      /^(phone|phone number|mobile|mobile number|telephone|telephone number|cell|cell phone)$/i,
+      /best.*(phone|number)/i,
+      /(phone|mobile|telephone|cell).*(reach|contact|call)/i,
+      /(direct).*(phone|number)/i,
+    ],
+    [
+      "phone",
+      "mobile",
+      "telephone",
+      "cell",
+    ]
+  );
+}
+
 export function extractCalendlyMeetingFields(
   invitee: any,
   event: any
 ) {
+  const questionsAndAnswers =
+    questionAnswerMap(
+      invitee
+    );
+
   const organizationName =
-    answerByKeywords(
+    answerByQuestionPriority(
       invitee,
       [
-        "firm",
-        "organization",
-        "company",
+        /^(law firm|law firm name|firm name|company|company name|organization|organization name)$/i,
+        /(name of).*(law firm|firm|company|organization)/i,
+        /(law firm|firm|company|organization).*name/i,
+      ],
+      [
+        "law firm name",
+        "firm name",
+        "company name",
+        "organization name",
       ]
     );
 
   const website =
-    answerByKeywords(
+    answerByQuestionPriority(
       invitee,
+      [
+        /^(website|website url|firm website|law firm website|company website|organization website)$/i,
+        /(firm|company|organization).*website/i,
+      ],
       [
         "website",
         "url",
@@ -215,8 +371,13 @@ export function extractCalendlyMeetingFields(
     );
 
   const practiceAreasRaw =
-    answerByKeywords(
+    answerByQuestionPriority(
       invitee,
+      [
+        /^(practice area|practice areas|primary practice area|primary practice areas)$/i,
+        /what.*practice area/i,
+        /(primary|main).*practice/i,
+      ],
       [
         "practice area",
         "practice areas",
@@ -225,17 +386,9 @@ export function extractCalendlyMeetingFields(
     );
 
   const phone =
-    clean(
-      invitee
-        ?.text_reminder_number
-    ) ||
-    answerByKeywords(
+    extractInviteePhone(
       invitee,
-      [
-        "phone",
-        "telephone",
-        "mobile",
-      ]
+      event
     );
 
   const practiceAreas =
@@ -267,6 +420,8 @@ export function extractCalendlyMeetingFields(
     website,
 
     practiceAreas,
+
+    questionsAndAnswers,
 
     timezone:
       clean(
@@ -490,6 +645,378 @@ export async function matchReferralProspect(input: {
       "none",
   };
 }
+
+function outreachRecipientEmail(
+  event:
+    OutreachEvent | null
+) {
+  if (!event) {
+    return "";
+  }
+
+  const metadata =
+    asObject(
+      event.metadata
+    );
+
+  const delivery =
+    asObject(
+      metadata.delivery
+    );
+
+  return clean(
+    metadata
+      .recipient_email
+  ) ||
+  clean(
+    delivery.recipient
+  );
+}
+
+function outreachRecipientName(
+  event:
+    OutreachEvent | null
+) {
+  if (!event) {
+    return "";
+  }
+
+  return clean(
+    asObject(
+      event.metadata
+    )
+      .recipient_name
+  );
+}
+
+async function getContactForProspect(
+  prospectId: string,
+  email = ""
+) {
+  if (!prospectId) {
+    return null;
+  }
+
+  if (email) {
+    const exact =
+      await supabaseSelect<Contact>(
+        "pi_referral_contacts",
+        {
+          select:
+            "*",
+          prospect_id:
+            eq(
+              prospectId
+            ),
+          email:
+            ilike(
+              email
+            ),
+          limit:
+            1,
+        }
+      );
+
+    if (exact[0]) {
+      return exact[0];
+    }
+  }
+
+  const rows =
+    await supabaseSelect<Contact>(
+      "pi_referral_contacts",
+      {
+        select:
+          "*",
+        prospect_id:
+          eq(
+            prospectId
+          ),
+        order:
+          "priority.asc,created_at.asc",
+        limit:
+          10,
+      }
+    );
+
+  return (
+    rows.find(
+      (row) =>
+        Boolean(
+          row
+            .selected_for_outreach
+        )
+    ) ||
+    rows[0] ||
+    null
+  );
+}
+
+async function getOutreachById(
+  id: string
+) {
+  if (!id) {
+    return null;
+  }
+
+  const rows =
+    await supabaseSelect<OutreachEvent>(
+      "pi_outreach_events",
+      {
+        select:
+          "*",
+        id:
+          eq(id),
+        limit:
+          1,
+      }
+    );
+
+  return rows[0] || null;
+}
+
+async function findMatchingSentOutreach(input: {
+  inviteeEmail?: string;
+  referralProspectId?: string | null;
+}) {
+  const rows =
+    await supabaseSelect<OutreachEvent>(
+      "pi_outreach_events",
+      {
+        select:
+          "*",
+        order:
+          "occurred_at.desc,created_at.desc",
+        limit:
+          250,
+      }
+    );
+
+  const sent =
+    rows.filter(
+      (row) =>
+        lower(
+          row.status
+        ) ===
+          "sent" &&
+        lower(
+          row.channel
+        ) ===
+          "email" &&
+        (
+          !row.direction ||
+          lower(
+            row.direction
+          ) ===
+            "outbound"
+        )
+    );
+
+  const email =
+    lower(
+      input.inviteeEmail
+    );
+
+  if (email) {
+    const exactEmail =
+      sent.find(
+        (row) =>
+          lower(
+            outreachRecipientEmail(
+              row
+            )
+          ) ===
+          email
+      );
+
+    if (exactEmail) {
+      return {
+        event:
+          exactEmail,
+        matchedBy:
+          "recipient_email",
+      };
+    }
+  }
+
+  const prospectId =
+    clean(
+      input.referralProspectId
+    );
+
+  if (prospectId) {
+    const prospectMatch =
+      sent.find(
+        (row) =>
+          clean(
+            row
+              .referral_prospect_id
+          ) ===
+          prospectId
+      );
+
+    if (prospectMatch) {
+      return {
+        event:
+          prospectMatch,
+        matchedBy:
+          "referral_prospect",
+      };
+    }
+  }
+
+  return {
+    event:
+      null,
+    matchedBy:
+      "none",
+  };
+}
+
+export async function listReferralOutreachCandidates() {
+  const [
+    events,
+    prospects,
+  ] =
+    await Promise.all([
+      supabaseSelect<OutreachEvent>(
+        "pi_outreach_events",
+        {
+          select:
+            "*",
+          order:
+            "occurred_at.desc,created_at.desc",
+          limit:
+            250,
+        }
+      ),
+
+      supabaseSelect<Prospect>(
+        "pi_referral_prospects",
+        {
+          select:
+            "*",
+          order:
+            "updated_at.desc",
+          limit:
+            500,
+        }
+      ),
+    ]);
+
+  const prospectMap =
+    new Map(
+      prospects.map(
+        (row) => [
+          clean(
+            row.id
+          ),
+          row,
+        ]
+      )
+    );
+
+  return events
+    .filter(
+      (event) =>
+        lower(
+          event.status
+        ) ===
+          "sent" &&
+        lower(
+          event.channel
+        ) ===
+          "email" &&
+        (
+          !event.direction ||
+          lower(
+            event.direction
+          ) ===
+            "outbound"
+        )
+    )
+    .map(
+      (
+        event
+      ): ReferralOutreachCandidate => {
+        const prospect =
+          prospectMap.get(
+            clean(
+              event
+                .referral_prospect_id
+            )
+          );
+
+        const metadata =
+          asObject(
+            event.metadata
+          );
+
+        const delivery =
+          asObject(
+            metadata.delivery
+          );
+
+        return {
+          id:
+            event.id,
+
+          referral_prospect_id:
+            event
+              .referral_prospect_id ||
+            null,
+
+          organization_name:
+            clean(
+              prospect
+                ?.organization_name
+            ) ||
+            clean(
+              metadata
+                .organization_name
+            ),
+
+          recipient_name:
+            outreachRecipientName(
+              event
+            ),
+
+          recipient_email:
+            outreachRecipientEmail(
+              event
+            ),
+
+          subject:
+            clean(
+              event.subject
+            ),
+
+          status:
+            clean(
+              event.status
+            ),
+
+          sent_at:
+            clean(
+              delivery.sent_at
+            ) ||
+            clean(
+              event.occurred_at
+            ) ||
+            clean(
+              event.created_at
+            ),
+
+          message_summary:
+            clean(
+              event
+                .message_summary
+            ),
+        };
+      }
+    );
+}
+
 
 function extractProspectSources(
   prospect:
@@ -1217,7 +1744,48 @@ export async function processCalendlyBooking(input: {
     );
   }
 
-  const match =
+  /*
+  |--------------------------------------------------------------------------
+  | EXISTING MEETING
+  |--------------------------------------------------------------------------
+  |
+  | Re-syncing Calendly should enrich the existing Orbit record, not create a
+  | second Titan event or forget a manual Reach connection.
+  |--------------------------------------------------------------------------
+  */
+
+  const existingRows =
+    await supabaseSelect<ReferralMeeting>(
+      "pi_referral_meetings",
+      {
+        select:
+          "*",
+        calendly_invitee_uri:
+          eq(
+            input.inviteeUri
+          ),
+        limit:
+          1,
+      }
+    );
+
+  const existingMeeting =
+    existingRows[0] ||
+    null;
+
+  const existingSource =
+    asObject(
+      existingMeeting
+        ?.source_payload
+    );
+
+  const existingOutreachLink =
+    asObject(
+      existingSource
+        .outreach_link
+    );
+
+  let match =
     await matchReferralProspect({
       email:
         fields.inviteeEmail,
@@ -1228,6 +1796,110 @@ export async function processCalendlyBooking(input: {
       website:
         fields.website,
     });
+
+  /*
+  |--------------------------------------------------------------------------
+  | REACH → ORBIT AUTO MATCH
+  |--------------------------------------------------------------------------
+  |
+  | First honor a manual link if one exists. Otherwise match the Calendly
+  | invitee to a real sent Reach email by exact recipient email, then by the
+  | already-resolved Scout prospect.
+  |--------------------------------------------------------------------------
+  */
+
+  let outreachMatch:
+    {
+      event:
+        OutreachEvent | null;
+      matchedBy:
+        string;
+    } = {
+      event:
+        null,
+      matchedBy:
+        "none",
+    };
+
+  if (
+    clean(
+      existingOutreachLink
+        .outreach_event_id
+    )
+  ) {
+    outreachMatch = {
+      event:
+        await getOutreachById(
+          clean(
+            existingOutreachLink
+              .outreach_event_id
+          )
+        ),
+      matchedBy:
+        clean(
+          existingOutreachLink
+            .match_method
+        ) ||
+        "manual",
+    };
+  }
+
+  if (
+    !outreachMatch
+      .event
+  ) {
+    outreachMatch =
+      await findMatchingSentOutreach({
+        inviteeEmail:
+          fields
+            .inviteeEmail,
+
+        referralProspectId:
+          match
+            .prospect
+            ?.id ||
+          null,
+      });
+  }
+
+  let matchedProspect =
+    match.prospect;
+
+  if (
+    !matchedProspect &&
+    clean(
+      outreachMatch
+        .event
+        ?.referral_prospect_id
+    )
+  ) {
+    matchedProspect =
+      await getProspectById(
+        clean(
+          outreachMatch
+            .event
+            ?.referral_prospect_id
+        )
+      );
+  }
+
+  let matchedContact =
+    match.contact;
+
+  if (
+    !matchedContact &&
+    matchedProspect?.id
+  ) {
+    matchedContact =
+      await getContactForProspect(
+        matchedProspect.id,
+        fields.inviteeEmail ||
+        outreachRecipientEmail(
+          outreachMatch
+            .event
+        )
+      );
+  }
 
   const start =
     new Date(
@@ -1258,10 +1930,14 @@ export async function processCalendlyBooking(input: {
 
   let titanEventUid:
     string | null =
+    existingMeeting
+      ?.titan_event_uid ||
     null;
 
   let titanEventUrl:
     string | null =
+    existingMeeting
+      ?.titan_event_url ||
     null;
 
   let calendarError = "";
@@ -1300,6 +1976,15 @@ export async function processCalendlyBooking(input: {
           start,
           end,
           busy
+        ).filter(
+          (event) =>
+            clean(
+              event?.uid
+            ) !==
+            clean(
+              existingMeeting
+                ?.titan_event_uid
+            )
         );
 
       conflictDetected =
@@ -1339,76 +2024,125 @@ export async function processCalendlyBooking(input: {
               busy,
           });
       } else {
-        const uid =
-          `cano-referral-${
-            input
-              .inviteeUri
-              .split("/")
-              .pop() ||
-            Date.now()
-          }@canolawfirm.com`;
+        /*
+        | Keep the already-created Titan event on re-sync. This prevents Orbit
+        | from duplicating the same Calendly booking each time Sync is pressed.
+        */
+        if (
+          !titanEventUrl
+        ) {
+          const uid =
+            `cano-referral-${
+              input
+                .inviteeUri
+                .split("/")
+                .pop() ||
+              Date.now()
+            }@canolawfirm.com`;
 
-        const eventResult =
-          await createTitanCalendarEvent({
-            uid,
+          const eventResult =
+            await createTitanCalendarEvent({
+              uid,
 
-            start,
+              start,
 
-            end,
+              end,
 
-            summary:
-              `Referral Partnership Call - ${
-                fields
-                  .organizationName ||
-                fields
-                  .inviteeName ||
-                "Calendly Invitee"
-              }`,
-
-            description:
-              [
-                "Cano Law Firm referral partnership meeting.",
-                "",
-                `Contact: ${
-                  fields
-                    .inviteeName ||
-                  ""
-                }`,
-                `Email: ${
-                  fields
-                    .inviteeEmail ||
-                  ""
-                }`,
-                `Phone: ${
-                  fields
-                    .inviteePhone ||
-                  ""
-                }`,
-                `Firm: ${
+              summary:
+                `Referral Partnership Call - ${
                   fields
                     .organizationName ||
-                  ""
-                }`,
-                `Practice Areas: ${
+                  matchedProspect
+                    ?.organization_name ||
                   fields
-                    .practiceAreas
-                    .join(", ")
+                    .inviteeName ||
+                  "Calendly Invitee"
                 }`,
-                "",
-                `PI Floor: ${input.appOrigin}/personal-injury`,
-              ].join("\n"),
 
-            location:
-              fields
-                .inviteePhone ||
-              "Phone call",
-          });
+              description:
+                [
+                  "Cano Law Firm referral partnership meeting.",
+                  "",
+                  `Contact: ${
+                    fields
+                      .inviteeName ||
+                    ""
+                  }`,
+                  `Email: ${
+                    fields
+                      .inviteeEmail ||
+                    ""
+                  }`,
+                  `Phone: ${
+                    fields
+                      .inviteePhone ||
+                    matchedContact
+                      ?.phone ||
+                    ""
+                  }`,
+                  `Firm: ${
+                    fields
+                      .organizationName ||
+                    matchedProspect
+                      ?.organization_name ||
+                    ""
+                  }`,
+                  `Practice Areas: ${
+                    (
+                      fields
+                        .practiceAreas
+                        .length
+                        ? fields
+                            .practiceAreas
+                        : [
+                            clean(
+                              matchedProspect
+                                ?.practice_area
+                            ),
+                          ].filter(
+                            Boolean
+                          )
+                    )
+                      .join(", ")
+                  }`,
+                  "",
+                  ...(
+                    fields
+                      .questionsAndAnswers
+                      .length
+                      ? [
+                          "Calendly Intake:",
+                          ...fields
+                            .questionsAndAnswers
+                            .map(
+                              (row: any) =>
+                                `${clean(
+                                  row.question
+                                )}: ${clean(
+                                  row.answer
+                                )}`
+                            ),
+                          "",
+                        ]
+                      : []
+                  ),
+                  `PI Floor: ${input.appOrigin}/personal-injury`,
+                ].join("\n"),
 
-        titanEventUid =
-          eventResult.uid;
+              location:
+                fields
+                  .inviteePhone ||
+                matchedContact
+                  ?.phone ||
+                "Phone call",
+            });
 
-        titanEventUrl =
-          eventResult.eventUrl;
+          titanEventUid =
+            eventResult.uid;
+
+          titanEventUrl =
+            eventResult.eventUrl;
+        }
 
         calendarStatus =
           "created";
@@ -1441,10 +2175,92 @@ export async function processCalendlyBooking(input: {
           body: "",
         };
 
+  const resolvedPracticeAreas =
+    fields
+      .practiceAreas
+      .length
+      ? fields
+          .practiceAreas
+      : [
+          clean(
+            matchedProspect
+              ?.practice_area
+          ),
+        ].filter(
+          Boolean
+        );
+
+  const outreachLink =
+    outreachMatch.event
+      ? {
+          outreach_event_id:
+            outreachMatch
+              .event
+              .id,
+
+          referral_prospect_id:
+            outreachMatch
+              .event
+              .referral_prospect_id ||
+            matchedProspect
+              ?.id ||
+            null,
+
+          match_method:
+            clean(
+              existingOutreachLink
+                .outreach_event_id
+            )
+              ? (
+                  clean(
+                    existingOutreachLink
+                      .match_method
+                  ) ||
+                  "manual"
+                )
+              : outreachMatch
+                  .matchedBy,
+
+          manual:
+            Boolean(
+              existingOutreachLink
+                .manual
+            ),
+
+          linked_at:
+            clean(
+              existingOutreachLink
+                .linked_at
+            ) ||
+            new Date()
+              .toISOString(),
+
+          recipient_email:
+            outreachRecipientEmail(
+              outreachMatch
+                .event
+            ),
+
+          recipient_name:
+            outreachRecipientName(
+              outreachMatch
+                .event
+            ),
+
+          subject:
+            clean(
+              outreachMatch
+                .event
+                .subject
+            ),
+        }
+      : null;
+
   const partialMeeting:
     Partial<ReferralMeeting> = {
       referral_prospect_id:
-        match.prospect?.id ||
+        matchedProspect
+          ?.id ||
         null,
 
       calendly_event_uri:
@@ -1463,26 +2279,32 @@ export async function processCalendlyBooking(input: {
         fields.inviteeEmail,
 
       invitee_phone:
-        fields.inviteePhone,
+        fields.inviteePhone ||
+        clean(
+          matchedContact
+            ?.phone
+        ) ||
+        clean(
+          matchedProspect
+            ?.phone
+        ),
 
       organization_name:
         fields.organizationName ||
         clean(
-          match
-            .prospect
+          matchedProspect
             ?.organization_name
         ),
 
       website:
         fields.website ||
         clean(
-          match
-            .prospect
+          matchedProspect
             ?.website
         ),
 
       practice_areas:
-        fields.practiceAreas,
+        resolvedPracticeAreas,
 
       start_at:
         fields.startAt,
@@ -1523,23 +2345,58 @@ export async function processCalendlyBooking(input: {
         conflictEmail.body,
 
       source_payload: {
+        ...existingSource,
+
         calendly:
           input.rawPayload,
+
+        /*
+        | Save the complete API records. The webhook envelope alone does not
+        | contain every Calendly form answer.
+        */
+        calendly_event:
+          input.event,
+
+        calendly_invitee:
+          input.invitee,
+
+        calendly_intake: {
+          questions_and_answers:
+            fields
+              .questionsAndAnswers,
+
+          phone:
+            fields
+              .inviteePhone,
+
+          firm:
+            fields
+              .organizationName,
+
+          website:
+            fields
+              .website,
+
+          practice_areas:
+            fields
+              .practiceAreas,
+        },
 
         match: {
           matched_by:
             match.matchedBy,
           prospect_id:
-            match
-              .prospect
+            matchedProspect
               ?.id ||
             null,
           contact_id:
-            match
-              .contact
+            matchedContact
               ?.id ||
             null,
         },
+
+        outreach_link:
+          outreachLink,
 
         calendar_error:
           calendarError,
@@ -1552,10 +2409,10 @@ export async function processCalendlyBooking(input: {
         partialMeeting,
 
       prospect:
-        match.prospect,
+        matchedProspect,
 
       contact:
-        match.contact,
+        matchedContact,
     });
 
   const savedRows =
@@ -1575,15 +2432,14 @@ export async function processCalendlyBooking(input: {
     savedRows[0];
 
   if (
-    match.prospect?.id
+    matchedProspect?.id
   ) {
     await supabaseUpdate(
       "pi_referral_prospects",
       {
         id:
           eq(
-            match
-              .prospect
+            matchedProspect
               .id
           ),
       },
@@ -1687,6 +2543,351 @@ export async function processCalendlyCancellation(input: {
 
   return updated[0] || null;
 }
+
+export async function linkMeetingToOutreach(
+  meetingId: string,
+  outreachEventId: string
+) {
+  const meetingRows =
+    await supabaseSelect<ReferralMeeting>(
+      "pi_referral_meetings",
+      {
+        select:
+          "*",
+        id:
+          eq(
+            meetingId
+          ),
+        limit:
+          1,
+      }
+    );
+
+  const meeting =
+    meetingRows[0] ||
+    null;
+
+  if (!meeting) {
+    throw new Error(
+      "Referral meeting not found."
+    );
+  }
+
+  const outreach =
+    await getOutreachById(
+      outreachEventId
+    );
+
+  if (!outreach) {
+    throw new Error(
+      "Reach outreach email not found."
+    );
+  }
+
+  if (
+    lower(
+      outreach.status
+    ) !==
+      "sent"
+  ) {
+    throw new Error(
+      "Only a sent Reach email can be connected to an Orbit meeting."
+    );
+  }
+
+  const prospectId =
+    clean(
+      outreach
+        .referral_prospect_id
+    );
+
+  const prospect =
+    prospectId
+      ? await getProspectById(
+          prospectId
+        )
+      : null;
+
+  const recipientEmail =
+    outreachRecipientEmail(
+      outreach
+    );
+
+  const contact =
+    prospect?.id
+      ? await getContactForProspect(
+          prospect.id,
+          recipientEmail ||
+          meeting.invitee_email
+        )
+      : null;
+
+  const source =
+    asObject(
+      meeting
+        .source_payload
+    );
+
+  const nextMeeting:
+    Partial<ReferralMeeting> = {
+      ...meeting,
+
+      referral_prospect_id:
+        prospect
+          ?.id ||
+        meeting
+          .referral_prospect_id ||
+        null,
+
+      organization_name:
+        clean(
+          prospect
+            ?.organization_name
+        ) ||
+        meeting
+          .organization_name,
+
+      website:
+        clean(
+          prospect
+            ?.website
+        ) ||
+        meeting
+          .website,
+
+      invitee_phone:
+        meeting
+          .invitee_phone ||
+        clean(
+          contact?.phone
+        ) ||
+        clean(
+          prospect?.phone
+        ),
+
+      practice_areas:
+        (
+          Array.isArray(
+            meeting
+              .practice_areas
+          ) &&
+          meeting
+            .practice_areas
+            .length
+        )
+          ? meeting
+              .practice_areas
+          : [
+              clean(
+                prospect
+                  ?.practice_area
+              ),
+            ].filter(
+              Boolean
+            ),
+
+      source_payload: {
+        ...source,
+
+        outreach_link: {
+          outreach_event_id:
+            outreach.id,
+
+          referral_prospect_id:
+            prospect
+              ?.id ||
+            outreach
+              .referral_prospect_id ||
+            null,
+
+          match_method:
+            "manual",
+
+          manual:
+            true,
+
+          linked_at:
+            new Date()
+              .toISOString(),
+
+          recipient_email:
+            recipientEmail,
+
+          recipient_name:
+            outreachRecipientName(
+              outreach
+            ),
+
+          subject:
+            clean(
+              outreach.subject
+            ),
+        },
+
+        match: {
+          ...asObject(
+            source.match
+          ),
+
+          matched_by:
+            "manual_outreach_link",
+
+          prospect_id:
+            prospect
+              ?.id ||
+            null,
+
+          contact_id:
+            contact
+              ?.id ||
+            null,
+        },
+      },
+    };
+
+  const brief =
+    await generateReferralMeetingBrief({
+      meeting:
+        nextMeeting,
+
+      prospect,
+
+      contact,
+    });
+
+  const updated =
+    await supabaseUpdate<ReferralMeeting>(
+      "pi_referral_meetings",
+      {
+        id:
+          eq(
+            meeting.id
+          ),
+      },
+      {
+        referral_prospect_id:
+          nextMeeting
+            .referral_prospect_id,
+
+        organization_name:
+          nextMeeting
+            .organization_name,
+
+        website:
+          nextMeeting
+            .website,
+
+        invitee_phone:
+          nextMeeting
+            .invitee_phone,
+
+        practice_areas:
+          nextMeeting
+            .practice_areas,
+
+        source_payload:
+          nextMeeting
+            .source_payload,
+
+        brief,
+
+        updated_at:
+          new Date()
+            .toISOString(),
+      }
+    );
+
+  if (
+    prospect?.id
+  ) {
+    await supabaseUpdate(
+      "pi_referral_prospects",
+      {
+        id:
+          eq(
+            prospect.id
+          ),
+      },
+      {
+        relationship_status:
+          "meeting",
+
+        next_follow_up_at:
+          meeting.start_at,
+
+        updated_at:
+          new Date()
+            .toISOString(),
+      }
+    );
+  }
+
+  return updated[0] || null;
+}
+
+export async function unlinkMeetingOutreach(
+  meetingId: string
+) {
+  const rows =
+    await supabaseSelect<ReferralMeeting>(
+      "pi_referral_meetings",
+      {
+        select:
+          "*",
+        id:
+          eq(
+            meetingId
+          ),
+        limit:
+          1,
+      }
+    );
+
+  const meeting =
+    rows[0] ||
+    null;
+
+  if (!meeting) {
+    throw new Error(
+      "Referral meeting not found."
+    );
+  }
+
+  const source =
+    asObject(
+      meeting
+        .source_payload
+    );
+
+  const {
+    outreach_link:
+      _discardedOutreachLink,
+    ...remainingSource
+  } =
+    source;
+
+  const updated =
+    await supabaseUpdate<ReferralMeeting>(
+      "pi_referral_meetings",
+      {
+        id:
+          eq(
+            meetingId
+          ),
+      },
+      {
+        source_payload:
+          remainingSource,
+
+        updated_at:
+          new Date()
+            .toISOString(),
+      }
+    );
+
+  return updated[0] || null;
+}
+
 
 export async function regenerateMeetingBrief(
   meetingId:

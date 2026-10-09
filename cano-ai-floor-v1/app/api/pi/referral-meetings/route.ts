@@ -17,8 +17,11 @@ import {
 
 import {
   createConflictReachDraft,
+  linkMeetingToOutreach,
+  listReferralOutreachCandidates,
   regenerateMeetingBrief,
   recheckMeetingCalendar,
+  unlinkMeetingOutreach,
   type ReferralMeeting,
 } from "../../../../lib/pi/referral-meetings";
 
@@ -67,10 +70,15 @@ export async function GET() {
                 1000
       );
 
+    const outreachCandidates =
+      await listReferralOutreachCandidates();
+
     return NextResponse.json({
       ok: true,
       meetings:
         upcoming,
+      outreach_candidates:
+        outreachCandidates,
       counts: {
         total:
           upcoming.length,
@@ -227,6 +235,59 @@ export async function POST(
       return NextResponse.json({
         ok: true,
         result,
+      });
+    }
+
+
+    if (
+      action ===
+      "link_outreach"
+    ) {
+      const outreachEventId =
+        clean(
+          body
+            ?.outreach_event_id ||
+          body
+            ?.outreachEventId
+        );
+
+      if (!outreachEventId) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "outreach_event_id is required.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      const meeting =
+        await linkMeetingToOutreach(
+          meetingId,
+          outreachEventId
+        );
+
+      return NextResponse.json({
+        ok: true,
+        meeting,
+      });
+    }
+
+    if (
+      action ===
+      "unlink_outreach"
+    ) {
+      const meeting =
+        await unlinkMeetingOutreach(
+          meetingId
+        );
+
+      return NextResponse.json({
+        ok: true,
+        meeting,
       });
     }
 

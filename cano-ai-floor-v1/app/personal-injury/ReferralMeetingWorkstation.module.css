@@ -468,3 +468,195 @@
   font-size:11px;
   line-height:1.5
 }
+
+
+/* ------------------------------------------------------------------
+   ORBIT: COMPLETE CALENDLY INTAKE + REACH OUTREACH CONNECTION
+   ------------------------------------------------------------------ */
+
+.outreachConnection,
+.calendlyIntake{
+  margin-top:10px;
+  padding:13px;
+  border:1px solid rgba(128,151,171,.11);
+  border-radius:9px;
+  background:rgba(255,255,255,.012)
+}
+
+.connectionHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px
+}
+
+.connectedBadge,
+.autoMatchBadge{
+  flex:0 0 auto;
+  padding:4px 7px;
+  border-radius:999px;
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.04em
+}
+
+.connectedBadge{
+  color:#73daa9;
+  border:1px solid rgba(70,216,155,.2);
+  background:rgba(70,216,155,.045)
+}
+
+.autoMatchBadge{
+  color:#efc067;
+  border:1px solid rgba(239,192,103,.2);
+  background:rgba(239,192,103,.04)
+}
+
+.linkedEmailCard{
+  margin-top:10px;
+  padding:10px 11px;
+  border:1px solid rgba(90,177,220,.11);
+  border-radius:8px;
+  background:rgba(8,22,34,.42)
+}
+
+.linkedEmailCard strong,
+.linkedEmailCard span,
+.linkedEmailCard small{
+  display:block
+}
+
+.linkedEmailCard strong{
+  color:#e3ebf0;
+  font-size:12px
+}
+
+.linkedEmailCard span{
+  margin-top:4px;
+  color:#9aabba;
+  font-size:10px;
+  line-height:1.4
+}
+
+.linkedEmailCard small{
+  margin-top:6px;
+  color:#6f8193;
+  font-size:9px
+}
+
+.connectionHint{
+  margin:9px 0 0;
+  color:#8b9aaa;
+  font-size:11px;
+  line-height:1.55
+}
+
+.connectionControls{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  gap:7px;
+  margin-top:10px
+}
+
+.connectionControls select{
+  min-width:0;
+  min-height:36px;
+  padding:7px 10px;
+  border:1px solid rgba(111,151,177,.16);
+  border-radius:8px;
+  outline:none;
+  background:#07121d;
+  color:#cdd9e1;
+  font-size:10px
+}
+
+.connectionControls button{
+  min-height:36px;
+  padding:7px 11px;
+  border:1px solid rgba(83,177,220,.18);
+  border-radius:8px;
+  background:rgba(52,126,166,.055);
+  color:#a9d8ef;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  cursor:pointer;
+  font-size:10px;
+  font-weight:700
+}
+
+.connectionControls button:disabled{
+  opacity:.45;
+  cursor:not-allowed
+}
+
+.connectionControls .unlinkButton{
+  color:#a5afba;
+  border-color:rgba(128,151,171,.12);
+  background:rgba(255,255,255,.015)
+}
+
+.intakeGrid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  margin-top:10px
+}
+
+.intakeCard{
+  min-width:0;
+  padding:10px 11px;
+  border:1px solid rgba(128,151,171,.09);
+  border-radius:8px;
+  background:rgba(5,15,25,.36)
+}
+
+.intakeCard span{
+  display:block;
+  color:#71869a;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.055em;
+  text-transform:uppercase;
+  line-height:1.35
+}
+
+.intakeCard strong{
+  display:block;
+  margin-top:5px;
+  color:#dce7ed;
+  font-size:12px;
+  font-weight:600;
+  line-height:1.45;
+  overflow-wrap:anywhere
+}
+
+.intakeEmpty{
+  margin:9px 0 0;
+  color:#8191a3;
+  font-size:11px;
+  line-height:1.5
+}
+
+.inlineContactLink{
+  display:inline-flex!important;
+  align-items:center;
+  gap:5px;
+  margin-top:5px!important;
+  color:#73c8ee!important;
+  font-size:10px!important;
+  text-decoration:none!important
+}
+
+@media(max-width:900px){
+  .connectionControls{
+    grid-template-columns:1fr
+  }
+}
+
+@media(max-width:720px){
+  .intakeGrid{
+    grid-template-columns:1fr
+  }
+}
