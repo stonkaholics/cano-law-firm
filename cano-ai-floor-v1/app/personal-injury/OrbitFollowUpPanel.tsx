@@ -7,7 +7,9 @@ import {
   Mail,
   MessageSquareReply,
   RefreshCw,
+  RotateCcw,
   Sparkles,
+  TimerReset,
 } from "lucide-react";
 
 import {
@@ -114,12 +116,55 @@ type Dashboard = {
   error?: string;
 };
 
+type CadenceSequence = {
+  prospect_id: string;
+  organization_name: string;
+  recipient_email: string;
+  current_contact_name: string;
+  next_contact_name: string;
+  next_contact_email: string;
+  latest_sent_at: string;
+  days_waiting: number;
+  next_due_at: string;
+  followups_sent: number;
+  next_followup_number: number;
+  max_followups: number;
+  interval_days: number;
+  pending_draft_id?: string | null;
+  exhausted: boolean;
+  should_prepare: boolean;
+  should_close: boolean;
+  status: string;
+};
+
+type CadenceDashboard = {
+  config: {
+    intervalDays: number;
+    maxFollowUps: number;
+  };
+  counts: {
+    active: number;
+    due: number;
+    drafts_ready: number;
+    close_loop_due: number;
+  };
+  sequences: CadenceSequence[];
+};
+
 export default function OrbitFollowUpPanel() {
   const [
     data,
     setData,
   ] =
     useState<Dashboard | null>(
+      null
+    );
+
+  const [
+    cadence,
+    setCadence,
+  ] =
+    useState<CadenceDashboard | null>(
       null
     );
 
@@ -151,40 +196,74 @@ export default function OrbitFollowUpPanel() {
           setNotice("");
         }
 
-        const response =
-          await fetch(
-            `/api/pi/orbit/replies?t=${Date.now()}`,
-            {
-              cache:
-                "no-store",
-            }
-          );
+        const [
+          replyResponse,
+          cadenceResponse,
+        ] =
+          await Promise.all([
+            fetch(
+              `/api/pi/orbit/replies?t=${Date.now()}`,
+              {
+                cache:
+                  "no-store",
+              }
+            ),
 
-        const next =
-          await response.json();
+            fetch(
+              `/api/pi/orbit/cadence?t=${Date.now()}`,
+              {
+                cache:
+                  "no-store",
+              }
+            ),
+          ]);
+
+        const [
+          replyJson,
+          cadenceJson,
+        ] =
+          await Promise.all([
+            replyResponse.json(),
+            cadenceResponse.json(),
+          ]);
 
         if (
-          !response.ok ||
-          next?.ok ===
+          !replyResponse.ok ||
+          replyJson?.ok ===
             false
         ) {
           throw new Error(
-            next?.error ||
+            replyJson?.error ||
             "Unable to load Orbit follow-up queue."
           );
         }
 
+        if (
+          !cadenceResponse.ok ||
+          cadenceJson?.ok ===
+            false
+        ) {
+          throw new Error(
+            cadenceJson?.error ||
+            "Unable to load Orbit cadence."
+          );
+        }
+
         setData(
-          next
+          replyJson
+        );
+
+        setCadence(
+          cadenceJson
         );
 
         if (
           !selectedReplyId &&
-          next
+          replyJson
             ?.replies?.[0]
         ) {
           setSelectedReplyId(
-            next
+            replyJson
               .replies[0]
               .id
           );
@@ -253,9 +332,7 @@ export default function OrbitFollowUpPanel() {
                   1
                     ? "y"
                     : "ies"
-                } and matched ${
-                  result.matched_replies
-                } to Reach outreach.`
+                } and matched them back to Reach.`
               : "Titan inbox checked. No new matched referral replies."
           );
         } catch (
@@ -266,6 +343,77 @@ export default function OrbitFollowUpPanel() {
             Error
               ? error.message
               : "Titan inbox sync failed."
+          );
+        } finally {
+          setBusy("");
+        }
+      },
+      [
+        busy,
+        load,
+      ]
+    );
+
+  const runCadence =
+    useCallback(
+      async () => {
+        if (busy) {
+          return;
+        }
+
+        setBusy(
+          "cadence"
+        );
+
+        setNotice(
+          "Orbit is checking every active outreach sequence and preparing anything due…"
+        );
+
+        try {
+          const response =
+            await fetch(
+              "/api/pi/orbit/cadence/run",
+              {
+                method:
+                  "POST",
+                cache:
+                  "no-store",
+              }
+            );
+
+          const result =
+            await response.json();
+
+          if (
+            !response.ok ||
+            result?.ok ===
+              false
+          ) {
+            throw new Error(
+              result?.error ||
+              "Orbit cadence run failed."
+            );
+          }
+
+          await load(
+            true
+          );
+
+          setNotice(
+            `Cadence checked ${result.checked || 0} active sequences. ${
+              result.prepared || 0
+            } follow-up draft request(s) prepared and ${
+              result.closed || 0
+            } completed sequence(s) closed/rotated.`
+          );
+        } catch (
+          error
+        ) {
+          setNotice(
+            error instanceof
+            Error
+              ? error.message
+              : "Orbit cadence run failed."
           );
         } finally {
           setBusy("");
@@ -297,7 +445,10 @@ export default function OrbitFollowUpPanel() {
 
     const handler =
       () => {
-        void syncInbox();
+        void Promise.all([
+          syncInbox(),
+          runCadence(),
+        ]);
       };
 
     window.addEventListener(
@@ -386,7 +537,7 @@ export default function OrbitFollowUpPanel() {
       setNotice(
         action ===
           "draft_reply"
-          ? "Orbit sent this reply to the n8n Orbit branch for drafting. The result will return to Reach as a Guard + human-review draft."
+          ? "Orbit sent this reply to n8n for drafting. The result returns to Reach as a Guard + human-review draft."
           : action ===
             "mark_resolved"
           ? "Reply marked resolved."
@@ -428,38 +579,117 @@ export default function OrbitFollowUpPanel() {
       >
         <div>
           <span>
-            ORBIT · EMAIL FOLLOW-UP
+            ORBIT · FOLLOW-UP AUTOMATION
           </span>
           <h4>
-            Referral Reply Tracker
+            Referral Relationship Tracker
           </h4>
           <p>
-            Titan Mail replies are threaded back to the original Reach outreach, prioritized, and queued for human-reviewed follow-up.
+            Titan replies, no-response cadence, three-touch follow-up sequencing, contact rotation, and meeting suppression in one place.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() =>
-            void syncInbox()
-          }
-          disabled={
-            Boolean(
-              busy
-            )
+        <div
+          className={
+            styles.topActions
           }
         >
-          <RefreshCw
-            size={13}
-            className={
-              busy ===
-                "sync"
-                ? styles.spin
-                : ""
+          <button
+            type="button"
+            onClick={() =>
+              void syncInbox()
             }
-          />
-          Sync Titan Inbox
-        </button>
+            disabled={
+              Boolean(
+                busy
+              )
+            }
+          >
+            <RefreshCw
+              size={13}
+              className={
+                busy ===
+                  "sync"
+                  ? styles.spin
+                  : ""
+              }
+            />
+            Sync Titan Inbox
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              void runCadence()
+            }
+            disabled={
+              Boolean(
+                busy
+              )
+            }
+          >
+            <TimerReset
+              size={13}
+              className={
+                busy ===
+                  "cadence"
+                  ? styles.spin
+                  : ""
+              }
+            />
+            Run Follow-Up Engine
+          </button>
+        </div>
+      </div>
+
+      <div
+        className={
+          styles.cadenceBanner
+        }
+      >
+        <div>
+          <span>
+            ACTIVE CADENCE
+          </span>
+          <strong>
+            Every{" "}
+            {cadence
+              ?.config
+              ?.intervalDays ||
+              3}{" "}
+            days
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            MAX FOLLOW-UPS
+          </span>
+          <strong>
+            {cadence
+              ?.config
+              ?.maxFollowUps ||
+              3}
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            RULE
+          </span>
+          <strong>
+            No reply + no meeting
+          </strong>
+        </div>
+
+        <div>
+          <span>
+            AFTER FINAL TOUCH
+          </span>
+          <strong>
+            Rotate contact
+          </strong>
+        </div>
       </div>
 
       <div
@@ -502,12 +732,12 @@ export default function OrbitFollowUpPanel() {
             size={14}
           />
           <span>
-            FOLLOW-UP DUE
+            CADENCE DUE
           </span>
           <strong>
-            {data
+            {cadence
               ?.counts
-              ?.follow_up_due ||
+              ?.due ||
               0}
           </strong>
         </div>
@@ -517,15 +747,13 @@ export default function OrbitFollowUpPanel() {
             size={14}
           />
           <span>
-            TITAN INBOX
+            DRAFTS READY
           </span>
           <strong>
-            {data
-              ?.integrations
-              ?.titan_inbox
-              ?.configured
-              ? "Connected"
-              : "Setup"}
+            {cadence
+              ?.counts
+              ?.drafts_ready ||
+              0}
           </strong>
         </div>
       </div>
@@ -539,6 +767,182 @@ export default function OrbitFollowUpPanel() {
           {notice}
         </div>
       ) : null}
+
+      <div
+        className={
+          styles.cadenceSection
+        }
+      >
+        <div
+          className={
+            styles.sectionHeader
+          }
+        >
+          <div>
+            <span>
+              AUTOMATIC OUTREACH CADENCE
+            </span>
+            <h5>
+              Three-Touch Follow-Up Queue
+            </h5>
+          </div>
+
+          <small>
+            Orbit prepares drafts only. Guard + human approval still control every send.
+          </small>
+        </div>
+
+        {!cadence
+          ?.sequences
+          ?.length ? (
+          <div
+            className={
+              styles.empty
+            }
+          >
+            No active no-response sequences yet.
+          </div>
+        ) : (
+          <div
+            className={
+              styles.sequenceGrid
+            }
+          >
+            {cadence.sequences
+              .slice(
+                0,
+                18
+              )
+              .map(
+                (row) => (
+                  <div
+                    key={
+                      row.prospect_id
+                    }
+                    className={`${styles.sequenceCard} ${
+                      row.should_close
+                        ? styles.closeDue
+                        : row.should_prepare
+                        ? styles.sequenceDue
+                        : ""
+                    }`}
+                  >
+                    <div
+                      className={
+                        styles.sequenceTop
+                      }
+                    >
+                      <div>
+                        <strong>
+                          {row.organization_name ||
+                            row.recipient_email}
+                        </strong>
+
+                        <span>
+                          {row.current_contact_name
+                            ? `${row.current_contact_name} · `
+                            : ""}
+                          {row.recipient_email}
+                        </span>
+                      </div>
+
+                      <em>
+                        {row.status
+                          .replace(
+                            /_/g,
+                            " "
+                          )}
+                      </em>
+                    </div>
+
+                    <div
+                      className={
+                        styles.sequenceMeter
+                      }
+                    >
+                      {Array.from({
+                        length:
+                          row.max_followups,
+                      }).map(
+                        (
+                          _,
+                          index
+                        ) => (
+                          <span
+                            key={
+                              `${row.prospect_id}-${index}`
+                            }
+                            className={
+                              index <
+                              row.followups_sent
+                                ? styles.touchDone
+                                : index ===
+                                    row.followups_sent &&
+                                  row.pending_draft_id
+                                ? styles.touchDraft
+                                : ""
+                            }
+                          >
+                            {index +
+                              1}
+                          </span>
+                        )
+                      )}
+                    </div>
+
+                    <div
+                      className={
+                        styles.sequenceMeta
+                      }
+                    >
+                      <span>
+                        {row.followups_sent}/
+                        {row.max_followups} sent
+                      </span>
+
+                      <span>
+                        {row.pending_draft_id
+                          ? "Draft waiting for review"
+                          : row.exhausted
+                          ? `Final wait: ${row.days_waiting}d`
+                          : `Next: follow-up ${row.next_followup_number}`}
+                      </span>
+
+                      <span>
+                        {row.should_close
+                          ? "Close loop now"
+                          : row.should_prepare
+                          ? "Due now"
+                          : `Due ${formatDate(
+                              row.next_due_at
+                            )}`}
+                      </span>
+                    </div>
+
+                    {row.should_close ? (
+                      <div
+                        className={
+                          styles.rotationNote
+                        }
+                      >
+                        <RotateCcw
+                          size={12}
+                        />
+                        {row.next_contact_email
+                          ? `Next contact: ${
+                              row.next_contact_name
+                                ? `${row.next_contact_name} · `
+                                : ""
+                            }${row.next_contact_email}`
+                          : "No second contact is available. Orbit will close the firm sequence."}
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              )}
+          </div>
+        )}
+      </div>
 
       <div
         className={
@@ -787,89 +1191,6 @@ export default function OrbitFollowUpPanel() {
             </>
           )}
         </div>
-      </div>
-
-      <div
-        className={
-          styles.followups
-        }
-      >
-        <div
-          className={
-            styles.queueTitle
-          }
-        >
-          NO-REPLY FOLLOW-UP QUEUE
-        </div>
-
-        {!data
-          ?.follow_ups
-          ?.length ? (
-          <div
-            className={
-              styles.empty
-            }
-          >
-            No outstanding sent outreach.
-          </div>
-        ) : (
-          <div
-            className={
-              styles.followupGrid
-            }
-          >
-            {data.follow_ups
-              .slice(
-                0,
-                12
-              )
-              .map(
-                (row) => (
-                  <div
-                    key={
-                      row
-                        .outreach_event_id
-                    }
-                    className={
-                      row
-                        .follow_up_due
-                        ? styles.dueCard
-                        : styles.waitCard
-                    }
-                  >
-                    <strong>
-                      {row.organization_name ||
-                        row.recipient_email}
-                    </strong>
-
-                    <span>
-                      {row.recipient_email}
-                    </span>
-
-                    <small>
-                      Sent{" "}
-                      {formatDate(
-                        row.sent_at
-                      )}
-                      {" · "}
-                      {row.days_waiting} day
-                      {row.days_waiting ===
-                      1
-                        ? ""
-                        : "s"}{" "}
-                      waiting
-                    </small>
-
-                    <em>
-                      {row.follow_up_due
-                        ? "FOLLOW-UP DUE"
-                        : "WAITING"}
-                    </em>
-                  </div>
-                )
-              )}
-          </div>
-        )}
       </div>
     </section>
   );

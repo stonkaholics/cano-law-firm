@@ -3,6 +3,10 @@
     {
       "path": "/api/pi/orbit/inbox/sync",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/pi/orbit/cadence/run",
+      "schedule": "0 * * * *"
     }
   ]
 }
