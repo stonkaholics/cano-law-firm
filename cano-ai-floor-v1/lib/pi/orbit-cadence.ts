@@ -73,22 +73,43 @@ function numericEnv(
 }
 
 export function getOrbitCadenceConfig() {
-  return {
-    intervalDays:
-      numericEnv(
-        "ORBIT_FOLLOWUP_DAYS",
-        3,
-        1,
-        30
+  const intervalBusinessDays =
+    numericEnv(
+      "ORBIT_FOLLOWUP_BUSINESS_DAYS",
+      Number(
+        process.env
+          .ORBIT_FOLLOWUP_DAYS ||
+        3
       ),
+      1,
+      30
+    );
 
-    maxFollowUps:
-      numericEnv(
-        "ORBIT_MAX_FOLLOWUPS",
-        3,
-        1,
-        6
-      ),
+  const maxFollowUps =
+    numericEnv(
+      "ORBIT_MAX_FOLLOWUPS",
+      3,
+      1,
+      6
+    );
+
+  return {
+    /*
+      Backward-compatible names stay present so the existing Orbit UI does not
+      need to change, but these values now mean BUSINESS DAYS.
+    */
+    intervalDays:
+      intervalBusinessDays,
+
+    intervalBusinessDays,
+
+    maxFollowUps,
+
+    timeZone:
+      "America/New_York",
+
+    cadenceType:
+      "business_days",
   };
 }
 
@@ -137,7 +158,9 @@ type ReferralMeeting = {
   referral_prospect_id?: string | null;
   invitee_email?: string;
   start_at?: string;
+  end_at?: string;
   status?: string;
+  organization_name?: string;
 };
 
 function eventTime(
@@ -291,13 +314,10 @@ function isOrbitFollowUp(
       row.metadata
     );
 
-  const mode =
+  return (
     lower(
       metadata.mode
-    );
-
-  return (
-    mode ===
+    ) ===
       "referral_no_response_followup" ||
     followUpNumber(
       row
@@ -308,7 +328,7 @@ function isOrbitFollowUp(
 function isRotationDraft(
   row:
     OutreachEvent
-  ) {
+) {
   const metadata =
     asObject(
       row.metadata
@@ -327,68 +347,191 @@ function isRotationDraft(
   );
 }
 
-function isoAfterDays(
-  value: string,
-  days: number
+/*
+|--------------------------------------------------------------------------
+| BUSINESS-DAY CADENCE
+|--------------------------------------------------------------------------
+|
+| Follow-up timing is calculated in business days and weekends are evaluated
+| in America/New_York.
+|
+| Friday + 1 business day = Monday
+| Friday + 3 business days = Wednesday
+|--------------------------------------------------------------------------
+*/
+
+function weekdayInEastern(
+  date:
+    Date
 ) {
-  const base =
+  return new Intl.DateTimeFormat(
+    "en-US",
+    {
+      timeZone:
+        "America/New_York",
+
+      weekday:
+        "short",
+    }
+  ).format(
+    date
+  );
+}
+
+function isBusinessDay(
+  date:
+    Date
+) {
+  const weekday =
+    weekdayInEastern(
+      date
+    );
+
+  return (
+    weekday !==
+      "Sat" &&
+    weekday !==
+      "Sun"
+  );
+}
+
+export function isEasternBusinessDayNow(
+  date =
+    new Date()
+) {
+  return isBusinessDay(
+    date
+  );
+}
+
+export function addBusinessDays(
+  value:
+    string,
+  businessDays:
+    number
+) {
+  const source =
     new Date(
       value
     );
 
   if (
     Number.isNaN(
-      base.getTime()
+      source.getTime()
     )
   ) {
     return "";
   }
 
-  return new Date(
-    base.getTime() +
-    days *
-      24 *
-      60 *
-      60 *
-      1000
-  ).toISOString();
+  const count =
+    Math.max(
+      0,
+      Math.round(
+        businessDays
+      )
+    );
+
+  const cursor =
+    new Date(
+      source.getTime()
+    );
+
+  let added =
+    0;
+
+  while (
+    added <
+    count
+  ) {
+    cursor.setUTCDate(
+      cursor.getUTCDate() +
+      1
+    );
+
+    if (
+      isBusinessDay(
+        cursor
+      )
+    ) {
+      added +=
+        1;
+    }
+  }
+
+  while (
+    !isBusinessDay(
+      cursor
+    )
+  ) {
+    cursor.setUTCDate(
+      cursor.getUTCDate() +
+      1
+    );
+  }
+
+  return cursor
+    .toISOString();
 }
 
-function daysWaiting(
-  value: string
+function businessDaysElapsed(
+  value:
+    string,
+  end =
+    new Date()
 ) {
-  const time =
+  const start =
     new Date(
       value
-    ).getTime();
+    );
 
   if (
-    !Number.isFinite(
-      time
-    )
+    Number.isNaN(
+      start.getTime()
+    ) ||
+    Number.isNaN(
+      end.getTime()
+    ) ||
+    end.getTime() <=
+      start.getTime()
   ) {
     return 0;
   }
 
-  return Math.max(
-    0,
-    Math.floor(
-      (
-        Date.now() -
-        time
-      ) /
-      (
-        24 *
-        60 *
-        60 *
-        1000
+  const cursor =
+    new Date(
+      start.getTime()
+    );
+
+  let count =
+    0;
+
+  while (
+    cursor.getTime() <
+    end.getTime()
+  ) {
+    cursor.setUTCDate(
+      cursor.getUTCDate() +
+      1
+    );
+
+    if (
+      cursor.getTime() <=
+        end.getTime() &&
+      isBusinessDay(
+        cursor
       )
-    )
-  );
+    ) {
+      count +=
+        1;
+    }
+  }
+
+  return count;
 }
 
 function dueNow(
-  value: string
+  value:
+    string
 ) {
   const time =
     new Date(
@@ -433,7 +576,8 @@ function activeMeetingProspects(
 function hasInboundAfter(
   rows:
     OutreachEvent[],
-  prospectId: string,
+  prospectId:
+    string,
   after:
     number
 ) {
@@ -457,7 +601,8 @@ function hasInboundAfter(
 function candidateContacts(
   contacts:
     Contact[],
-  prospectId: string
+  prospectId:
+    string
 ) {
   return contacts
     .filter(
@@ -616,6 +761,9 @@ export async function getOrbitCadenceDashboard() {
     );
   }
 
+  const businessDayNow =
+    isEasternBusinessDayNow();
+
   const sequences =
     Array.from(
       sentByProspect
@@ -671,11 +819,6 @@ export async function getOrbitCadenceDashboard() {
             followUpsSent +
             1;
 
-          const latestTime =
-            eventTime(
-              latest
-            );
-
           const prospect =
             prospectMap.get(
               prospectId
@@ -712,10 +855,10 @@ export async function getOrbitCadenceDashboard() {
             );
 
           const nextDueAt =
-            isoAfterDays(
+            addBusinessDays(
               latestSentAt,
               config
-                .intervalDays
+                .intervalBusinessDays
             );
 
           const pendingDraft =
@@ -794,6 +937,7 @@ export async function getOrbitCadenceDashboard() {
               .maxFollowUps;
 
           const shouldClose =
+            businessDayNow &&
             !meetingBooked &&
             !replied &&
             exhausted &&
@@ -802,11 +946,17 @@ export async function getOrbitCadenceDashboard() {
             );
 
           const shouldPrepare =
+            businessDayNow &&
             !meetingBooked &&
             !replied &&
             !exhausted &&
             dueNow(
               nextDueAt
+            );
+
+          const businessWaiting =
+            businessDaysElapsed(
+              latestSentAt
             );
 
           return {
@@ -869,10 +1019,15 @@ export async function getOrbitCadenceDashboard() {
             latest_sent_at:
               latestSentAt,
 
+            /*
+              Existing UI reads days_waiting, so keep it but make the number
+              represent BUSINESS days.
+            */
             days_waiting:
-              daysWaiting(
-                latestSentAt
-              ),
+              businessWaiting,
+
+            business_days_waiting:
+              businessWaiting,
 
             next_due_at:
               nextDueAt,
@@ -887,9 +1042,19 @@ export async function getOrbitCadenceDashboard() {
               config
                 .maxFollowUps,
 
+            /*
+              Backward-compatible field plus explicit business-day field.
+            */
             interval_days:
               config
-                .intervalDays,
+                .intervalBusinessDays,
+
+            interval_business_days:
+              config
+                .intervalBusinessDays,
+
+            cadence_type:
+              "business_days",
 
             replied,
 
@@ -918,6 +1083,11 @@ export async function getOrbitCadenceDashboard() {
                 ? "replied"
                 : pendingDraft
                 ? "draft_prepared"
+                : !businessDayNow &&
+                  dueNow(
+                    nextDueAt
+                  )
+                ? "weekend_hold"
                 : shouldClose
                 ? "close_loop_due"
                 : exhausted
@@ -956,8 +1126,16 @@ export async function getOrbitCadenceDashboard() {
       );
 
   return {
+    ok:
+      true,
+
     config,
+
+    business_day_now:
+      businessDayNow,
+
     sequences,
+
     counts: {
       active:
         sequences.length,
@@ -983,6 +1161,13 @@ export async function getOrbitCadenceDashboard() {
           (row) =>
             row
               .should_close
+        ).length,
+
+      weekend_hold:
+        sequences.filter(
+          (row) =>
+            row.status ===
+              "weekend_hold"
         ).length,
     },
   };
@@ -1152,7 +1337,8 @@ export async function buildNoResponseFollowUpContext(input: {
 }
 
 export async function closeLoopAndRotateContact(
-  prospectId: string
+  prospectId:
+    string
 ) {
   const [
     contacts,
@@ -1459,6 +1645,9 @@ export async function saveCadenceDraft(input: {
                   .contactRotation
               ),
 
+            cadence_type:
+              "business_days",
+
             prepared_at:
               now,
 
@@ -1549,6 +1738,9 @@ export async function markCadencePreparationRequested(input: {
 
           orbit_cadence: {
             ...cadence,
+
+            cadence_type:
+              "business_days",
 
             requests: {
               ...requests,
