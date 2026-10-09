@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node patch-tools/apply-pi-outreach-v2.mjs && node patch-tools/apply-pi-referral-meetings.mjs && node patch-tools/apply-orbit-30min-build-fix.mjs && next build",
+    "build": "node patch-tools/apply-pi-outreach-v2.mjs && node patch-tools/apply-pi-referral-meetings.mjs && node patch-tools/apply-orbit-30min-build-fix.mjs && node patch-tools/apply-orbit-followup.mjs && next build",
     "start": "next start",
     "lint": "next lint"
   },
@@ -18,13 +18,16 @@
     "docx": "^9.5.1",
     "pdf-lib": "^1.17.1",
     "mammoth": "^1.13.0",
-    "nodemailer": "^6.10.1"
+    "nodemailer": "^6.10.1",
+    "imapflow": "^1.0.181",
+    "mailparser": "^3.7.4"
   },
   "devDependencies": {
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/nodemailer": "^6.4.17",
+    "@types/mailparser": "^3.4.6",
     "typescript": "^5"
   }
 }

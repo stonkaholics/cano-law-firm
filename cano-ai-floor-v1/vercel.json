@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/pi/orbit/inbox/sync",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}

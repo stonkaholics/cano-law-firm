@@ -1,0 +1,411 @@
+.wrap{
+  margin-top:12px;
+  padding:13px;
+  border:1px solid rgba(79,166,212,.16);
+  border-radius:10px;
+  background:rgba(5,15,25,.48);
+  color:#dce7ed
+}
+
+.heading{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px
+}
+
+.heading>div>span,
+.queueTitle,
+.recommendation>span{
+  color:#66bce8;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.08em
+}
+
+.heading h4{
+  margin:4px 0;
+  color:#f0edf7;
+  font-family:Georgia,serif;
+  font-size:20px;
+  font-weight:500
+}
+
+.heading p{
+  margin:0;
+  max-width:800px;
+  color:#8192a4;
+  font-size:11px;
+  line-height:1.5
+}
+
+.heading button,
+.actions button{
+  min-height:34px;
+  padding:7px 10px;
+  border:1px solid rgba(82,172,219,.18);
+  border-radius:8px;
+  background:rgba(43,111,147,.055);
+  color:#a9d9ef;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  font-size:10px;
+  font-weight:700;
+  cursor:pointer
+}
+
+.heading button:disabled,
+.actions button:disabled{
+  opacity:.45;
+  cursor:not-allowed
+}
+
+.spin{
+  animation:spin 1s linear infinite
+}
+
+@keyframes spin{
+  to{transform:rotate(360deg)}
+}
+
+.stats{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:7px;
+  margin-top:11px
+}
+
+.stats>div{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:7px;
+  padding:9px 10px;
+  border:1px solid rgba(128,151,171,.10);
+  border-radius:8px;
+  background:rgba(255,255,255,.012)
+}
+
+.stats svg{
+  color:#65bce9
+}
+
+.stats span{
+  color:#6f8294;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.055em
+}
+
+.stats strong{
+  color:#e1eaf0;
+  font-size:13px
+}
+
+.notice{
+  margin-top:8px;
+  padding:9px 10px;
+  border:1px solid rgba(99,198,151,.14);
+  border-radius:7px;
+  background:rgba(48,122,85,.04);
+  color:#9ed9b8;
+  font-size:10px
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:minmax(240px,.7fr) minmax(0,1.6fr);
+  gap:8px;
+  margin-top:9px
+}
+
+.queue,
+.detail,
+.followups{
+  min-width:0;
+  border:1px solid rgba(128,151,171,.10);
+  border-radius:8px;
+  background:rgba(3,11,18,.42)
+}
+
+.queue{
+  padding:9px;
+  max-height:360px;
+  overflow:auto
+}
+
+.queueTitle{
+  padding:2px 3px 8px
+}
+
+.replyRow{
+  width:100%;
+  margin:0 0 6px;
+  padding:9px;
+  border:1px solid rgba(119,143,163,.09);
+  border-radius:7px;
+  background:rgba(255,255,255,.012);
+  color:inherit;
+  text-align:left;
+  cursor:pointer
+}
+
+.replyRow:hover,
+.replyRow.active{
+  border-color:rgba(84,177,220,.22);
+  background:rgba(56,128,166,.045)
+}
+
+.replyRow>div{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:7px
+}
+
+.replyRow strong{
+  color:#e4ebef;
+  font-size:11px
+}
+
+.replyRow div span{
+  padding:3px 5px;
+  border-radius:999px;
+  border:1px solid rgba(111,151,177,.12);
+  color:#8fa9ba;
+  font-size:7px;
+  font-weight:800;
+  text-transform:uppercase
+}
+
+.replyRow div span.high{
+  color:#efbd62;
+  border-color:rgba(239,189,98,.18)
+}
+
+.replyRow small,
+.replyRow p,
+.replyRow em{
+  display:block
+}
+
+.replyRow small{
+  margin-top:4px;
+  color:#718496;
+  font-size:9px
+}
+
+.replyRow p{
+  margin:5px 0 0;
+  color:#a0adba;
+  font-size:10px;
+  line-height:1.4
+}
+
+.replyRow em{
+  margin-top:5px;
+  color:#607386;
+  font-size:8px;
+  font-style:normal
+}
+
+.detail{
+  padding:11px;
+  min-height:260px
+}
+
+.empty,
+.emptyDetail{
+  color:#718294;
+  font-size:10px;
+  line-height:1.5
+}
+
+.empty{
+  padding:14px 5px
+}
+
+.emptyDetail{
+  min-height:230px;
+  display:flex;
+  align-items:center;
+  justify-content:center
+}
+
+.replyHero{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px
+}
+
+.replyHero>div:first-child>span{
+  color:#c6a0ef;
+  font-size:8px;
+  font-weight:900;
+  text-transform:uppercase
+}
+
+.replyHero h5{
+  margin:4px 0 2px;
+  color:#eeeaf6;
+  font-family:Georgia,serif;
+  font-size:17px;
+  font-weight:500
+}
+
+.replyHero p{
+  margin:0;
+  color:#8293a3;
+  font-size:9px
+}
+
+.actions{
+  display:flex;
+  gap:6px
+}
+
+.recommendation,
+.messageBody,
+.draftStatus{
+  margin-top:9px;
+  padding:9px 10px;
+  border:1px solid rgba(128,151,171,.09);
+  border-radius:7px;
+  background:rgba(255,255,255,.01)
+}
+
+.recommendation p{
+  margin:5px 0 0;
+  color:#a8b5bf;
+  font-size:10px;
+  line-height:1.55
+}
+
+.messageBody>span{
+  color:#dce4e9;
+  font-size:10px;
+  font-weight:700
+}
+
+.messageBody pre{
+  margin:8px 0 0;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  font-family:inherit;
+  color:#aab5bf;
+  font-size:10px;
+  line-height:1.6
+}
+
+.draftStatus{
+  color:#8193a4;
+  font-size:9px
+}
+
+.draftStatus strong{
+  color:#c2d4df;
+  text-transform:uppercase
+}
+
+.followups{
+  margin-top:8px;
+  padding:9px
+}
+
+.followupGrid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:7px
+}
+
+.waitCard,
+.dueCard{
+  min-width:0;
+  padding:9px;
+  border:1px solid rgba(128,151,171,.09);
+  border-radius:7px;
+  background:rgba(255,255,255,.012)
+}
+
+.dueCard{
+  border-color:rgba(239,184,95,.18);
+  background:rgba(239,184,95,.025)
+}
+
+.waitCard strong,
+.dueCard strong,
+.waitCard span,
+.dueCard span,
+.waitCard small,
+.dueCard small,
+.waitCard em,
+.dueCard em{
+  display:block
+}
+
+.waitCard strong,
+.dueCard strong{
+  color:#dfe7ec;
+  font-size:10px
+}
+
+.waitCard span,
+.dueCard span{
+  margin-top:4px;
+  color:#8394a5;
+  font-size:9px
+}
+
+.waitCard small,
+.dueCard small{
+  margin-top:5px;
+  color:#65798b;
+  font-size:8px
+}
+
+.waitCard em,
+.dueCard em{
+  margin-top:7px;
+  color:#6daed2;
+  font-size:8px;
+  font-style:normal;
+  font-weight:900
+}
+
+.dueCard em{
+  color:#efb85f
+}
+
+@media(max-width:1050px){
+  .stats{
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+
+  .grid{
+    grid-template-columns:1fr
+  }
+
+  .followupGrid{
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+}
+
+@media(max-width:720px){
+  .heading,
+  .replyHero{
+    flex-direction:column
+  }
+
+  .stats,
+  .followupGrid{
+    grid-template-columns:1fr
+  }
+
+  .actions{
+    width:100%;
+    flex-wrap:wrap
+  }
+}
