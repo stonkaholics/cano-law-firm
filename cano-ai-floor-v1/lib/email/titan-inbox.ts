@@ -403,112 +403,128 @@ export async function fetchRecentTitanInbox(input?: {
       );
 
     try {
-      const uids =
+      /*
+      | imapflow search() is typed as `false | number[]`.
+      | false simply means no matching messages. Normalize it to [] before
+      | using array methods so Next/Vercel TypeScript can compile cleanly.
+      */
+      const searchResult =
         await client.search({
           since,
         });
 
-      const selected =
-        uids
-          .slice(
-            -limit
-          );
-
-      for await (
-        const row of
-        client.fetch(
-          selected,
-          {
-            uid:
-              true,
-            source:
-              true,
-          },
-          {
-            uid:
-              true,
-          }
+      const uids:
+        number[] =
+        Array.isArray(
+          searchResult
         )
+          ? searchResult
+          : [];
+
+      const selected =
+        uids.slice(
+          -limit
+        );
+
+      if (
+        selected.length
       ) {
-        if (!row.source) {
-          continue;
-        }
-
-        const parsed =
-          await simpleParser(
-            row.source
-          );
-
-        const referencesRaw =
-          Array.isArray(
-            parsed.references
+        for await (
+          const row of
+          client.fetch(
+            selected,
+            {
+              uid:
+                true,
+              source:
+                true,
+            },
+            {
+              uid:
+                true,
+            }
           )
-            ? parsed.references
-            : parsed.references
-            ? [
-                parsed.references,
-              ]
-            : [];
+        ) {
+          if (!row.source) {
+            continue;
+          }
 
-        messages.push({
-          uid:
-            Number(
-              row.uid
-            ),
+          const parsed =
+            await simpleParser(
+              row.source
+            );
 
-          messageId:
-            normalizeMessageId(
-              parsed.messageId
-            ),
+          const referencesRaw =
+            Array.isArray(
+              parsed.references
+            )
+              ? parsed.references
+              : parsed.references
+              ? [
+                  parsed.references,
+                ]
+              : [];
 
-          inReplyTo:
-            normalizeMessageId(
-              parsed.inReplyTo
-            ),
+          messages.push({
+            uid:
+              Number(
+                row.uid
+              ),
 
-          references:
-            uniqueStrings(
-              referencesRaw
-            ),
+            messageId:
+              normalizeMessageId(
+                parsed.messageId
+              ),
 
-          subject:
-            clean(
-              parsed.subject
-            ),
+            inReplyTo:
+              normalizeMessageId(
+                parsed.inReplyTo
+              ),
 
-          date:
-            (
-              parsed.date ||
-              new Date()
-            ).toISOString(),
+            references:
+              uniqueStrings(
+                referencesRaw
+              ),
 
-          from:
-            addressList(
-              parsed.from
-            ),
+            subject:
+              clean(
+                parsed.subject
+              ),
 
-          to:
-            addressList(
-              parsed.to
-            ),
+            date:
+              (
+                parsed.date ||
+                new Date()
+              ).toISOString(),
 
-          cc:
-            addressList(
-              parsed.cc
-            ),
+            from:
+              addressList(
+                parsed.from
+              ),
 
-          replyTo:
-            addressList(
-              parsed.replyTo
-            ),
+            to:
+              addressList(
+                parsed.to
+              ),
 
-          text:
-            trimQuotedReply(
-              plainText(
-                parsed
-              )
-            ),
-        });
+            cc:
+              addressList(
+                parsed.cc
+              ),
+
+            replyTo:
+              addressList(
+                parsed.replyTo
+              ),
+
+            text:
+              trimQuotedReply(
+                plainText(
+                  parsed
+                )
+              ),
+          });
+        }
       }
     } finally {
       lock.release();
@@ -527,9 +543,13 @@ export async function fetchRecentTitanInbox(input?: {
         ).getTime()
     );
   } finally {
-    await client.logout()
-      .catch(
-        () => undefined
-      );
+    if (
+      client.usable
+    ) {
+      await client.logout()
+        .catch(
+          () => undefined
+        );
+    }
   }
 }
