@@ -244,6 +244,39 @@ function trashSvg() {
   `;
 }
 
+function hideReactOwnedCard(
+  card:
+    HTMLElement
+) {
+  /*
+  |--------------------------------------------------------------------------
+  | IMPORTANT
+  |--------------------------------------------------------------------------
+  |
+  | Do NOT call card.remove().
+  |
+  | This card belongs to React. Physically removing it from the DOM behind
+  | React's back causes reconciliation to explode the next time the referral
+  | filter changes (Researching -> New, etc.), which produced the
+  | "This page couldn't load" crash.
+  |
+  | We only hide the React-owned node. React remains in control of the DOM
+  | structure, so future filter/state renders are safe.
+  |--------------------------------------------------------------------------
+  */
+  card.dataset.scoutDeleted =
+    "true";
+
+  card.classList.add(
+    styles.cardDeleted
+  );
+
+  card.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+}
+
 function showCleanupToast(
   message:
     string
@@ -313,16 +346,12 @@ export default function ScoutCleanupEnhancer() {
 
   /*
   |--------------------------------------------------------------------------
-  | KEEP SCOUT OPEN WHILE CLEANING
+  | LOCAL TOMBSTONES
   |--------------------------------------------------------------------------
   |
-  | We intentionally do NOT reload the page after a delete.
-  |
-  | The parent PI floor still has its original React workspace snapshot in
-  | memory, so React could try to paint a deleted prospect back onto the page
-  | during another state update. These sets act as a local tombstone list for
-  | the current Scout session so deleted cards stay gone until the user
-  | naturally refreshes/leaves later.
+  | Keep deleted prospects hidden for the rest of the current Scout session.
+  | The PI page may still have an older React snapshot in memory until its next
+  | workspace refresh, so this prevents a deleted card from flashing back.
   |--------------------------------------------------------------------------
   */
   const removedIdsRef =
@@ -378,7 +407,7 @@ export default function ScoutCleanupEnhancer() {
               );
           }
         } catch {
-          // Keep enhancer non-blocking.
+          // Never allow this helper to crash the PI floor.
         } finally {
           loadingRef.current =
             false;
@@ -408,15 +437,17 @@ export default function ScoutCleanupEnhancer() {
             );
 
           /*
-          | If React repaints a card deleted during this Scout session, remove
-          | it immediately instead of making the user leave/reopen Scout.
+          | React may recreate a card after switching filters.
+          | Hide it again, but never structurally remove it.
           */
           if (
             removedFirmNamesRef.current.has(
               firmName
             )
           ) {
-            card.remove();
+            hideReactOwnedCard(
+              card
+            );
             continue;
           }
 
@@ -445,7 +476,9 @@ export default function ScoutCleanupEnhancer() {
               prospect.id
             )
           ) {
-            card.remove();
+            hideReactOwnedCard(
+              card
+            );
             continue;
           }
 
@@ -558,13 +591,10 @@ export default function ScoutCleanupEnhancer() {
                 ) {
                   throw new Error(
                     data?.error ||
-                    "Unable to remove this Scout prospect."
+                    "Unable to remove Scout prospect."
                   );
                 }
 
-                /*
-                | Tombstone locally first so React cannot visually restore it.
-                */
                 removedIdsRef.current.add(
                   prospect.id
                 );
@@ -583,9 +613,7 @@ export default function ScoutCleanupEnhancer() {
                   );
 
                 /*
-                | Smoothly remove ONLY this card. No location.reload().
-                | Scout stays open, scroll position stays intact, filters stay
-                | intact, and the user can immediately delete the next record.
+                | Hide only. Do not remove React's DOM node.
                 */
                 card.classList.add(
                   styles.cardRemoving
@@ -593,18 +621,21 @@ export default function ScoutCleanupEnhancer() {
 
                 window.setTimeout(
                   () => {
-                    card.remove();
+                    hideReactOwnedCard(
+                      card
+                    );
                   },
-                  170
+                  150
                 );
 
                 showCleanupToast(
-                  `${firm} removed. Keep cleaning Scout.`
+                  `${firm} removed. Scout stays open.`
                 );
 
                 /*
-                | Pull the fresh backend workspace silently. This reconciles
-                | our local matcher without changing the open workstation.
+                | Reconcile the helper's backend snapshot without navigating,
+                | reloading, closing Scout, resetting its filter, or touching
+                | React's ownership of the referral grid.
                 */
                 window.setTimeout(
                   () => {
@@ -662,6 +693,11 @@ export default function ScoutCleanupEnhancer() {
           }
         );
 
+      /*
+      | Watch React rerenders (including Researching -> New filter changes).
+      | The observer only reapplies presentation/enhancement state and never
+      | deletes React-owned structural nodes.
+      */
       const observer =
         new MutationObserver(
           () => {

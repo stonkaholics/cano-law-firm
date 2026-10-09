@@ -49,8 +49,21 @@
   transform: scale(0.985) translateY(-2px) !important;
   pointer-events: none !important;
   transition:
-    opacity 160ms ease,
-    transform 160ms ease !important;
+    opacity 150ms ease,
+    transform 150ms ease !important;
+}
+
+/*
+|--------------------------------------------------------------------------
+| SAFE DELETE STATE
+|--------------------------------------------------------------------------
+|
+| Never physically remove the article node from React's DOM.
+| Hide it instead so future filter changes can reconcile normally.
+|--------------------------------------------------------------------------
+*/
+.cardDeleted {
+  display: none !important;
 }
 
 .cleanupToast {
