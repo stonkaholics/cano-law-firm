@@ -137,9 +137,6 @@ function referralMatch(
       null;
   }
 
-  /*
-  | Disambiguate same-name firms by matching the rendered card location.
-  */
   const cardText =
     normalize(
       card.textContent
@@ -247,6 +244,62 @@ function trashSvg() {
   `;
 }
 
+function showCleanupToast(
+  message:
+    string
+) {
+  const existing =
+    document.querySelector<HTMLElement>(
+      '[data-scout-cleanup-toast="true"]'
+    );
+
+  existing?.remove();
+
+  const toast =
+    document.createElement(
+      "div"
+    );
+
+  toast.dataset.scoutCleanupToast =
+    "true";
+
+  toast.className =
+    styles.cleanupToast;
+
+  toast.innerHTML = `
+    <span class="${styles.cleanupToastDot}"></span>
+    <span>${message}</span>
+  `;
+
+  document.body.appendChild(
+    toast
+  );
+
+  requestAnimationFrame(
+    () => {
+      toast.classList.add(
+        styles.cleanupToastVisible
+      );
+    }
+  );
+
+  window.setTimeout(
+    () => {
+      toast.classList.remove(
+        styles.cleanupToastVisible
+      );
+
+      window.setTimeout(
+        () => {
+          toast.remove();
+        },
+        180
+      );
+    },
+    2200
+  );
+}
+
 export default function ScoutCleanupEnhancer() {
   const referralsRef =
     useRef<
@@ -256,6 +309,30 @@ export default function ScoutCleanupEnhancer() {
   const loadingRef =
     useRef(
       false
+    );
+
+  /*
+  |--------------------------------------------------------------------------
+  | KEEP SCOUT OPEN WHILE CLEANING
+  |--------------------------------------------------------------------------
+  |
+  | We intentionally do NOT reload the page after a delete.
+  |
+  | The parent PI floor still has its original React workspace snapshot in
+  | memory, so React could try to paint a deleted prospect back onto the page
+  | during another state update. These sets act as a local tombstone list for
+  | the current Scout session so deleted cards stay gone until the user
+  | naturally refreshes/leaves later.
+  |--------------------------------------------------------------------------
+  */
+  const removedIdsRef =
+    useRef(
+      new Set<string>()
+    );
+
+  const removedFirmNamesRef =
+    useRef(
+      new Set<string>()
     );
 
   const loadReferrals =
@@ -293,13 +370,15 @@ export default function ScoutCleanupEnhancer() {
             )
           ) {
             referralsRef.current =
-              data.referrals;
+              data.referrals.filter(
+                (row) =>
+                  !removedIdsRef.current.has(
+                    row.id
+                  )
+              );
           }
         } catch {
-          /*
-          | The normal PI workspace already surfaces load errors.
-          | This enhancer stays silent so it never breaks the floor.
-          */
+          // Keep enhancer non-blocking.
         } finally {
           loadingRef.current =
             false;
@@ -314,12 +393,6 @@ export default function ScoutCleanupEnhancer() {
         const referrals =
           referralsRef.current;
 
-        if (
-          !referrals.length
-        ) {
-          return;
-        }
-
         const cards =
           findScoutCards();
 
@@ -327,9 +400,35 @@ export default function ScoutCleanupEnhancer() {
           const card of
           cards
         ) {
+          const firmName =
+            normalize(
+              firmNameFromCard(
+                card
+              )
+            );
+
+          /*
+          | If React repaints a card deleted during this Scout session, remove
+          | it immediately instead of making the user leave/reopen Scout.
+          */
+          if (
+            removedFirmNamesRef.current.has(
+              firmName
+            )
+          ) {
+            card.remove();
+            continue;
+          }
+
           removePhonePlaceholders(
             card
           );
+
+          if (
+            !referrals.length
+          ) {
+            continue;
+          }
 
           const prospect =
             referralMatch(
@@ -338,6 +437,15 @@ export default function ScoutCleanupEnhancer() {
             );
 
           if (!prospect) {
+            continue;
+          }
+
+          if (
+            removedIdsRef.current.has(
+              prospect.id
+            )
+          ) {
+            card.remove();
             continue;
           }
 
@@ -455,18 +563,52 @@ export default function ScoutCleanupEnhancer() {
                 }
 
                 /*
-                | Remove immediately for a clean visual response, then reload
-                | so counts / filters / workspace state all reconcile.
+                | Tombstone locally first so React cannot visually restore it.
                 */
-                card.style.opacity =
-                  "0";
+                removedIdsRef.current.add(
+                  prospect.id
+                );
 
-                card.style.transform =
-                  "scale(.985)";
+                removedFirmNamesRef.current.add(
+                  normalize(
+                    prospect.organization_name
+                  )
+                );
+
+                referralsRef.current =
+                  referralsRef.current.filter(
+                    (row) =>
+                      row.id !==
+                      prospect.id
+                  );
+
+                /*
+                | Smoothly remove ONLY this card. No location.reload().
+                | Scout stays open, scroll position stays intact, filters stay
+                | intact, and the user can immediately delete the next record.
+                */
+                card.classList.add(
+                  styles.cardRemoving
+                );
 
                 window.setTimeout(
                   () => {
-                    window.location.reload();
+                    card.remove();
+                  },
+                  170
+                );
+
+                showCleanupToast(
+                  `${firm} removed. Keep cleaning Scout.`
+                );
+
+                /*
+                | Pull the fresh backend workspace silently. This reconciles
+                | our local matcher without changing the open workstation.
+                */
+                window.setTimeout(
+                  () => {
+                    void loadReferrals();
                   },
                   250
                 );
@@ -487,23 +629,21 @@ export default function ScoutCleanupEnhancer() {
                   error instanceof
                   Error
                     ? error.message
-                    : "Unable to remove this Scout prospect."
+                    : "Unable to remove Scout prospect."
                 );
               }
             }
           );
 
-          /*
-          | Put cleanup control beside the existing relationship status and
-          | Draft Outreach controls.
-          */
           footer.insertBefore(
             removeButton,
             footer.lastElementChild
           );
         }
       },
-      []
+      [
+        loadReferrals,
+      ]
     );
 
   useEffect(

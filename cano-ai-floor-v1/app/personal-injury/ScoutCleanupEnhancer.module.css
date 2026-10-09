@@ -43,3 +43,52 @@
   background: rgba(224, 191, 133, 0.035);
   color: #c8aa73;
 }
+
+.cardRemoving {
+  opacity: 0 !important;
+  transform: scale(0.985) translateY(-2px) !important;
+  pointer-events: none !important;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease !important;
+}
+
+.cleanupToast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 999999;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(440px, calc(100vw - 44px));
+  padding: 11px 14px;
+  border: 1px solid rgba(81, 218, 166, 0.25);
+  border-radius: 10px;
+  background: rgba(7, 24, 31, 0.97);
+  box-shadow:
+    0 18px 55px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  color: #cfe9df;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.cleanupToastVisible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.cleanupToastDot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 999px;
+  background: #52dca7;
+  box-shadow: 0 0 12px rgba(82, 220, 167, 0.72);
+}
