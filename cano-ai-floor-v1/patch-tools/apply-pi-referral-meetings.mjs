@@ -100,13 +100,63 @@ if (
       oldStart,
       newStart
     );
+}
+
+/*
+|--------------------------------------------------------------------------
+| RUN ORBIT
+|--------------------------------------------------------------------------
+|
+| Orbit is now app-native for scheduling:
+| Calendly API → webhook/recovery sync → Titan CalDAV → Supabase → Orbit UI.
+|
+| Do NOT send Run Orbit through the generic PI n8n agent router.
+|--------------------------------------------------------------------------
+*/
+
+const oldClick =
+`onClick={() =>
+                    selectedAgent.id === "medintel" || selectedAgent.runnable === false
+                      ? undefined
+                      : runPiAgent(selectedAgent.id as any, {
+                          mode: \`manual_\${selectedAgent.id}_run\`,
+                          geography: "Florida",
+                          requestedFrom: "agent_workstation",
+                        })
+                  }`;
+
+const newClick =
+`onClick={() =>
+                    selectedAgent.id === "medintel" || selectedAgent.runnable === false
+                      ? undefined
+                      : selectedAgent.id === "orbit"
+                      ? window.dispatchEvent(
+                          new CustomEvent("cano-orbit-run")
+                        )
+                      : runPiAgent(selectedAgent.id as any, {
+                          mode: \`manual_\${selectedAgent.id}_run\`,
+                          geography: "Florida",
+                          requestedFrom: "agent_workstation",
+                        })
+                  }`;
+
+if (
+  source.includes(
+    oldClick
+  )
+) {
+  source =
+    source.replace(
+      oldClick,
+      newClick
+    );
 } else if (
   !source.includes(
-    '<ReferralMeetingWorkstation />'
+    'new CustomEvent("cano-orbit-run")'
   )
 ) {
   throw new Error(
-    "Could not find Scout/Bridge/Reach/Orbit workstation routing anchor."
+    "Could not find PI agent Run button anchor for Orbit."
   );
 }
 
@@ -116,5 +166,5 @@ fs.writeFileSync(
 );
 
 console.log(
-  "Applied PI referral meeting / Orbit workstation patch."
+  "Applied PI Orbit Calendly/Titan workstation + native Run Orbit patch."
 );

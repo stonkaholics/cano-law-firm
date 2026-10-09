@@ -180,9 +180,14 @@ export default function ReferralMeetingWorkstation() {
   ] =
     useState("");
 
-  async function load() {
+  async function load(
+    preserveMessage = false
+  ) {
     setLoading(true);
-    setMessage("");
+
+    if (!preserveMessage) {
+      setMessage("");
+    }
 
     try {
       const response =
@@ -230,8 +235,161 @@ export default function ReferralMeetingWorkstation() {
     }
   }
 
+  async function syncCalendly(
+    source = "manual"
+  ) {
+    if (action) {
+      return;
+    }
+
+    setAction(
+      "sync_calendly"
+    );
+
+    setMessage(
+      source === "open"
+        ? "Checking Calendly and Titan…"
+        : "Orbit is checking Calendly, Titan Calendar, and the meeting queue…"
+    );
+
+    try {
+      /*
+      |--------------------------------------------------------------------------
+      | SELF-HEALING WEBHOOK SETUP
+      |--------------------------------------------------------------------------
+      |
+      | Opening/running Orbit makes sure the Calendly webhook exists. This means
+      | the user does not need to manually POST the bootstrap endpoint.
+      |--------------------------------------------------------------------------
+      */
+
+      const bootstrap =
+        await fetch(
+          "/api/pi/referral-meetings/calendly/bootstrap",
+          {
+            method:
+              "POST",
+            cache:
+              "no-store",
+          }
+        );
+
+      const bootstrapData =
+        await bootstrap.json();
+
+      if (
+        !bootstrap.ok ||
+        bootstrapData
+          ?.ok === false
+      ) {
+        throw new Error(
+          bootstrapData
+            ?.error ||
+          "Calendly webhook setup failed."
+        );
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | RECOVERY / POLL SYNC
+      |--------------------------------------------------------------------------
+      |
+      | This immediately imports meetings that were already booked before the
+      | webhook existed, then the webhook handles future bookings in real time.
+      |--------------------------------------------------------------------------
+      */
+
+      const sync =
+        await fetch(
+          "/api/pi/referral-meetings/calendly/sync",
+          {
+            method:
+              "POST",
+            cache:
+              "no-store",
+          }
+        );
+
+      const syncData =
+        await sync.json();
+
+      if (
+        !sync.ok ||
+        syncData?.ok ===
+          false
+      ) {
+        throw new Error(
+          syncData?.error ||
+          "Calendly meeting sync failed."
+        );
+      }
+
+      await load(
+        true
+      );
+
+      const recovered =
+        Number(
+          syncData
+            ?.recovered ||
+          0
+        );
+
+      const failed =
+        Number(
+          syncData
+            ?.failed ||
+          0
+        );
+
+      setMessage(
+        recovered > 0
+          ? `Orbit synced ${recovered} referral meeting${
+              recovered === 1
+                ? ""
+                : "s"
+            }. Calendly webhook is active and Titan sync was processed.${
+              failed
+                ? ` ${failed} item(s) need review.`
+                : ""
+            }`
+          : "Orbit is synced. Calendly webhook is active and there are no new referral meetings to import."
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Orbit sync failed."
+      );
+    } finally {
+      setAction("");
+    }
+  }
+
   useEffect(() => {
-    void load();
+    void syncCalendly(
+      "open"
+    );
+
+    const handler =
+      () => {
+        void syncCalendly(
+          "run_button"
+        );
+      };
+
+    window.addEventListener(
+      "cano-orbit-run",
+      handler
+    );
+
+    return () => {
+      window.removeEventListener(
+        "cano-orbit-run",
+        handler
+      );
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const selected =
@@ -370,7 +528,9 @@ export default function ReferralMeetingWorkstation() {
             styles.refreshButton
           }
           onClick={() =>
-            void load()
+            void syncCalendly(
+              "refresh"
+            )
           }
           disabled={
             loading
@@ -384,7 +544,7 @@ export default function ReferralMeetingWorkstation() {
                 : ""
             }
           />
-          Refresh
+          Sync Calendly
         </button>
       </header>
 
@@ -446,6 +606,14 @@ export default function ReferralMeetingWorkstation() {
               : "Setup"}
           </strong>
         </div>
+      </div>
+
+      <div
+        className={
+          styles.syncNote
+        }
+      >
+        Orbit does not need the general PI n8n router to capture meetings. Opening or running Orbit now verifies the Calendly webhook, recovers any missed bookings, checks Titan Calendar, and builds the meeting record automatically.
       </div>
 
       {message ? (

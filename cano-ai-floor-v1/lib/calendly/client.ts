@@ -247,3 +247,64 @@ export async function getCalendlyAvailableTimes(input: {
     ? data.collection
     : [];
 }
+
+
+export async function listCalendlyScheduledEvents(input: {
+  userUri: string;
+  minStartTime: string;
+  maxStartTime: string;
+}) {
+  const params =
+    new URLSearchParams({
+      user:
+        input.userUri,
+      status:
+        "active",
+      min_start_time:
+        input.minStartTime,
+      max_start_time:
+        input.maxStartTime,
+      count:
+        "100",
+      sort:
+        "start_time:asc",
+    });
+
+  const data =
+    await calendlyFetch<any>(
+      `/scheduled_events?${params.toString()}`
+    );
+
+  return Array.isArray(
+    data?.collection
+  )
+    ? data.collection
+    : [];
+}
+
+export async function listCalendlyEventInvitees(
+  eventUri: string
+) {
+  const eventId =
+    clean(eventUri)
+      .split("/")
+      .filter(Boolean)
+      .pop();
+
+  if (!eventId) {
+    return [];
+  }
+
+  const data =
+    await calendlyFetch<any>(
+      `/scheduled_events/${encodeURIComponent(
+        eventId
+      )}/invitees?count=100`
+    );
+
+  return Array.isArray(
+    data?.collection
+  )
+    ? data.collection
+    : [];
+}

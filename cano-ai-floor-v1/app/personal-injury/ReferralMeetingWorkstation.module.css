@@ -458,3 +458,13 @@
     grid-template-columns:1fr
   }
 }
+
+.syncNote{
+  padding:10px 12px;
+  border:1px solid rgba(93,167,213,.12);
+  border-radius:8px;
+  background:rgba(37,92,121,.035);
+  color:#8194a8;
+  font-size:11px;
+  line-height:1.5
+}
