@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import ReachWorkstationBridge from "./ReachWorkstation";
 import GuardWorkstationBridge from "./GuardWorkstation";
 import ScoutDiscoveryEnhancer from "./ScoutDiscoveryEnhancer";
+import ScoutCleanupEnhancer from "./ScoutCleanupEnhancer";
 
 export default function PersonalInjuryLayout({
   children,
@@ -17,6 +18,7 @@ export default function PersonalInjuryLayout({
         Nothing here changes the Immigration floor.
       */}
       <ScoutDiscoveryEnhancer />
+      <ScoutCleanupEnhancer />
       <ReachWorkstationBridge />
       <GuardWorkstationBridge />
     </>

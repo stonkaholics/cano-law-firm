@@ -1,0 +1,45 @@
+.removeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 29px;
+  padding: 6px 9px;
+  border: 1px solid rgba(215, 104, 113, 0.20);
+  border-radius: 7px;
+  background: rgba(215, 104, 113, 0.035);
+  color: #b9787e;
+  font-size: 7px;
+  font-weight: 850;
+  letter-spacing: 0.015em;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.removeButton:hover:not(:disabled) {
+  border-color: rgba(225, 112, 121, 0.38);
+  background: rgba(225, 112, 121, 0.075);
+  color: #e0949b;
+  transform: translateY(-1px);
+}
+
+.removeButton:focus-visible {
+  outline: 2px solid rgba(225, 112, 121, 0.28);
+  outline-offset: 2px;
+}
+
+.removeButton:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.removeButtonWorking {
+  border-color: rgba(224, 191, 133, 0.18);
+  background: rgba(224, 191, 133, 0.035);
+  color: #c8aa73;
+}
