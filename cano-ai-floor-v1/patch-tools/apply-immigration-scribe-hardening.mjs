@@ -229,6 +229,19 @@ if (
 `    return ["research", "habeas", "bond", "synthesis", "qa"].flatMap((agentId) =>`
   );
 
+  // The specialist output authority schema is intentionally narrower than
+  // the source-trace metadata supported by this Scribe workstation.
+  // Widen only this locally assembled read-only authority list so existing
+  // SpecialistState interfaces and unrelated floors stay untouched.
+  if (!draft.includes("// SCRIBE_AUTHORITY_VIEW_V3")) {
+    draft = replaceRequired(
+      draft,
+      `      states[agentId]?.output?.authorities || []`,
+      `      (states[agentId]?.output?.authorities || []) as any[] // SCRIBE_AUTHORITY_VIEW_V3`,
+      "Scribe authority view extended metadata typing"
+    );
+  }
+
   draft =
     replaceRequired(
       draft,
