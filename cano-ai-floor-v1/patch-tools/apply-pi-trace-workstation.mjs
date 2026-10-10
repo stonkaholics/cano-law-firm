@@ -414,12 +414,10 @@ function TraceWorkstation({
       copy.sort(
         (a, b) =>
           new Date(
-            b.updated_at ||
             b.occurred_at ||
             0
           ).getTime() -
           new Date(
-            a.updated_at ||
             a.occurred_at ||
             0
           ).getTime()
@@ -807,7 +805,6 @@ function TraceWorkstation({
 
                         <small>
                           {formatDateTime(
-                            incident.updated_at ||
                             incident.occurred_at
                           )}
                         </small>
