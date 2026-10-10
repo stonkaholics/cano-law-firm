@@ -352,11 +352,11 @@ if (!authority.includes("function humanCourtLabel")) {
     authority,
 `function truncate(value: string, max = 7000) {
   const clean = stripHtml(value);
-  return clean.length > max ? \`${clean.slice(0, max)}…\` : clean;
+  return clean.length > max ? \`\${clean.slice(0, max)}…\` : clean;
 }`,
 `function truncate(value: string, max = 7000) {
   const clean = stripHtml(value);
-  return clean.length > max ? \`${clean.slice(0, max)}…\` : clean;
+  return clean.length > max ? \`\${clean.slice(0, max)}…\` : clean;
 }
 
 function humanCourtLabel(value: unknown) {
