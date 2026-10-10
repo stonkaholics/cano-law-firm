@@ -51,7 +51,7 @@ if (!source.includes("reportResearchTasks: ReportResearchTask[];")) {
   source = replaceRequired(
     source,
     "  incidentSources: IncidentSource[];\n  apolloBudget: ApolloBudget;",
-    "  incidentSources: IncidentSource[];\n  reportResearchTasks: ReportResearchTask[];\n  apolloBudget: ApolloBudget;",
+    "  incidentSources: IncidentSource[];\n  reportResearchTasks?: ReportResearchTask[];\n  apolloBudget: ApolloBudget;",
     "WorkspacePayload reportResearchTasks"
   );
 }
@@ -86,7 +86,7 @@ if (!source.includes("workspace.reportResearchTasks.length > 0")) {
   source = replaceRequired(
     source,
     "    workspace.incidentPeople.length > 0;",
-    "    workspace.incidentPeople.length > 0 ||\n    workspace.reportResearchTasks.length > 0;",
+    "    workspace.incidentPeople.length > 0 ||\n    (workspace.reportResearchTasks?.length || 0) > 0;",
     "realDataExists report tasks"
   );
 }
@@ -107,7 +107,7 @@ if (!source.includes("<RecordsWorkstation")) {
                 <MedIntelWorkstation />
               ) : selectedAgent.id === "records" ? (
                 <RecordsWorkstation
-                  reportResearchTasks={workspace.reportResearchTasks}
+                  reportResearchTasks={workspace.reportResearchTasks || []}
                   incidents={workspace.incidents}
                   incidentIntelligence={workspace.incidentIntelligence}
                   runningAgent={runningAgent}
@@ -171,7 +171,7 @@ function RecordsWorkstation({
   onRunRecords,
   onRefresh,
 }: {
-  reportResearchTasks: ReportResearchTask[];
+  reportResearchTasks?: ReportResearchTask[];
   incidents: IncidentWatch[];
   incidentIntelligence: IncidentIntelligence[];
   runningAgent: string | null;
@@ -227,11 +227,13 @@ function RecordsWorkstation({
   const resolutionOutcome = researchContext.agency_resolution_outcome || result.agency_resolution_outcome || {};
   const portalHandoff = result.portal_handoff || {};
 
-  const operatorInstructions = Array.isArray(result.operator_instructions)
-    ? result.operator_instructions
-    : Array.isArray(portalHandoff.lookup_instructions)
-    ? portalHandoff.lookup_instructions
-    : [];
+  const operatorInstructions: string[] = (
+    Array.isArray(result.operator_instructions)
+      ? result.operator_instructions
+      : Array.isArray(portalHandoff.lookup_instructions)
+      ? portalHandoff.lookup_instructions
+      : []
+  ).map((value: unknown) => String(value));
 
   const sourceUrl = String(
     officialReport.source_url ||
@@ -524,7 +526,7 @@ function RecordsWorkstation({
 
                 {operatorInstructions.length ? (
                   <ol>
-                    {operatorInstructions.slice(0, 8).map((instruction, index) => (
+                    {operatorInstructions.slice(0, 8).map((instruction: string, index: number) => (
                       <li key={String(index) + "-" + String(instruction)}>{String(instruction)}</li>
                     ))}
                   </ol>
