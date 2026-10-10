@@ -385,7 +385,7 @@ function RecordsWorkstation({
                     <strong>{String(taskFp.location || incident?.location || "Accident record")}</strong>
                     <p>{String(taskFp.county || incident?.county || "Florida")} · {task.provider || "Official records"}</p>
                     <div className={styles.recordsWsQueueMeta}>
-                      <em>{taskReportNo ? `REPORT ${taskReportNo}` : "REPORT ID PENDING"}</em>
+                      <em>{taskReportNo ? "REPORT " + taskReportNo : "REPORT ID PENDING"}</em>
                       <em>{String(task.next_action || "review").replace(/_/g, " ")}</em>
                     </div>
                   </button>
@@ -408,7 +408,7 @@ function RecordsWorkstation({
                 <div>
                   <span>SELECTED OFFICIAL-RECORD TASK</span>
                   <h3>{displayLocation}</h3>
-                  <p>{displayCounty}{displayDate ? ` · ${formatDateTime(displayDate)}` : ""}</p>
+                  <p>{displayCounty}{displayDate ? " · " + formatDateTime(displayDate) : ""}</p>
                 </div>
                 <div className={styles.recordsWsDetailActions}>
                   {isSafeHttpUrl ? (
@@ -448,7 +448,7 @@ function RecordsWorkstation({
                 <div>
                   <span>INVESTIGATING AGENCY</span>
                   <strong>{agency || "Not verified"}</strong>
-                  <small>{agencyVerified ? "officially verified" : bestCandidate ? `Best candidate: ${bestCandidate}` : "resolution pending"}</small>
+                  <small>{agencyVerified ? "officially verified" : bestCandidate ? "Best candidate: " + bestCandidate : "resolution pending"}</small>
                 </div>
                 <div>
                   <span>CRASH REPORT #</span>
@@ -462,7 +462,7 @@ function RecordsWorkstation({
                 </div>
                 <div>
                   <span>VALIDATION</span>
-                  <strong>{validationConfidence ? `${validationConfidence}%` : reportVerified ? "Verified" : "Pending"}</strong>
+                  <strong>{validationConfidence ? String(validationConfidence) + "%" : reportVerified ? "Verified" : "Pending"}</strong>
                   <small>Records confidence</small>
                 </div>
                 <div>
@@ -502,7 +502,7 @@ function RecordsWorkstation({
                       <dt>Candidate confidence</dt>
                       <dd>
                         {Number(researchContext.best_agency_candidate_confidence || resolutionOutcome.candidate_confidence || 0)
-                          ? `${Math.round(Number(researchContext.best_agency_candidate_confidence || resolutionOutcome.candidate_confidence || 0) * 100)}%`
+                          ? String(Math.round(Number(researchContext.best_agency_candidate_confidence || resolutionOutcome.candidate_confidence || 0) * 100)) + "%"
                           : "—"}
                       </dd>
                     </div>
@@ -525,7 +525,7 @@ function RecordsWorkstation({
                 {operatorInstructions.length ? (
                   <ol>
                     {operatorInstructions.slice(0, 8).map((instruction, index) => (
-                      <li key={`${index}-${instruction}`}>{String(instruction)}</li>
+                      <li key={String(index) + "-" + String(instruction)}>{String(instruction)}</li>
                     ))}
                   </ol>
                 ) : (
