@@ -410,7 +410,7 @@ if (
                               {item.argument_heading ||
                                 item.argument ||
                                 item.proposition ||
-                                `Source chain ${index + 1}`}
+                                "Source chain " + (index + 1)}
                             </strong>
 
                             <p>
