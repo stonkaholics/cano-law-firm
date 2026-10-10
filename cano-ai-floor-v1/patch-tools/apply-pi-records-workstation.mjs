@@ -183,7 +183,7 @@ function RecordsWorkstation({
   const [selectedTaskId, setSelectedTaskId] = useState<string>("");
 
   const sortedTasks = useMemo(() => {
-    const copy = [...reportResearchTasks];
+    const copy = [...(reportResearchTasks || [])];
     copy.sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
     return copy;
   }, [reportResearchTasks]);
